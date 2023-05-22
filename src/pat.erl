@@ -26,6 +26,8 @@
 -define(ALLOW_VAR, allow_var).
 -define(ALLOW_LIT, allow_lit).
 
+%%-define(ALLOW_TYPE_PID, allow_type_pid).
+
 
 file(File) ->
   case epp:parse_file(File, []) of
@@ -54,6 +56,7 @@ format_err({Class, ANNO, Node}) ->
   ].
 
 
+
 err_msg(form) ->
   "form";
 err_msg(lit) ->
@@ -62,18 +65,28 @@ err_msg({pat, untagged_tuple}) ->
   "untagged tuple pattern";
 err_msg({pat, empty_tuple}) ->
   "empty tuple pattern";
+err_msg({pat, var}) ->
+  "variable pattern";
+err_msg({pat, lit}) ->
+  "literal pattern";
 err_msg(pat) ->
   "pattern";
 err_msg({expr, untagged_tuple}) ->
   "untagged tuple expression";
 err_msg({expr, empty_tuple}) ->
   "empty tuple expression";
+err_msg({expr, remote_call}) ->
+  "remote function call expression";
+err_msg({expr, indirect_call}) ->
+  "indirect function call expression";
 err_msg(expr) ->
   "expression";
 err_msg(clause) ->
   "clause";
 err_msg({type, var}) ->
-  "type variables";
+  "type variable";
+err_msg({type, built_in}) ->
+  "built-in type";
 err_msg(type) ->
   "type";
 err_msg(_) ->
@@ -126,12 +139,16 @@ check_form({attribute, ANNO, type, {Name, T, Vars}}, TSpecs, Errors)
 %%  io:format("Type name: ~p~n", [Name]),
 %%  io:format("Type: ~p~n", [T]),
 %%  io:format("Type vars ~p~n", [Vars]),
+
+  % Do not allow type variables.
   Errors0 =
     if [] =/= Vars ->
       [{{type, var}, ANNO, hd(Vars)} | Errors];
       true -> Errors
     end,
-  {TSpecs, check_type(T, Errors0)};
+
+  % Allow these built-in types.
+  {TSpecs, check_type(T, [{type, [integer, float, atom, string, pid]}], Errors0)};
 
 
 %% @private Errors and warnings.
@@ -500,36 +517,52 @@ check_clause_seq([Clause | Clauses], Opts, Errors) ->
 %% TODO: This is used only for checking but not to add types to the
 
 %% @private Atomic literal type.
-check_type(Type = {Lit, _, _}, Errors) when ?IS_LIT_TYPE(Lit) ->
+check_type(Type = {Lit, _, _}, _, Errors) when ?IS_LIT_TYPE(Lit) ->
   ?TRACE("Checking literal type: ~p", [Type]),
   check_lit(Type, Errors);
 
 %% TODO: Add pid and other basic types such as none.
 %% @private Built-in types.
-check_type(_Type = {type, _, N, Types}, Errors) when ?IS_LIT_TYPE(N) ->
-  ?TRACE("Checking built in type: ~p", [_Type]),
-  check_type_seq(Types, Errors);
+check_type(Type = {type, ANNO, N, Types}, Opts, Errors) when is_atom(N), N =/= union, N =/= tuple ->
+%%  when ?IS_LIT_TYPE(N) ->
+
+  ?TRACE("Checking built in type: ~p", [N]),
+  ?TRACE("Allowed built-ins: ~p", [proplists:get_value(type, Opts, [])]),
+  ?TRACE("Permitted: ~p", [lists:member(N, proplists:get_value(type, Opts, []))]),
+  Errors0 =
+    case lists:member(N, proplists:get_value(type, Opts, [])) of
+      true -> Errors;
+      false -> [{{type, built_in}, ANNO, Type} | Errors]
+    end,
+%%
+%%    case proplists:is_defined(?ALLOW_TYPE_PID, Opts) of
+%%      true -> Errors;
+%%      false -> [{{type, pid}, ANNO, Type} | Errors]
+%%    end,
+
+  check_type_seq(Types, Opts, Errors0);
 
 %% @private Type union.
-check_type({type, _, union, Types}, Errors) when is_list(Types) ->
-  check_type_seq(Types, Errors);
+check_type({type, _, union, Types}, Opts, Errors) when is_list(Types) ->
+  check_type_seq(Types, Opts, Errors);
 
 %% @private Type variable.
-check_type({var, _, Name}, Errors) when is_atom(Name) ->
+check_type({var, _, Name}, Opts, Errors) when is_atom(Name) ->
   Errors;
 
 %% @private User-defined type.
-check_type({user_type, _, N, Types}, Errors) when is_atom(N), is_list(Types) ->
-  check_type_seq(Types, Errors);
+check_type({user_type, _, N, Types}, Opts, Errors) when is_atom(N), is_list(Types) ->
+  check_type_seq(Types, Opts, Errors);
 
 %% @private Tuple type. Currently only tagged tuple with first element as an
 %% atom is supported. This encodes Erlang messages. The tagged tuple must have
 %% at least one element, which is the message tag itself.
-check_type({type, _, tuple, Types}, Errors) ->
+check_type({type, _, tuple, Types}, Opts, Errors) ->
 %%check_type({type, _, tuple, [Tag | Types]}, Errors) ->
 %%  when element(1, Tag) =:= atom ->
+  % TODO: Add the checking code here to accept only tagged tuples.
   ?TRACE("Checking tuple with types: ~p", [Types]),
-  check_type_seq(Types, Errors);
+  check_type_seq(Types, Opts, Errors);
 
 %% @private Unsupported types:
 %% - Annotated
@@ -553,22 +586,25 @@ check_type({type, _, tuple, Types}, Errors) ->
 %% - Map field association
 %% - Map field assignment
 %% - Record field
-check_type(Type, Errors) ->
+check_type(Type, _, Errors) ->
   [{type, element(2, Type), Type} | Errors].
 
 %% @private Type sequence.
-check_type_seq([], Errors) ->
+check_type_seq([], _, Errors) ->
   Errors;
-check_type_seq([Type | Types], Errors) ->
-  Errors0 = check_type(Type, Errors),
-  check_type_seq(Types, Errors0).
+check_type_seq([Type | Types], Opts, Errors) ->
+  Errors0 = check_type(Type, Opts, Errors),
+  check_type_seq(Types, Opts, Errors0).
 
-%% TODO: Potentially need to pass in the TSpecs.
+%% TODO: Potentially need to pass in the TSpecs to construct function types as well. We'll see.
 %% @private Function type. Currently only allowable in -spec.
 check_fun_type({type, _, 'fun', [{type, _, product, Types}, T_0]}, Errors)
   when is_list(Types) ->
-  Errors0 = check_type_seq(Types, Errors),
-  check_type(T_0, Errors0).
+
+  % Forbid PID parameter and return types. Only support these indirectly via
+  % user defined types.
+  Errors0 = check_type_seq(Types, [{type, [integer, float, atom, string, pid]}], Errors),
+  check_type(T_0, [{type, [integer, float, atom, string, pid]}], Errors0).
 
 %% @private Function type sequence. Currently only allowable in -spec.
 check_fun_type_seq([], Errors) ->
