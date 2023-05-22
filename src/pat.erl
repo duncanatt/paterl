@@ -26,7 +26,11 @@
 -define(ALLOW_VAR, allow_var).
 -define(ALLOW_LIT, allow_lit).
 
-%%-define(ALLOW_TYPE_PID, allow_type_pid).
+-define(LIT_TYPES, [integer, float, string, atom]).
+
+
+
+
 
 
 file(File) ->
@@ -266,6 +270,7 @@ check_pat(Pat = {tuple, ANNO, Pats}, Opts, Errors) when is_list(Pats) ->
 %% @private Variable pattern.
 check_pat(Pat = {var, ANNO, Name}, Opts, Errors) when is_atom(Name) ->
   ?TRACE("Checking VAR pattern ~p", [Pat]),
+  ?TRACE("Opts: ~p", [Opts]),
   case proplists:is_defined(?ALLOW_VAR, Opts) of
     true ->
       ?TRACE("VAR pattern ok"),
@@ -334,8 +339,8 @@ check_expr({'if', _, Clauses}, Errors) when is_list(Clauses) ->
 
 %% @private Match operator expression.
 check_expr({match, _, P, E_0}, Errors) ->
-  Errors0 = check_pat(P, true, Errors),
-  check_expr_seq(E_0, Errors0);
+  Errors0 = check_pat(P, [?ALLOW_VAR], Errors),
+  check_expr(E_0, Errors0);
 
 %% @private Binary operator expression.
 check_expr({op, _, Op, E_1, E_2}, Errors) ->
@@ -407,6 +412,7 @@ check_expr(Expr, Errors) ->
 check_expr_seq([], Errors) ->
   Errors;
 check_expr_seq([Expr | Exprs], Errors) ->
+  ?TRACE("Errors in check_expr_seq: ~p", [Errors]),
   Errors0 = check_expr(Expr, Errors),
   check_expr_seq(Exprs, Errors0).
 
