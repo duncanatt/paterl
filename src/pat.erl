@@ -26,6 +26,8 @@
 -define(ALLOW_VAR, allow_var).
 -define(ALLOW_LIT, allow_lit).
 
+% TODO: Define built_ins [].
+
 -define(LIT_TYPES, [integer, float, string, atom]).
 
 
@@ -40,7 +42,7 @@
 -define(E_GUARD, e_guard).
 -define(E_TYPE, e_type).
 
-%%% Specific error sub-classes.
+%%% Specific error sub-classes. or reasons
 -define(V_VAR, var).
 -define(V_LIT, lit).
 -define(V_BUILTIN, builtin).
@@ -51,6 +53,8 @@
 -define(V_INDIRECT, indirect).
 
 %% TODO: Macro handling errors.
+
+%%-define(pushError(Key, Reason, Loc, Errors), [Error | Errors]).
 
 file(File) ->
   case epp:parse_file(File, []) of
@@ -115,7 +119,11 @@ err_msg(?E_GUARD) ->
 err_msg({?E_TYPE, ?V_VAR}) ->
   "type variable";
 err_msg({?E_TYPE, ?V_BUILTIN}) ->
-  {"built-in type", "directly"};
+  {"built-in type", "here"};
+err_msg({?E_TYPE, ?V_UNTAGGED}) ->
+  "untagged tuple type";
+err_msg({?E_TYPE, ?V_EMPTY}) ->
+  "empty tuple type";
 err_msg(?E_TYPE) ->
   "type";
 err_msg(_) ->
@@ -654,7 +662,7 @@ check_type({user_type, _, N, Types}, Opts, Errors) when is_atom(N), is_list(Type
 %% @private Tuple type. Currently only tagged tuple with first element as an
 %% atom is supported. This encodes Erlang messages. The tagged tuple must have
 %% at least one element, which is the message tag itself.
-check_type({type, _, tuple, Types}, Opts, Errors) ->
+check_type(Type = {type, ANNO, tuple, Types}, Opts, Errors) ->
 %%check_type({type, _, tuple, [Tag | Types]}, Errors) ->
 %%  when element(1, Tag) =:= atom ->
   % TODO: Add the checking code here to accept only tagged tuples.
@@ -664,12 +672,21 @@ check_type({type, _, tuple, Types}, Opts, Errors) ->
 
 %%  case check_type_tuple()
 
-%%  case tuple_elems(Types) of
-%%    tagged ->
-%%
-%%  end,
+  Errors0 =
+  case tuple_elems(Types) of
+    tagged ->
 
-  check_type_seq(Types, Opts, Errors);
+      % Tagged tuple. Can be encoded as a Pat message.
+      Errors;
+    Other ->
+
+      % Empty or untagged tuple. Cannot be encoded as a Pat message.
+      [{{?E_TYPE, Other}, ANNO, Type} | Errors]
+  end,
+
+  % Check that rest of tuple elements are valid type specifications.
+  Types0 = if [] =:= Types -> []; true -> tl(Types) end,
+  check_type_seq(Types0, Opts, Errors0);
 
 %% @private Unsupported types:
 %% - Annotated
