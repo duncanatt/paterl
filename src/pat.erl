@@ -29,42 +29,36 @@
 -define(LIT_TYPES, [integer, float, string, atom]).
 
 
-
-
 %%% Top-level error classes. Each class corresponds to the Abstract Erlang
 %%% Format specification. Error classes are used to signal which Erlang
 %%% language constructs are unsupported by the Erlang-to-Pat translation.
--define(FORM, form).
--define(LIT, lit).
--define(PAT, pat).
--define(EXPR, expr).
--define(CLAUSE, clause).
--define(GUARD, guard).
--define(TYPE, type).
+-define(E_FORM, e_form).
+-define(E_LIT, e_lit).
+-define(E_PAT, e_pat).
+-define(E_EXPR, e_expr).
+-define(E_CLAUSE, e_clause).
+-define(E_GUARD, e_guard).
+-define(E_TYPE, e_type).
 
 %%% Specific error sub-classes.
--define(ILLEGAL_VAR, illegal_var).
--define(ILLEGAL_LIT, illegal_lit).
--define(ILLEGAL_BUILTIN, illegal_builtin).
--define(UNTAGGED_TUPLE, untagged_tuple).
--define(EMPTY_TUPLE, empty_tuple).
--define(REMOTE_CALL, remote_call).
--define(INDIRECT_CALL, indirect_call).
+-define(V_VAR, var).
+-define(V_LIT, lit).
+-define(V_BUILTIN, builtin).
+-define(V_TEST, test).
+-define(V_UNTAGGED, untagged).
+-define(V_EMPTY, empty).
+-define(V_REMOTE, remote).
+-define(V_INDIRECT, indirect).
 
+%% TODO: Macro handling errors.
 
 file(File) ->
   case epp:parse_file(File, []) of
     {ok, Forms} ->
       {TSpecs, Errors} = check_forms(Forms, #{}, []),
       io:format("Errors: ~p~n~n", [Errors]),
-%%      There is a problem with lists because the way I am building them is not a
-%%      proper list but an improper one that needs to be flattened. Rather than
-%%      flattening it, I'll build it correctly.
 
-%%      IoList = lists:foldr(
-%%        fun(Err, Acc) -> [[pat:format_err(Err), $\n] | Acc] end, [], Errors
-%%      ),
-
+      % Extract relative file name for error reporting.
       FName = lists:last(filename:split(File)),
       IoList = [[FName, pat:format_err(Error), $\n] || Error <- Errors],
       file:write(standard_error, IoList);
@@ -77,8 +71,6 @@ file(File) ->
 %%% Error handling and reporting.
 %%% ----------------------------------------------------------------------------
 
-%%src/pat.erl:552:21: Warning: variable 'Op' is unused
-
 format_err({Class, ANNO, Node}) ->
   Msg0 =
     case err_msg(Class) of
@@ -90,41 +82,41 @@ format_err({Class, ANNO, Node}) ->
   [$:, integer_to_list(ANNO), ": Error: ", Msg0, $', erl_prettypr:format(Node), $'].
 
 
-err_msg(form) ->
+err_msg(?E_FORM) ->
   "form";
-err_msg(lit) ->
+err_msg(?E_LIT) ->
   "literal";
-err_msg({pat, untagged_tuple}) ->
-  "untagged tuple pattern";
-err_msg({pat, empty_tuple}) ->
-  "empty tuple pattern";
-err_msg({pat, var}) ->
-  "variable pattern";
-err_msg({pat, lit}) ->
-  "literal pattern";
-err_msg(pat) ->
+err_msg({?E_PAT, ?V_UNTAGGED}) ->
+  {"untagged tuple", "in pattern"};
+err_msg({?E_PAT, ?V_EMPTY}) ->
+  {"empty tuple", "in pattern"};
+err_msg({?E_PAT, ?V_VAR}) ->
+  {"variable", "in pattern"};
+err_msg({?E_PAT, ?V_LIT}) ->
+  {"literal", "in pattern"};
+err_msg(?E_PAT) ->
   "pattern";
-err_msg({expr, untagged_tuple}) ->
+err_msg({?E_EXPR, ?V_UNTAGGED}) ->
   "untagged tuple expression";
-err_msg({expr, empty_tuple}) ->
+err_msg({?E_EXPR, ?V_EMPTY}) ->
   "empty tuple expression";
-err_msg({expr, remote_call}) ->
+err_msg({?E_EXPR, ?V_REMOTE}) ->
   "remote function call expression";
-err_msg({expr, indirect_call}) ->
+err_msg({?E_EXPR, ?V_INDIRECT}) ->
   "indirect function call expression";
-err_msg(expr) ->
+err_msg(?E_EXPR) ->
   "expression";
-err_msg(clause) ->
+err_msg(?E_CLAUSE) ->
   "clause";
-err_msg({guard, test}) -> % Should be {guard, test}
+err_msg({?E_GUARD, ?V_TEST}) ->
   "guard test";
-err_msg(guard) ->
+err_msg(?E_GUARD) ->
   "second guard test";
-err_msg({type, var}) ->
+err_msg({?E_TYPE, ?V_VAR}) ->
   "type variable";
-err_msg({type, built_in}) ->
-  "built-in type";
-err_msg(type) ->
+err_msg({?E_TYPE, ?V_BUILTIN}) ->
+  {"built-in type", "directly"};
+err_msg(?E_TYPE) ->
   "type";
 err_msg(_) ->
   "unknown error".
@@ -181,12 +173,12 @@ check_form({attribute, ANNO, type, {Name, T, Vars}}, TSpecs, Errors)
   % Do not allow type variables.
   Errors0 =
     if [] =/= Vars ->
-      [{{type, var}, ANNO, hd(Vars)} | Errors];
+      [{{?E_TYPE, ?V_VAR}, ANNO, hd(Vars)} | Errors];
       true -> Errors
     end,
 
-  % Allow these built-in types.
-  {TSpecs, check_type(T, [{type, [integer, float, atom, string, pid]}], Errors0)};
+  % Allow only these built-in types.
+  {TSpecs, check_type(T, [{type, [pid | ?LIT_TYPES]}], Errors0)};
 
 
 %% @private Errors and warnings.
@@ -222,7 +214,7 @@ check_form({attribute, _, Name, Sigs}, TSpecs, Errors)
 %% - Opaque type
 %% - Wild attribute
 check_form(Form, TSpecs, Errors) ->
-  {TSpecs, [{form, element(2, Form), Form} | Errors]}.
+  {TSpecs, [{?E_FORM, element(2, Form), Form} | Errors]}.
 
 
 %%% ----------------------------------------------------------------------------
@@ -232,7 +224,7 @@ check_form(Form, TSpecs, Errors) ->
 check_lit({Type, _, _}, Errors) when ?IS_LIT_TYPE(Type) ->
   Errors;
 check_lit(Lit, Errors) ->
-  [{lit, element(2, Lit), Lit} | Errors].
+  [{?E_LIT, element(2, Lit), Lit} | Errors].
 
 
 %%% ----------------------------------------------------------------------------
@@ -251,7 +243,7 @@ check_pat(Pat = {Type, ANNO, _}, Opts, Errors) when ?IS_LIT_TYPE(Type) ->
   Errors0 =
     case proplists:is_defined(?ALLOW_LIT, Opts) of
       true -> Errors;
-      false -> [{{pat, lit}, ANNO, Pat} | Errors]
+      false -> [{{?E_PAT, ?V_LIT}, ANNO, Pat} | Errors]
     end,
 
 %%  Errors0 =
@@ -283,23 +275,38 @@ check_pat(Pat = {tuple, ANNO, Pats}, Opts, Errors) when is_list(Pats) ->
 % But this must be made specific with the first element as an atom.
 
   ?TRACE("Checking TUPLE pattern: ~p", [Pat]),
-  {Pats0, Errors0} =
-    case check_tuple(Pat) of
-      ok ->
-        % Tagged tuple. Check that rest of elements are variables only.
-        ?TRACE("TUPLE pattern valid"),
-        {tl(Pats), Errors}; % Pass on the rest of the tuple elements
-      empty_tuple ->
-        % Empty tuple.
-        ?TRACE("TUPLE pattern empty"),
-        {Pats, [{{pat, empty_tuple}, ANNO, Pat} | Errors]};
-      Error ->
-        % Untagged tuple. Check that rest of elements are variables only.
-        ?TRACE("TUPLE pattern does not have a tag"),
-        {tl(Pats), [{{pat, Error}, ANNO, Pat} | Errors]}
+%%  {Pats0, Errors0} =
+%%    case check_tuple(Pat) of
+%%      ok ->
+%%        % Tagged tuple. Check that rest of elements are variables only.
+%%        ?TRACE("TUPLE pattern valid"),
+%%        {tl(Pats), Errors}; % Pass on the rest of the tuple elements
+%%      ?EMPTY_TUPLE ->
+%%        % Empty tuple.
+%%        ?TRACE("TUPLE pattern empty"),
+%%        {Pats, [{{?PAT, ?EMPTY_TUPLE}, ANNO, Pat} | Errors]};
+%%      Error ->
+%%        % Untagged tuple. Check that rest of elements are variables only.
+%%        ?TRACE("TUPLE pattern does not have a tag"),
+%%        {tl(Pats), [{{?PAT, Error}, ANNO, Pat} | Errors]}
+%%    end,
+
+  Errors0 =
+    case tuple_elems(Pats) of
+      tagged ->
+
+        % Tagged tuple. Can be encoded as a Pat message pattern.
+        Errors;
+      Other ->
+
+        % Empty or untagged tuple. Cannot be encoded as a Pat message pattern.
+        [{{?E_EXPR, Other}, ANNO, Pat} | Errors]
     end,
-%%  check_pat_seq(Pats0, [?ALLOW_VAR], Errors0); % For instance, here I need to allow variables but not literals.
-  check_pat_seq(Pats0, [?ALLOW_VAR | Opts], Errors0); % For instance, here I need to allow variables but not literals.
+
+  % Pat does not support implicit pattern matches in messages. Check that rest
+  % of tuple elements are strictly pattern variables.
+  Pats0 = if [] =:= Pats -> []; true -> tl(Pats) end,
+  check_pat_seq(Pats0, [?ALLOW_VAR | Opts], Errors0); %TODO: See whether these ALLOW** flags can be improved.
 
 %% @private Variable pattern.
 check_pat(Pat = {var, ANNO, Name}, Opts, Errors) when is_atom(Name) ->
@@ -311,10 +318,8 @@ check_pat(Pat = {var, ANNO, Name}, Opts, Errors) when is_atom(Name) ->
       Errors;
     false ->
       ?TRACE("VAR pattern disallowed"),
-      [{{pat, var}, ANNO, Pat} | Errors]
+      [{{?E_PAT, ?V_VAR}, ANNO, Pat} | Errors]
   end;
-%%,
-%%  Errors;
 
 %% @private Unsupported patterns:
 %% - Bitstring
@@ -326,7 +331,7 @@ check_pat(Pat = {var, ANNO, Name}, Opts, Errors) when is_atom(Name) ->
 %% - Tuple
 %% - Universal (i.e., _)
 check_pat(Pat, _, Errors) ->
-  [{pat, element(2, Pat), Pat} | Errors].
+  [{?E_PAT, element(2, Pat), Pat} | Errors].
 
 %% @private Pattern sequence.
 check_pat_seq([], _, Errors) ->
@@ -352,15 +357,26 @@ check_expr(Expr = {Name, _, _}, Errors) when ?IS_LIT_TYPE(Name) ->
 check_expr(Expr = {call, ANNO, E_0, Exprs}, Errors) when is_list(Exprs) ->
 %%  when not is_tuple(E_0), is_list(Exprs) ->
 
-  Errors0 =
-    case check_fun_call(Expr) of
-      ok ->
-%%        check_expr(E_0, Errors),
-        Errors;
-      Error ->
-        [{{expr, Error}, ANNO, Expr} | Errors]
-    end,
+%%  Errors0 =
+%%    case check_fun_call(Expr) of
+%%      ok ->
+%%%%        check_expr(E_0, Errors),
+%%        Errors;
+%%      Error ->
+%%        [{{?EXPR, Error}, ANNO, Expr} | Errors]
+%%    end,
 
+  Errors0 =
+    case fun_call_type(E_0) of
+      local ->
+
+        % Local function call.
+        Errors;
+      Other ->
+
+        % Remote or indirect function call not supported by Pat.
+        [{{?E_EXPR, Other}, ANNO, Expr} | Errors]
+    end,
   ?INFO("-- Function call ~p", [Expr]),
 %%  Errors0 = check_expr(E_0, Errors), % Evaluates to a function name or a remote call.
   check_expr_seq(Exprs, Errors0);
@@ -394,15 +410,29 @@ check_expr(_Expr = {'receive', _, Clauses}, Errors) when is_list(Clauses) ->
 
 %% @private Tuple expression. Currently only tagged tuple expressions accepted.
 check_expr(Expr = {tuple, ANNO, Exprs}, Errors) when is_list(Exprs) ->
+%%  Errors0 =
+%%    case check_tuple(Expr) of
+%%      ok ->
+%%        Errors;
+%%      Error ->
+%%        [{{?EXPR, Error}, ANNO, Expr} | Errors]
+%%    end,
   Errors0 =
-    case check_tuple(Expr) of
-      ok ->
-        Errors;
-      Error ->
-        [{{expr, Error}, ANNO, Expr} | Errors]
-    end,
-  check_expr_seq(Exprs, Errors0);
+    case tuple_elems(Exprs) of
+      tagged ->
 
+        % Tagged tuple. Can be encoded as a Pat message expression.
+        Errors;
+      Other ->
+
+        % Empty or untagged tuple. Cannot be encoded as a Pat message expression.
+        [{{?E_EXPR, Other}, ANNO, Expr} | Errors]
+    end, %TODO: Check whether we also need to check that the other elements are
+  %  only variables. Perform a simple test to see that we cannot have hardcoded atoms for instance.
+
+  % Check that rest of tuple elements are valid expressions.
+  Exprs0 = if [] =:= Exprs -> []; true -> tl(Exprs) end,
+  check_expr_seq(Exprs0, Errors0);
 
 %% @private Variable expression.
 check_expr({var, _, Name}, Errors) when is_atom(Name) ->
@@ -432,7 +462,7 @@ check_expr({var, _, Name}, Errors) when is_atom(Name) ->
 %% - Record field access
 %% - Record field index
 %% - Record update
-%% - Tuple skeleton %% TODO Should be supported to send messages, but partially with just a tag, not any tuple!
+%% - Tuple skeleton (non-tagged)
 %% - Try-catch
 %% - Try-of-catch
 %% - Try-after
@@ -440,7 +470,7 @@ check_expr({var, _, Name}, Errors) when is_atom(Name) ->
 %% - Try-catch-after
 %% - Try-of-catch-after
 check_expr(Expr, Errors) ->
-  [{expr, element(2, Expr), Expr} | Errors].
+  [{?E_EXPR, element(2, Expr), Expr} | Errors].
 
 %% @private Expression sequence.
 check_expr_seq([], Errors) ->
@@ -451,44 +481,9 @@ check_expr_seq([Expr | Exprs], Errors) ->
   check_expr_seq(Exprs, Errors0).
 
 
-%%tuple_shape(Tuple = {tuple, ANNO, Elems = [{atom, _, _} | Exprs]}) ->
-%%%%  ?INFO("Tuple elements: ~p", [Elems]),
-%%  ok;
-%%tuple_shape({tuple, ANNO, []}) ->
-%%%%  ?ERROR("--- We have an empty tuple"),
-%%  empty;
-%%tuple_shape(_) ->
-%%  untagged.
-
-
-check_tuple({tuple, _, [{atom, _, _} | _]}) ->
-  ok;
-check_tuple({tuple, _, []}) ->
-  empty_tuple;
-check_tuple({tuple, _, _}) ->
-  untagged_tuple.
-
-
-check_receive_clause_seq() ->
-  ok.
-
-check_fun_call({call, _, {atom, _, _}, _}) ->
-  ok;
-check_fun_call({call, _, {remote, _, _, _}, _}) ->
-  remote_call;
-check_fun_call({call, _, _, _}) ->
-  indirect_call.
-
-%%{tuple, 59, []},
-%%{tuple, 60, [{atom, 60, hello}]},
-%%{tuple, 61, [{atom, 61, there}, {integer, 61, 5}]},
-%%{tuple, 62, [{integer, 62, 5}]},
-%%{tuple, 63, [{'fun', 63, {clauses, [{clause, 63, [], [], [{atom, 63, ok}]}]}}]}
-
 %%% ----------------------------------------------------------------------------
 %%% Clauses.
 %%% ----------------------------------------------------------------------------
-
 
 %% @private Case clause.
 check_clause(_Clause = {clause, _, [P], [], B}, Opts, Errors) ->
@@ -511,8 +506,7 @@ check_clause(_Clause = {clause, _, Ps, [], B}, Opts, Errors) ->
 %%  check_expr_seq(B, Errors1);
 %%
 
-%%% TODO: Consider removing this since Pat does not support Erlang-style guards. NO Should be here, test IF condition.
-%%%% @private If clause.
+%% @private If clause.
 check_clause({clause, _, [], Gs, B}, Opts, Errors) ->
   Errors0 = check_guard_seq(Gs, Errors),
   check_expr_seq(B, Errors0);
@@ -527,7 +521,7 @@ check_clause({clause, _, [], Gs, B}, Opts, Errors) ->
 %% - Catch clause with pattern, variable, and guard sequence
 %% - Function clause with guard sequence
 check_clause(Clause, _, Errors) ->
-  [{clause, element(2, Clause), Clause} | Errors].
+  [{?E_CLAUSE, element(2, Clause), Clause} | Errors].
 
 %% @private Clause sequence.
 check_clause_seq([], _, Errors) ->
@@ -538,7 +532,8 @@ check_clause_seq([Clause | Clauses], Opts, Errors) ->
 
 
 %%% ----------------------------------------------------------------------------
-%%% Guards.
+%%% Guards (required only for if conditions). In the future remove them and
+%%% consolidate them to cases with a single guard.
 %%% ----------------------------------------------------------------------------
 
 check_guard_seq([], Errors) ->
@@ -546,7 +541,6 @@ check_guard_seq([], Errors) ->
 check_guard_seq([Guard | Guards], Errors) ->
   Errors0 = check_guard(Guard, Errors),
   check_guard_seq(Guards, Errors0).
-
 
 %% @private Atomic literal test. We support only strings to test the commutative
 %% regexp with when. If this is not correspond to the Pat syntax we want, then
@@ -595,8 +589,7 @@ check_test({var, _, Name}, Errors) when is_atom(Name) ->
 %% - Tuple skeleton
 %% - Variable
 check_test(Test, Errors) ->
-%%  ?NO_SUPPORT(Test, 'Guard Test'),
-  [{{guard, test}, element(2, Test), Test} | Errors].
+  [{{?E_GUARD, ?V_TEST}, element(2, Test), Test} | Errors].
 
 
 check_guard([], Errors) ->
@@ -604,7 +597,7 @@ check_guard([], Errors) ->
 check_guard([Test], Errors) ->
   check_test(Test, Errors);
 check_guard([_, Test | _], Errors) ->
-  [{guard, element(2, Test), Test} | Errors].
+  [{?E_GUARD, element(2, Test), Test} | Errors].
 
 %%check_guard([], Errors) ->
 %%  Errors.
@@ -612,23 +605,22 @@ check_guard([_, Test | _], Errors) ->
 %%  Errors0 = check_test(Test, Errors),
 %%  check_guard(Tests, Errors0).
 
-%% TODO: Pat does not support guards for now, and neither shall we.
-
 
 %%% ----------------------------------------------------------------------------
 %%% Types.
 %%% ----------------------------------------------------------------------------
 
-%% TODO: This is used only for checking but not to add types to the
+%% TODO: This is used only for checking but not to add types to the type map.
+%% The type map is only used by the forms parsing.
 
 %% @private Atomic literal type.
 check_type(Type = {Lit, _, _}, _, Errors) when ?IS_LIT_TYPE(Lit) ->
   ?TRACE("Checking literal type: ~p", [Type]),
   check_lit(Type, Errors);
 
-%% TODO: Add pid and other basic types such as none.
+%% TODO: Add pid and other basic types such as none. Consider moving this after the tuple and uniton
 %% @private Built-in types.
-check_type(Type = {type, ANNO, N, Types}, Opts, Errors) when is_atom(N), N =/= union, N =/= tuple ->
+check_type(Type = {type, ANNO, N, Types}, Opts, Errors) when is_atom(N), N =/= union, N =/= tuple -> % Could use a marco for basic types.
 %%  when ?IS_LIT_TYPE(N) ->
 
   ?TRACE("Checking built in type: ~p", [N]),
@@ -637,7 +629,7 @@ check_type(Type = {type, ANNO, N, Types}, Opts, Errors) when is_atom(N), N =/= u
   Errors0 =
     case lists:member(N, proplists:get_value(type, Opts, [])) of
       true -> Errors;
-      false -> [{{type, built_in}, ANNO, Type} | Errors]
+      false -> [{{?E_TYPE, ?V_BUILTIN}, ANNO, Type} | Errors]
     end,
 %%
 %%    case proplists:is_defined(?ALLOW_TYPE_PID, Opts) of
@@ -667,6 +659,16 @@ check_type({type, _, tuple, Types}, Opts, Errors) ->
 %%  when element(1, Tag) =:= atom ->
   % TODO: Add the checking code here to accept only tagged tuples.
   ?TRACE("Checking tuple with types: ~p", [Types]),
+
+%%  case check_tuple()
+
+%%  case check_type_tuple()
+
+%%  case tuple_elems(Types) of
+%%    tagged ->
+%%
+%%  end,
+
   check_type_seq(Types, Opts, Errors);
 
 %% @private Unsupported types:
@@ -692,7 +694,7 @@ check_type({type, _, tuple, Types}, Opts, Errors) ->
 %% - Map field assignment
 %% - Record field
 check_type(Type, _, Errors) ->
-  [{type, element(2, Type), Type} | Errors].
+  [{?E_TYPE, element(2, Type), Type} | Errors].
 
 %% @private Type sequence.
 check_type_seq([], _, Errors) ->
@@ -708,8 +710,8 @@ check_fun_type({type, _, 'fun', [{type, _, product, Types}, T_0]}, Errors)
 
   % Forbid PID parameter and return types. Only support these indirectly via
   % user defined types.
-  Errors0 = check_type_seq(Types, [{type, [integer, float, atom, string, pid]}], Errors),
-  check_type(T_0, [{type, [integer, float, atom, string, pid]}], Errors0).
+  Errors0 = check_type_seq(Types, [{type, ?LIT_TYPES}], Errors),
+  check_type(T_0, [{type, ?LIT_TYPES}], Errors0).
 
 %% @private Function type sequence. Currently only allowable in -spec.
 check_fun_type_seq([], Errors) ->
@@ -719,14 +721,40 @@ check_fun_type_seq([FType | FTypes], Errors) ->
   check_fun_type_seq(FTypes, Errors0).
 
 
-%%%% @private Function type sequence.
-%%trans_fun_types([], TInfo = #t_info{}) ->
-%%  {[], TInfo};
-%%trans_fun_types([Type | Types], TInfo = #t_info{}) ->
-%%  {Type0, TInfo0} = trans_fun_type(Type, TInfo),
-%%  {Types0, TInfo1} = trans_fun_types(Types, TInfo0),
-%%%%  [trans_fun_type(Type) | trans_fun_types(Types)].
-%%  {[Type0 | Types0], TInfo1}.
+%%% ----------------------------------------------------------------------------
+%%% Helper functions.
+%%% ----------------------------------------------------------------------------
 
-%%check_type(Type, TSpec, Errors) ->
-%%  {TSpec, Errors}.
+
+
+
+
+tuple_elems([]) ->
+  ?V_EMPTY;
+tuple_elems([{atom, _, _} | _]) ->
+  tagged;
+tuple_elems(_) ->
+  ?V_UNTAGGED.
+
+
+fun_call_type({atom, _, _}) ->
+  local;
+fun_call_type({remote, _, _, _}) ->
+  ?V_REMOTE;
+fun_call_type(_) ->
+  ?V_INDIRECT.
+
+
+%%check_tuple({tuple, _, [{atom, _, _} | _]}) ->
+%%  ok;
+%%check_tuple({tuple, _, []}) ->
+%%  ?EMPTY_TUPLE;
+%%check_tuple({tuple, _, _}) ->
+%%  ?UNTAGGED_TUPLE.
+
+%%check_fun_call({call, _, {atom, _, _}, _}) ->
+%%  ok;
+%%check_fun_call({call, _, {remote, _, _, _}, _}) ->
+%%  ?REMOTE_CALL;
+%%check_fun_call({call, _, _, _}) ->
+%%  ?INDIRECT_CALL.
