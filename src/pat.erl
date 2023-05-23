@@ -31,6 +31,25 @@
 
 
 
+%%% Top-level error classes. Each class corresponds to the Abstract Erlang
+%%% Format specification. Error classes are used to signal which Erlang
+%%% language constructs are unsupported by the Erlang-to-Pat translation.
+-define(FORM, form).
+-define(LIT, lit).
+-define(PAT, pat).
+-define(EXPR, expr).
+-define(CLAUSE, clause).
+-define(GUARD, guard).
+-define(TYPE, type).
+
+%%% Specific error sub-classes.
+-define(ILLEGAL_VAR, illegal_var).
+-define(ILLEGAL_LIT, illegal_lit).
+-define(ILLEGAL_BUILTIN, illegal_builtin).
+-define(UNTAGGED_TUPLE, untagged_tuple).
+-define(EMPTY_TUPLE, empty_tuple).
+-define(REMOTE_CALL, remote_call).
+-define(INDIRECT_CALL, indirect_call).
 
 
 file(File) ->
@@ -46,19 +65,29 @@ file(File) ->
 %%        fun(Err, Acc) -> [[pat:format_err(Err), $\n] | Acc] end, [], Errors
 %%      ),
 
-      IoList = [[pat:format_err(Error), $\n] || Error <- Errors],
+      FName = lists:last(filename:split(File)),
+      IoList = [[FName, pat:format_err(Error), $\n] || Error <- Errors],
       file:write(standard_error, IoList);
     {error, OpenError} ->
       OpenError
   end.
 
 
-format_err({Class, ANNO, Node}) ->
-  [
-    $[, integer_to_list(ANNO), $], $\s, err_msg(Class),
-    " not supported: ", erl_prettypr:format(Node)
-  ].
+%%% ----------------------------------------------------------------------------
+%%% Error handling and reporting.
+%%% ----------------------------------------------------------------------------
 
+%%src/pat.erl:552:21: Warning: variable 'Op' is unused
+
+format_err({Class, ANNO, Node}) ->
+  Msg0 =
+    case err_msg(Class) of
+      {Msg, Text} ->
+        [Msg, " not supported ", Text, $\s];
+      Msg ->
+        [Msg, " not supported "]
+    end,
+  [$:, integer_to_list(ANNO), ": Error: ", Msg0, $', erl_prettypr:format(Node), $'].
 
 
 err_msg(form) ->
@@ -87,6 +116,10 @@ err_msg(expr) ->
   "expression";
 err_msg(clause) ->
   "clause";
+err_msg({guard, test}) -> % Should be {guard, test}
+  "guard test";
+err_msg(guard) ->
+  "second guard test";
 err_msg({type, var}) ->
   "type variable";
 err_msg({type, built_in}) ->
@@ -95,6 +128,7 @@ err_msg(type) ->
   "type";
 err_msg(_) ->
   "unknown error".
+
 
 %%% ----------------------------------------------------------------------------
 %%% Module declaration and forms.
@@ -479,9 +513,9 @@ check_clause(_Clause = {clause, _, Ps, [], B}, Opts, Errors) ->
 
 %%% TODO: Consider removing this since Pat does not support Erlang-style guards. NO Should be here, test IF condition.
 %%%% @private If clause.
-%%check_clause({clause, _, [], Gs, B}, Opts, Errors) ->
-%%  Errors0 = check_guard_seq(Gs, Errors),
-%%  check_expr_seq(B, Errors0);
+check_clause({clause, _, [], Gs, B}, Opts, Errors) ->
+  Errors0 = check_guard_seq(Gs, Errors),
+  check_expr_seq(B, Errors0);
 
 %% @private Unsupported expressions:
 %% - Case clause with guard sequence
@@ -507,11 +541,76 @@ check_clause_seq([Clause | Clauses], Opts, Errors) ->
 %%% Guards.
 %%% ----------------------------------------------------------------------------
 
-%%check_guard_seq([], Errors) ->
-%%  Errors;
-%%check_guard_seq([Guard | Guards], Errors) ->
-%%  Errors0 = check_guard(Guard, Errors),
-%%  check_guard_seq(Guards, Errors0).
+check_guard_seq([], Errors) ->
+  Errors;
+check_guard_seq([Guard | Guards], Errors) ->
+  Errors0 = check_guard(Guard, Errors),
+  check_guard_seq(Guards, Errors0).
+
+
+%% @private Atomic literal test. We support only strings to test the commutative
+%% regexp with when. If this is not correspond to the Pat syntax we want, then
+%% we'll remove this and not support any form of guard tests.
+%%check_test(Test = {Name, _, _}, Errors)
+%%  when
+%%%%  Name =:= atom; Name =:= char; Name =:= float; Name =:= integer;
+%%  Name =:= string ->
+%%  check_lit(Test, Errors);
+
+%% @private Atomic literal test.
+check_test(Test = {Name, _, _}, Errors) when ?IS_LIT_TYPE(Name) ->
+  check_lit(Test, Errors);
+
+%% @private Binary operator test.
+check_test({op, _, Op, Gt_1, Gt_2}, Errors) ->
+  Errors0 = check_test(Gt_1, Errors),
+  check_test(Gt_2, Errors0);
+
+%% @private Unary operator test.
+check_test({op, _, Op, Gt_0}, Errors) ->
+  check_test(Gt_0, Errors);
+
+%% @private Tuple skeleton test.
+%%check_test({tuple, _, Guard}, Errors) ->
+%% IF we decide to support this, we need to make the tagged/empty tuple check
+%%  check_guard(Guard, Errors);
+
+%% @private Variable test.
+check_test({var, _, Name}, Errors) when is_atom(Name) ->
+  Errors;
+
+%% @private Unsupported guard tests:
+%% - Bitstring constructor
+%% - Cons skeleton
+%% - Local function call
+%% - Remote function call
+%% - Map creation
+%% - Map update
+%% - Nil
+%% - Binary operator
+%% - Unary operator
+%% - Record creation
+%% - Record field access
+%% - Record field index
+%% - Tuple skeleton
+%% - Variable
+check_test(Test, Errors) ->
+%%  ?NO_SUPPORT(Test, 'Guard Test'),
+  [{{guard, test}, element(2, Test), Test} | Errors].
+
+
+check_guard([], Errors) ->
+  Errors;
+check_guard([Test], Errors) ->
+  check_test(Test, Errors);
+check_guard([_, Test | _], Errors) ->
+  [{guard, element(2, Test), Test} | Errors].
+
+%%check_guard([], Errors) ->
+%%  Errors.
+%%check_guard([Test | Tests], Errors) ->
+%%  Errors0 = check_test(Test, Errors),
+%%  check_guard(Tests, Errors0).
 
 %% TODO: Pat does not support guards for now, and neither shall we.
 
