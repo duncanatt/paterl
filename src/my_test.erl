@@ -40,4 +40,4 @@
 %%-define(state(Regex), "@regex:" ++ Regex).
 
 -define(st, ok).
--type put() :: {putty, integer(), ?st}.
+-type put(Y) :: {putty, integer(), ?st, string(), pid(), Y}.

@@ -6,10 +6,11 @@
 %%% @end
 %%% Created : 16. May 2023 11:25
 %%%-------------------------------------------------------------------
--module(future).
+-module(future_test).
 -author("duncan").
 
--export([main/0]).
+%%-export([main/0]).
+-compile(export_all).
 
 %% Associate mailbox type to functions that adhere to the mailbox type.
 %% These define the mailbox type with the functions that manipulate that mailbox.
@@ -20,6 +21,8 @@
 -type put() :: {putty, integer()}.
 -type get() :: {get, user()}. % may also be a PID type?
 -type reply() :: {reply, integer()}.
+-type untagged_tuple() :: {55, atom, integer(), none()}.
+-type empty_tuple() :: {}.
 
 %%-type fun_test() :: fun((...) -> integer()).
 
@@ -28,6 +31,9 @@
 
 -type future() :: pid() | put() | get().
 -type user() :: pid() | reply().
+
+-type erroneous(T) :: T.
+-type erroneous2(T) :: T.
 
 
 
@@ -50,15 +56,36 @@
 % So the messages in the regex are a subset inclusion.
 
 
--spec future_fun() -> none().
+-spec future_fun() -> pid().
 future_fun() ->
+  {},
+  {hello},
+  {there, 5},
+  {5},
+  {fun() -> ok end, duncan},
+  {10 + 2, ok},
+
+  X = 10,
+  200 = X,
+  {tag, X} = 200,
+  if
+    X + 2 =:= {} -> ok;
+    true -> not_ok
+  end,
+
   ?state("put()"), % The type here must be defined above.
   receive
     {put, X} ->
-      full_future(X)
+      full_future(X), io:format(""), (fun() -> io end()):(fun() -> format end())("Printing from function~n");
+    {DummyVar1, atom2} ->
+      (fun() -> full_future end())(10);
+    {} ->
+      ok;
+    D ->
+      ok
   end.
 
--spec full_future(integer()) -> none().
+-spec full_future(pid()) -> none().
 full_future(X) ->
   "@regex: put().get()*", %% When we find star, we immediately enter the free clause as one of the guards of the receive.
   ?state("put().get()*"),
@@ -78,13 +105,13 @@ user(FuturePid) ->
   FuturePid ! {get, self()},
   ?state("reply()"),
   receive
-    {reply, X} ->
+    {reply, X, vik} ->
       X % Free is implied by the end of the regex containing reply() which becomes an empty string.
       % So empty string or * always necessitate synthesising a free in Pat.
   end.
 
 
-main() ->
-  Pid = spawn(fun() -> future_fun() end),
-  Pid ! {put, 5},
-  user(Pid).
+%%main() ->
+%%  Pid = spawn(fun() -> future_fun() end), %% This might have to achieved using MFArgs ?MODULE, fun, Args.
+%%  Pid ! {put, 5},
+%%  user(Pid).

@@ -55,14 +55,6 @@
 -define(V_REMOTE, remote).
 -define(V_INDIRECT, indirect).
 
-%% TODO: Macro handling errors.
-
-%%-define(pushError(Key, Reason, Loc, Errors), [Error | Errors]).
-
-%%[{{?E_PAT, ?V_VAR}, ANNO, Pat} | Errors]
-%%[{?E_EXPR, element(2, Expr), Expr} | Errors].
-
-
 %%% Error encoding.
 -define(pushErr(Key, Node, Errors), [{Key, element(2, Node), Node} | Errors]).
 -define(
@@ -74,13 +66,25 @@
 file(File) ->
   case epp:parse_file(File, []) of
     {ok, Forms} ->
-      {TSpecs, Errors} = check_forms(Forms, #{}, []),
-      io:format("Errors: ~p~n~n", [Errors]),
+      {_, Errors} = check_forms(Forms, #{}, []),
+%%      io:format("Errors: ~p~n~n", [Errors]),
 
       % Extract relative file name for error reporting.
       FName = lists:last(filename:split(File)),
       IoList = [[FName, pat:format_err(Error), $\n] || Error <- Errors],
-      file:write(standard_error, IoList);
+      file:write(standard_error, IoList),
+
+
+      {TSpecs, MbSigs} = type_forms(Forms, [], []),
+      io:format("Typespecs: ~p~n", [TSpecs]),
+      io:format("Mailbox signatures: ~p~n", [MbSigs]),
+
+      % 1. Check whether the mb types mentioned in the signatures (MBSigs) are
+      %    defined in the TSpecs. If not, generate a list of errors.
+
+
+      ok;
+
     {error, OpenError} ->
       OpenError
   end.
@@ -196,7 +200,8 @@ check_form({attribute, ANNO, type, {Name, T, Vars}}, TSpecs, Errors)
   % Forbid type variables.
   Errors0 =
     if [] =/= Vars ->
-      [{{?E_TYPE, ?V_VAR}, ANNO, hd(Vars)} | Errors];
+%%      [{{?E_TYPE, ?V_VAR}, ANNO, hd(Vars)} | Errors];
+      ?pushErr(?E_TYPE, ?V_VAR, hd(Vars), Errors);
       true -> Errors
     end,
 
@@ -237,7 +242,8 @@ check_form({attribute, _, Name, Sigs}, TSpecs, Errors)
 %% - Opaque type
 %% - Wild attribute
 check_form(Form, TSpecs, Errors) ->
-  {TSpecs, [{?E_FORM, element(2, Form), Form} | Errors]}.
+%%  {TSpecs, [{?E_FORM, element(2, Form), Form} | Errors]}.
+  {TSpecs, ?pushErr(?E_FORM, Form, Errors)}.
 
 
 %%% ----------------------------------------------------------------------------
@@ -247,7 +253,8 @@ check_form(Form, TSpecs, Errors) ->
 check_lit({Type, _, _}, Errors) when ?IS_LIT_TYPE(Type) ->
   Errors;
 check_lit(Lit, Errors) ->
-  [{?E_LIT, element(2, Lit), Lit} | Errors].
+%%  [{?E_LIT, element(2, Lit), Lit} | Errors].
+  ?pushErr(?E_LIT, Lit, Errors).
 
 
 %%% ----------------------------------------------------------------------------
@@ -272,7 +279,8 @@ check_pat(Pat = {Type, ANNO, _}, Opts, Errors) when ?IS_LIT_TYPE(Type) ->
       false ->
 
         % Literal pattern forbidden.
-        [{{?E_PAT, ?V_LIT}, ANNO, Pat} | Errors]
+%%        [{{?E_PAT, ?V_LIT}, ANNO, Pat} | Errors]
+        ?pushErr(?E_PAT, ?V_LIT, Pat, Errors)
     end,
 
 %%  Errors0 =
@@ -313,7 +321,8 @@ check_pat(Pat = {tuple, ANNO, Pats}, Opts, Errors) when is_list(Pats) ->
       Other ->
 
         % Empty or untagged tuple. Cannot be encoded as a Pat message pattern.
-        [{{?E_EXPR, Other}, ANNO, Pat} | Errors]
+%%        [{{?E_EXPR, Other}, ANNO, Pat} | Errors]
+        ?pushErr(?E_PAT, Other, Pat, Errors)
     end,
 
   % Pat does not support implicit pattern matches in messages. Check that rest
@@ -335,7 +344,8 @@ check_pat(Pat = {var, ANNO, Name}, Opts, Errors) when is_atom(Name) ->
 
       % Variable pattern forbidden.
       ?TRACE("VAR pattern disallowed"),
-      [{{?E_PAT, ?V_VAR}, ANNO, Pat} | Errors]
+%%      [{{?E_PAT, ?V_VAR}, ANNO, Pat} | Errors]
+      ?pushErr(?E_PAT, ?V_VAR, Pat, Errors)
   end;
 
 %% @private Unsupported patterns:
@@ -348,7 +358,8 @@ check_pat(Pat = {var, ANNO, Name}, Opts, Errors) when is_atom(Name) ->
 %% - Tuple
 %% - Universal (i.e., _)
 check_pat(Pat, _, Errors) ->
-  [{?E_PAT, element(2, Pat), Pat} | Errors].
+%%  [{?E_PAT, element(2, Pat), Pat} | Errors].
+  ?pushErr(?E_PAT, Pat, Errors).
 
 %% @private Pattern sequence.
 check_pat_seq([], _, Errors) ->
@@ -382,7 +393,8 @@ check_expr(Expr = {call, ANNO, E_0, Exprs}, Errors) when is_list(Exprs) ->
       Other ->
 
         % Remote or indirect function call not supported by Pat.
-        [{{?E_EXPR, Other}, ANNO, Expr} | Errors]
+%%        [{{?E_EXPR, Other}, ANNO, Expr} | Errors]
+        ?pushErr(?E_EXPR, Other, Expr, Errors)
     end,
   ?INFO("-- Function call ~p", [Expr]),
 %%  Errors0 = check_expr(E_0, Errors), % Evaluates to a function name or a remote call.
@@ -424,7 +436,8 @@ check_expr(Expr = {tuple, ANNO, Exprs}, Errors) when is_list(Exprs) ->
       Other ->
 
         % Empty or untagged tuple. Cannot be encoded as a Pat message expression.
-        [{{?E_EXPR, Other}, ANNO, Expr} | Errors]
+%%        [{{?E_EXPR, Other}, ANNO, Expr} | Errors]
+        ?pushErr(?E_EXPR, Other, Expr, Errors)
     end,
 
   % Check that rest of tuple elements are valid expressions.
@@ -467,7 +480,8 @@ check_expr({var, _, Name}, Errors) when is_atom(Name) ->
 %% - Try-catch-after
 %% - Try-of-catch-after
 check_expr(Expr, Errors) ->
-  [{?E_EXPR, element(2, Expr), Expr} | Errors].
+%%  [{?E_EXPR, element(2, Expr), Expr} | Errors].
+  ?pushErr(?E_EXPR, Expr, Errors).
 
 %% @private Expression sequence.
 check_expr_seq([], Errors) ->
@@ -518,7 +532,8 @@ check_clause({clause, _, [], Gs, B}, Opts, Errors) ->
 %% - Catch clause with pattern, variable, and guard sequence
 %% - Function clause with guard sequence
 check_clause(Clause, _, Errors) ->
-  [{?E_CLAUSE, element(2, Clause), Clause} | Errors].
+%%  [{?E_CLAUSE, element(2, Clause), Clause} | Errors].
+  ?pushErr(?E_CLAUSE, Clause, Errors).
 
 %% @private Clause sequence.
 check_clause_seq([], _, Errors) ->
@@ -586,21 +601,18 @@ check_test({var, _, Name}, Errors) when is_atom(Name) ->
 %% - Tuple skeleton
 %% - Variable
 check_test(Test, Errors) ->
-  [{{?E_GUARD, ?V_TEST}, element(2, Test), Test} | Errors].
+%%  [{{?E_GUARD, ?V_TEST}, element(2, Test), Test} | Errors].
+  ?pushErr(?E_GUARD, ?V_TEST, Test, Errors).
 
 
+%% Allow exactly one guard test.
 check_guard([], Errors) ->
   Errors;
 check_guard([Test], Errors) ->
   check_test(Test, Errors);
 check_guard([_, Test | _], Errors) ->
-  [{?E_GUARD, element(2, Test), Test} | Errors].
-
-%%check_guard([], Errors) ->
-%%  Errors.
-%%check_guard([Test | Tests], Errors) ->
-%%  Errors0 = check_test(Test, Errors),
-%%  check_guard(Tests, Errors0).
+%%  [{?E_GUARD, element(2, Test), Test} | Errors].
+  ?pushErr(?E_GUARD, Test, Errors).
 
 
 %%% ----------------------------------------------------------------------------
@@ -637,7 +649,8 @@ check_type(Type = {type, ANNO, tuple, Types}, Opts, Errors) ->
       Other ->
 
         % Empty or untagged tuple. Cannot be encoded as a Pat message.
-        [{{?E_TYPE, Other}, ANNO, Type} | Errors]
+%%        [{{?E_TYPE, Other}, ANNO, Type} | Errors]
+        ?pushErr(?E_TYPE, Other, Type, Errors)
     end,
 
   % Check that rest of tuple elements are valid type specifications.
@@ -659,18 +672,14 @@ check_type(Type = {type, ANNO, N, Types}, Opts, Errors) when is_atom(N) ->
   ?TRACE("Permitted: ~p", [lists:member(N, proplists:get_value(?BUILTIN_TYPES, Opts, []))]),
   Errors0 =
     case lists:member(N, proplists:get_value(?BUILTIN_TYPES, Opts, [])) of
-      true -> Errors;
-      false -> [{{?E_TYPE, ?V_BUILTIN}, ANNO, Type} | Errors]
+      true ->
+        Errors;
+      false ->
+%%        [{{?E_TYPE, ?V_BUILTIN}, ANNO, Type} | Errors]
+        ?pushErr(?E_TYPE, ?V_BUILTIN, Type, Errors)
     end,
-%%
-%%    case proplists:is_defined(?ALLOW_TYPE_PID, Opts) of
-%%      true -> Errors;
-%%      false -> [{{type, pid}, ANNO, Type} | Errors]
-%%    end,
 
   check_type_seq(Types, Opts, Errors0);
-
-
 
 %% @private Type variable.
 check_type({var, _, Name}, Opts, Errors) when is_atom(Name) ->
@@ -679,8 +688,6 @@ check_type({var, _, Name}, Opts, Errors) when is_atom(Name) ->
 %% @private User-defined type.
 check_type({user_type, _, N, Types}, Opts, Errors) when is_atom(N), is_list(Types) ->
   check_type_seq(Types, Opts, Errors);
-
-
 
 %% @private Unsupported types:
 %% - Annotated
@@ -705,7 +712,8 @@ check_type({user_type, _, N, Types}, Opts, Errors) when is_atom(N), is_list(Type
 %% - Map field assignment
 %% - Record field
 check_type(Type, _, Errors) ->
-  [{?E_TYPE, element(2, Type), Type} | Errors].
+%%  [{?E_TYPE, element(2, Type), Type} | Errors].
+  ?pushErr(?E_TYPE, Type, Errors).
 
 %% @private Type sequence.
 check_type_seq([], _, Errors) ->
@@ -736,10 +744,6 @@ check_fun_type_seq([FType | FTypes], Errors) ->
 %%% Helper functions.
 %%% ----------------------------------------------------------------------------
 
-
-
-
-
 tuple_elems([]) ->
   ?V_EMPTY;
 tuple_elems([{atom, _, _} | _]) ->
@@ -756,3 +760,50 @@ fun_call_type(_) ->
   ?V_INDIRECT.
 
 
+
+
+%%% Extract type information.
+
+type_forms([], TSpecs, MbSigs) ->
+  {TSpecs, MbSigs};
+type_forms([Form | Forms], TSpecs, MbSigs) ->
+  ?DEBUG("Typing form: ~p", [Form]),
+  {TSpecs0, MbSigs0} = type_form(Form, TSpecs, MbSigs),
+  type_forms(Forms, TSpecs0, MbSigs0).
+
+%% @private Local function spec.
+type_form({attribute, _, spec, {{Name, _Arity}, Types}}, TSpecs, MbSigs)
+  when is_atom(Name), is_integer(_Arity), is_list(Types) ->
+%%  Errors0 = check_fun_type_seq(Types, Errors),
+  {TSpecs, MbSigs};
+
+
+type_form({attribute, _, type, TSpec = {Name, T, Vars}}, TSpecs, MbSigs)
+  when is_atom(Name), is_list(Vars) ->
+
+
+
+
+  {[TSpec | TSpecs], MbSigs};
+
+%% @private Wild attribute associating mailbox type to functions.
+type_form({attribute, _, Name, Sigs}, TSpecs, MbSigs)
+  when is_atom(Name), is_list(Sigs) ->
+
+  % Checks whether the specified tuple is a Fun/Arity.
+%%  IsFa =
+%%    fun({F, A}, Flag) when is_atom(A), is_integer(A) -> Flag and true;
+%%      (_, _) -> false
+%%    end,
+
+%%  case lists:foldl(IsFa, true, Sigs) of
+%%    true ->
+%%      ?TRACE("Mailbox type ~s implemented by ~p", [Name, Sigs]),
+%%      {TSpecs, Errors};
+%%    false ->
+%%      {TSpecs, Errors}
+%%  end;
+  {TSpecs, [{Name, Sigs} | MbSigs]};
+
+type_form(_, TSpecs, MbSigs) ->
+  {TSpecs, MbSigs}.
