@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 17. May 2023 12:29
 %%%-------------------------------------------------------------------
--module(pat).
+-module(paterl_syntax).
 -author("duncan").
 
 %%% Includes.
@@ -46,7 +46,7 @@
 -define(E_TYPE, e_type).
 
 %%% Specific error sub-classes. or reasons
--define(V_VAR, var).
+-define(V_VAR, var). % Translate to R.
 -define(V_LIT, lit).
 -define(V_BUILTIN, builtin).
 -define(V_TEST, test).
@@ -71,7 +71,7 @@ file(File) ->
 
       % Extract relative file name for error reporting.
       FName = lists:last(filename:split(File)),
-      IoList = [[FName, pat:format_err(Error), $\n] || Error <- Errors],
+      IoList = [[FName, paterl_syntax:format_err(Error), $\n] || Error <- Errors],
       file:write(standard_error, IoList),
 
 

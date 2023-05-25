@@ -9,6 +9,7 @@
 -module(future_test).
 -author("duncan").
 
+s
 %%-export([main/0]).
 -compile(export_all).
 
@@ -98,7 +99,7 @@ full_future(X) ->
   end.
 
 
--spec user(future()) -> integer().
+%%-spec user(future()) -> integer().
 user(FuturePid) ->
   %% New user mailbox is created automatically. An implicit reference is obtained via self.
 
