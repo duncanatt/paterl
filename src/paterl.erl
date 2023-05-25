@@ -27,9 +27,15 @@ file(File) when is_list(File) ->
     {ok, Epp} ->
       case parse(Epp) of
         {ok, Forms} ->
-          ?DEBUG("Got forms ~p", [Forms]);
+%%          ?DEBUG("Got forms ~p", [Forms]);
 
         % 1. Check file. Should have its own error handling with unsupported.
+          Errors = erl_subsyntax:check(Forms),
+
+          % Extract relative file name for error reporting.
+          FName = lists:last(filename:split(File)),
+          IoList = [[FName, erl_subsyntax:format_err(Error), $\n] || Error <- Errors],
+          file:write(standard_error, IoList);
 
         % 2. Build type_tbl. Should have its own error reporting.
 

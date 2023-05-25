@@ -9,7 +9,7 @@
 -module(future_test).
 -author("duncan").
 
-s
+
 %%-export([main/0]).
 -compile(export_all).
 
