@@ -51,11 +51,28 @@
 
 
 %% TODO: Add module name in tuple for error translation.
--define(pushErr(Class, Node, Errors), [{Class, element(2, Node), Node} | Errors]).
+%%-define(pushErr(Class, Node, Errors), [{Class, element(2, Node), Node} | Errors]).
+%%-define(
+%%pushErr(Class, Reason, Node, Errors),
+%%  [{{Class, Reason}, element(2, Node), Node} | Errors]
+%%).
+
+%%format_error({ANNO, Mod, Error = {Class, Node}}) ->
+%%;
+%%format_error({ANNO, Mod, Error = {Class, Reason, Node}}) ->
+%%  ok.
+
+
 -define(
-pushErr(Class, Reason, Node, Errors),
-  [{{Class, Reason}, element(2, Node), Node} | Errors]
+  pushError(Class, Node, Errors),
+  [{element(2, Node), ?MODULE, {Class, Node}} | Errors]
 ).
+
+-define(
+  pushError(Class, Reason, Node, Errors),
+  [{element(2, Node), ?MODULE, {Class, Reason, Node}} | Errors]
+).
+
 
 %% Literal types supported by Pat.
 %%-define(IS_LIT_TYPE(Type), Type =:= integer; Type =:= string; Type =:= atom).
@@ -123,7 +140,8 @@ check_form({attribute, _, type, {Name, T, Vars}}, Opts, Errors)
   % Forbid type variables.
   Errors0 =
     if [] =/= Vars ->
-      ?pushErr(?E_TYPE, ?V_VAR, hd(Vars), Errors);
+%%      ?pushErr(?E_TYPE, ?V_VAR, hd(Vars), Errors);
+      ?pushError(?E_TYPE, ?V_VAR, hd(Vars), Errors);
       true -> Errors
     end,
 
@@ -168,7 +186,8 @@ check_form({attribute, _, N, T}, _, Errors) when is_atom(N) ->
 %% - Record declaration
 %% - Opaque type
 check_form(Form, _, Errors) ->
-  ?pushErr(?E_FORM, Form, Errors).
+%%  ?pushErr(?E_FORM, Form, Errors).
+  ?pushError(?E_FORM, Form, Errors).
 
 
 %%% ----------------------------------------------------------------------------
@@ -193,7 +212,8 @@ check_lit(Lit = {L, _, _}, Opts, Errors) when is_atom(L) ->
     true ->
       Errors;
     false ->
-      ?pushErr(?E_LIT, Lit, Errors)
+%%      ?pushErr(?E_LIT, Lit, Errors)
+      ?pushError(?E_LIT, Lit, Errors)
   end.
 
 
@@ -246,7 +266,8 @@ check_pat(Pat = {tuple, _, Pats}, Opts, Errors) when is_list(Pats) ->
       Other ->
 
         % Empty or untagged tuple. Cannot be encoded as a Pat message pattern.
-        {Pats, ?pushErr(?E_PAT, Other, Pat, Errors)}
+%%        {Pats, ?pushErr(?E_PAT, Other, Pat, Errors)}
+        {Pats, ?pushError(?E_PAT, Other, Pat, Errors)}
     end,
 
   % Pat does not support implicit pattern matching in tuples. Check that rest of
@@ -268,7 +289,8 @@ check_pat(Pat = {var, _, Name}, Opts, Errors) when is_atom(Name) ->
 
       % Variable pattern forbidden.
       ?TRACE("VAR pattern disallowed"),
-      ?pushErr(?E_PAT, ?V_VAR, Pat, Errors)
+%%      ?pushErr(?E_PAT, ?V_VAR, Pat, Errors)
+      ?pushError(?E_PAT, ?V_VAR, Pat, Errors)
   end;
 
 %% @private Atomic literal pattern.
@@ -286,7 +308,8 @@ check_pat(Pat = {L, _, _}, Opts, Errors) when is_atom(L) ->
 
       ?TRACE("Literal pattern forbidden."),
       % Literal pattern forbidden.
-      ?pushErr(?E_PAT, ?V_LIT, Pat, Errors)
+%%      ?pushErr(?E_PAT, ?V_LIT, Pat, Errors)
+      ?pushError(?E_PAT, ?V_LIT, Pat, Errors)
   end,
   ?TRACE("AFter checking literal pattern"),
 %%    Errors0;
@@ -302,7 +325,8 @@ check_pat(Pat = {L, _, _}, Opts, Errors) when is_atom(L) ->
 %% - Tuple
 %% - Universal (i.e., _)
 check_pat(Pat, _, Errors) ->
-  ?pushErr(?E_PAT, Pat, Errors).
+%%  ?pushErr(?E_PAT, Pat, Errors).
+  ?pushError(?E_PAT, Pat, Errors).
 
 %% @private Pattern sequence.
 check_pat_seq([], _, Errors) ->
@@ -328,7 +352,8 @@ check_expr(Expr = {call, _, E_0, Exprs}, Opts, Errors) when is_list(Exprs) ->
       Other ->
 
         % Remote or indirect function call. Not supported by Pat.
-        ?pushErr(?E_EXPR, Other, Expr, Errors)
+%%        ?pushErr(?E_EXPR, Other, Expr, Errors)
+        ?pushError(?E_EXPR, Other, Expr, Errors)
     end,
   ?INFO("-- Function call ~p", [Expr]),
   check_expr_seq(Exprs, Opts, Errors0);
@@ -380,7 +405,8 @@ check_expr(Expr = {tuple, _, Exprs}, Opts, Errors) when is_list(Exprs) ->
       Other ->
 
         % Empty or untagged tuple. Cannot be encoded as a Pat message expression.
-        {Exprs, ?pushErr(?E_EXPR, Other, Expr, Errors)}
+%%        {Exprs, ?pushErr(?E_EXPR, Other, Expr, Errors)}
+        {Exprs, ?pushError(?E_EXPR, Other, Expr, Errors)}
     end,
 
   % Check that rest of tuple elements are valid expressions.
@@ -427,7 +453,8 @@ check_expr(Expr = {L, _, _}, Opts, Errors) when is_atom(L) ->
 %% - Try-catch-after
 %% - Try-of-catch-after
 check_expr(Expr, _, Errors) ->
-  ?pushErr(?E_EXPR, Expr, Errors).
+%%  ?pushErr(?E_EXPR, Expr, Errors).
+  ?pushError(?E_EXPR, Expr, Errors).
 
 %% @private Expression sequence.
 check_expr_seq([], _, Errors) ->
@@ -471,7 +498,8 @@ check_clause(_Clause = {clause, _, [], Gs, B}, Opts, Errors) ->
 %% - Catch clause with pattern, variable, and guard sequence
 %% - Function clause with guard sequence
 check_clause(Clause, _, Errors) ->
-  ?pushErr(?E_CLAUSE, Clause, Errors).
+%%  ?pushErr(?E_CLAUSE, Clause, Errors).
+  ?pushError(?E_CLAUSE, Clause, Errors).
 
 %% @private Clause sequence.
 check_clause_seq([], _, Errors) ->
@@ -547,13 +575,15 @@ check_test(Test = {L, _, _}, Opts, Errors) when is_atom(L) ->
 %% - Tuple skeleton
 %% - Variable
 check_test(Test, _, Errors) ->
-  ?pushErr(?E_GUARD, ?V_TEST, Test, Errors).
+%%  ?pushErr(?E_GUARD, ?V_TEST, Test, Errors).
+  ?pushError(?E_GUARD, ?V_TEST, Test, Errors).
 
 %% @private Guard as a sequence of test. Allows exactly one guard test.
 check_guard([Test], Opts, Errors) ->
   check_test(Test, Opts, Errors);
 check_guard([_, Test | _], _, Errors) ->
-  ?pushErr(?E_GUARD, Test, Errors).
+%%  ?pushErr(?E_GUARD, Test, Errors).
+  ?pushError(?E_GUARD, Test, Errors).
 
 
 %%% ----------------------------------------------------------------------------
@@ -577,7 +607,8 @@ check_type(Type = {type, _, tuple, Types}, Opts, Errors) ->
 
         % Empty or untagged tuple. Cannot be encoded as a Pat message. Now check
         % that all tuple elements are also valid type specifications.
-        {Types, ?pushErr(?E_TYPE, Other, Type, Errors)}
+%%        {Types, ?pushErr(?E_TYPE, Other, Type, Errors)}
+        {Types, ?pushError(?E_TYPE, Other, Type, Errors)}
     end,
 
   % Check that rest of tuple elements are valid type specs.
@@ -600,7 +631,8 @@ check_type(Type = {type, _, N, Types}, Opts, Errors) when is_atom(N) ->
     true ->
       Errors;
     false ->
-      ?pushErr(?E_TYPE, ?V_BUILTIN, Type, Errors)
+%%      ?pushErr(?E_TYPE, ?V_BUILTIN, Type, Errors)
+      ?pushError(?E_TYPE, ?V_BUILTIN, Type, Errors)
   end,
 
   check_type_seq(Types, Opts, Errors0);
@@ -642,7 +674,8 @@ check_type(Type = {L, _, _}, Opts, Errors) when is_atom(L) ->
 %% - Map field assignment
 %% - Record field
 check_type(Type, _, Errors) ->
-  ?pushErr(?E_TYPE, Type, Errors).
+%%  ?pushErr(?E_TYPE, Type, Errors).
+  ?pushError(?E_TYPE, Type, Errors).
 
 %% @private Type sequence.
 check_type_seq([], _, Errors) ->
@@ -693,56 +726,154 @@ fun_call_type(_) ->
 %%% Error handling and reporting.
 %%% ----------------------------------------------------------------------------
 
-format_err({Class, ANNO, Node}) ->
-  Msg0 =
-    case err_msg(Class) of
-      {Msg, Text} ->
-        [Msg, " not supported ", Text, $\s];
-      Msg ->
-        [Msg, " not supported "]
-    end,
-  [$:, integer_to_list(ANNO), ": Error: ", Msg0, $', erl_prettypr:format(Node), $'].
+%%- CLEANUP CODE
+%%- FORMAT ERROR MESSAGES CORRECTLY TO MAKE THEM COMPATIBLE WITH ERROR MODULE
+%%- EXTRACT TYPE TABLES
+%%
+%%format_err({Class, ANNO, Node}) ->
+%%  Msg0 =
+%%    case err_msg(Class) of
+%%      {Msg, Text} ->
+%%        [Msg, " not supported ", Text, $\s];
+%%      Msg ->
+%%        [Msg, " not supported "]
+%%    end,
+%%  [$:, integer_to_list(ANNO), ": Error: ", Msg0, $', erl_prettypr:format(Node), $'].
 
 
-err_msg(?E_FORM) ->
-  "form";
-err_msg(?E_LIT) ->
-  "literal";
-err_msg({?E_PAT, ?V_UNTAGGED}) ->
-  {"untagged tuple", "in pattern"};
-err_msg({?E_PAT, ?V_EMPTY}) ->
-  {"empty tuple", "in pattern"};
-err_msg({?E_PAT, ?V_VAR}) ->
-  {"variable", "in pattern"};
-err_msg({?E_PAT, ?V_LIT}) ->
-  {"literal", "in pattern"};
-err_msg(?E_PAT) ->
-  "pattern";
-err_msg({?E_EXPR, ?V_UNTAGGED}) ->
-  "untagged tuple expression";
-err_msg({?E_EXPR, ?V_EMPTY}) ->
-  "empty tuple expression";
-err_msg({?E_EXPR, ?V_REMOTE}) ->
-  "remote function call expression";
-err_msg({?E_EXPR, ?V_INDIRECT}) ->
-  "indirect function call expression";
-err_msg(?E_EXPR) ->
-  "expression";
-err_msg(?E_CLAUSE) ->
-  "clause";
-err_msg({?E_GUARD, ?V_TEST}) ->
-  "guard test";
-err_msg(?E_GUARD) ->
-  "second guard test";
-err_msg({?E_TYPE, ?V_VAR}) ->
-  "type variable";
-err_msg({?E_TYPE, ?V_BUILTIN}) ->
-  {"built-in type", "here"};
-err_msg({?E_TYPE, ?V_UNTAGGED}) ->
-  "untagged tuple type";
-err_msg({?E_TYPE, ?V_EMPTY}) ->
-  "empty tuple type";
-err_msg(?E_TYPE) ->
-  "type";
-err_msg(_) ->
-  "unknown error".
+%%{ANNO, Mod, Error}
+%%Error = {Class, Node} | {Class, Reason, Node} % Handled by format error below.
+
+%%format_error
+
+%%format_error({ANNO, Mod, Error = {Class, Node}}) ->
+%%  ok;
+%%format_error({ANNO, Mod, Error = {Class, Reason, Node}}) ->
+%%  ok.
+
+
+
+
+format_error({?E_FORM, Node}) ->
+  io_lib:format("form not supported: '~s'", [erl_prettypr:format(Node)]);
+format_error({?E_LIT, Node}) ->
+  io_lib:format("literal '~s' not supported", [erl_prettypr:format(Node)]);
+format_error({?E_PAT, Node}) ->
+  io_lib:format("pattern '~s' not supported", [erl_prettypr:format(Node)]);
+format_error({?E_EXPR, Node}) ->
+  io_lib:format("expression '~s' not supported", [erl_prettypr:format(Node)]);
+format_error({?E_CLAUSE, Node}) ->
+  io_lib:format("clause '~s' not supported", [erl_prettypr:format(Node)]);
+format_error({?E_TYPE, Node}) ->
+  io_lib:format("typespec '~s' not supported", [erl_prettypr:format(Node)]);
+format_error({?E_GUARD, Node}) ->
+  io_lib:format(
+    "illegal second guard test '~s' in if expression",
+    [erl_prettypr:format(Node)]
+  );
+
+format_error({?E_PAT, ?V_UNTAGGED, Node}) ->
+  io_lib:format(
+    "illegal untagged tuple '~s' in pattern", [erl_prettypr:format(Node)]
+  );
+format_error({?E_PAT, ?V_EMPTY, _}) ->
+  "illegal empty tuple in pattern";
+format_error({?E_PAT, ?V_VAR, Node}) ->
+  io_lib:format(
+    "variable '~s' not supported in pattern", [erl_prettypr:format(Node)]
+  );
+format_error({?E_PAT, ?V_LIT, Node}) ->
+  io_lib:format(
+    "literal '~s' not supported in pattern", [erl_prettypr:format(Node)]
+  );
+
+
+
+format_error({?E_EXPR, ?V_UNTAGGED, Node}) ->
+  io_lib:format(
+    "illegal untagged tuple '~s' expression", [erl_prettypr:format(Node)]
+  );
+format_error({?E_EXPR, ?V_EMPTY, _}) ->
+  "illegal empty tuple expression";
+format_error({?E_EXPR, ?V_REMOTE, Node}) ->
+  io_lib:format(
+    "remote function call expression not supported: '~s'",
+    [erl_prettypr:format(Node)]
+  );
+format_error({?E_EXPR, ?V_INDIRECT, Node}) ->
+  io_lib:format(
+    "indirect function call expression not supported: '~s'",
+    [erl_prettypr:format(Node)]
+  );
+
+
+format_error({?E_GUARD, ?V_TEST, Node}) ->
+  io_lib:format(
+    "illegal test '~s' not supported in if expression",
+    [erl_prettypr:format(Node)]
+  );
+
+
+format_error({?E_TYPE, ?V_VAR, Node}) ->
+  io_lib:format(
+    "illegal type variable '~s' in typespec", [erl_prettypr:format(Node)]
+  );
+format_error({?E_TYPE, ?V_BUILTIN, Node}) ->
+  io_lib:format(
+    "illegal use of built-in type '~s' in function typespec",
+    [erl_prettypr:format(Node)]
+  );
+
+format_error({?E_TYPE, ?V_UNTAGGED, Node}) ->
+  io_lib:format(
+    "illegal untagged tuple type '~s'", [erl_prettypr:format(Node)]
+  );
+format_error({?E_TYPE, ?V_EMPTY, _}) ->
+  "illegal empty tuple type";
+
+format_error(E) ->
+  io_lib:format("unknown error ~p", [E]).
+
+
+%%err_msg(?E_FORM) ->
+%%  "form";
+%%err_msg(?E_LIT) ->
+%%  "literal";
+%%err_msg({?E_PAT, ?V_UNTAGGED}) ->
+%%  {"untagged tuple", "in pattern"};
+%%err_msg({?E_PAT, ?V_EMPTY}) ->
+%%  {"empty tuple", "in pattern"};
+%%err_msg({?E_PAT, ?V_VAR}) ->
+%%  {"variable", "in pattern"};
+%%err_msg({?E_PAT, ?V_LIT}) ->
+%%  {"literal", "in pattern"};
+%%err_msg(?E_PAT) ->
+%%  "pattern";
+%%err_msg({?E_EXPR, ?V_UNTAGGED}) ->
+%%  "untagged tuple expression";
+%%err_msg({?E_EXPR, ?V_EMPTY}) ->
+%%  "empty tuple expression";
+%%err_msg({?E_EXPR, ?V_REMOTE}) ->
+%%  "remote function call expression";
+%%err_msg({?E_EXPR, ?V_INDIRECT}) ->
+%%  "indirect function call expression";
+%%err_msg(?E_EXPR) ->
+%%  "expression";
+%%err_msg(?E_CLAUSE) ->
+%%  "clause";
+%%err_msg({?E_GUARD, ?V_TEST}) ->
+%%  "guard test";
+%%err_msg(?E_GUARD) ->
+%%  "second guard test";
+%%err_msg({?E_TYPE, ?V_VAR}) ->
+%%  "type variable";
+%%err_msg({?E_TYPE, ?V_BUILTIN}) ->
+%%  {"built-in type", "here"};
+%%err_msg({?E_TYPE, ?V_UNTAGGED}) ->
+%%  "untagged tuple type";
+%%err_msg({?E_TYPE, ?V_EMPTY}) ->
+%%  "empty tuple type";
+%%err_msg(?E_TYPE) ->
+%%  "type";
+%%err_msg(_) ->
+%%  "unknown error".

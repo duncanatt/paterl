@@ -34,8 +34,10 @@ file(File) when is_list(File) ->
 
           % Extract relative file name for error reporting.
           FName = lists:last(filename:split(File)),
-          IoList = [[FName, erl_subsyntax:format_err(Error), $\n] || Error <- Errors],
-          file:write(standard_error, IoList);
+          IoList = [[FName, erl_subsyntax:format_error(Error), $\n] || Error <- Errors],
+          file:write(standard_error, IoList),
+
+          errors:show_errors(File, Errors);
 
         % 2. Build type_tbl. Should have its own error reporting.
 
