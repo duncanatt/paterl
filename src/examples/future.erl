@@ -44,7 +44,7 @@
 %%       resolvedFuture(self, x)
 %%   }
 %% }
--spec future_fun() -> none().
+-spec future_fun() -> no_return().
 future_fun() ->
   ?mb_state("put.get*"),
   receive
@@ -60,7 +60,7 @@ future_fun() ->
 %%       resolvedFuture(self, value)
 %%   }
 %% }
--spec resolved_future(integer()) -> none(). % I need to support none() type as the unit.
+-spec resolved_future(integer()) -> no_return(). % I need to support none() type as the unit.
 resolved_future(X) ->
   ?mb_state("get*"),
   % Parse the string and insert a free clause (because of *) in the generated
@@ -83,9 +83,7 @@ resolved_future(X) ->
 %%   }
 %% }
 -spec user(future()) -> integer().
-%%-spec user(pid()) -> integer().
 user(Future) ->
-  Future ! {get, self()},
   Future ! {get, self()},
   ?mb_state("reply"),
   receive
@@ -101,12 +99,11 @@ user(Future) ->
 %%   print(intToString(user(future_mb)));
 %%   print(intToString(user(future_mb)))
 %% }
--spec main() -> none().
+-spec main() -> ok.
 main() ->
   Future = spawn(?MODULE, future_fun, []),
   Future ! {put, 5},
 
-  [1, 2],
   format("Got ~p.~n", [user(Future)]),
   format("Got ~p.~n", [user(Future)]).
 

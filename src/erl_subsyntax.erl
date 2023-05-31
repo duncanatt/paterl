@@ -57,8 +57,8 @@
 -define(R_LIST, list).
 
 %% Literal and built-in types supported by Pat.
--define(ATOMIC_LIT, [integer, string, atom]).
--define(BUILTIN_TYPES, ?ATOMIC_LIT).
+-define(ATOMIC_LIT, [integer, float, string, atom]).
+-define(BUILTIN_TYPES, [no_return | ?ATOMIC_LIT]).
 
 %% Error creation macros.
 -define(
@@ -123,24 +123,22 @@ check_form({function, _, Name, _Arity, Clauses}, Opts, Errors)
 check_form({attribute, _, spec, {{Name, _Arity}, Types}}, Opts, Errors)
   when is_atom(Name), is_integer(_Arity), is_list(Types) ->
 
-  % Permit use of 'none' but forbid use of 'pid' built-in type in local function
-  % spec. This forces function specs that use the 'pid' built-in type to employ
-  % user-defined type specs as the only means of referring to 'pid' types. This
-  % makes it possible to refer to the mailbox interface from a function, while
-  % at the same time, allows type specs to type-check successfully under other
-  % tools like Dialyzer.
-  Opts0 = orddict:append(?OPT_BUILTIN_TYPES, none, Opts),
-  check_fun_type_seq(Types, Opts0, Errors);
+  % Forbid use of 'pid' built-in type in local function spec. This forces
+  % function specs that use the 'pid' built-in type to employ user-defined type
+  % specs as the only means of referring to 'pid' types. This makes it possible
+  % to refer to the mailbox interface from a function, while at the same time,
+  % allows type specs to type-check successfully under other tools like
+  % Dialyzer.
+  check_fun_type_seq(Types, Opts, Errors);
 
 %% @private Type declaration.
 check_form({attribute, _, type, {Name, T, Vars}}, Opts, Errors)
   when is_atom(Name), is_list(Vars) ->
 
-  % Permit use of 'none' and 'pid' built-in type in type spec. This allows the
-  % syntax to recover 'pid' types indirectly via user-define types and makes
-  % them accessible to function specs.
-  Opts0 = orddict:append(?OPT_BUILTIN_TYPES, none, Opts),
-  Opts1 = orddict:append(?OPT_BUILTIN_TYPES, pid, Opts0),
+  % Permit use 'pid' built-in type in type spec. This allows the syntax to
+  % recover 'pid' types indirectly via user-define types and makes them
+  % accessible to function specs.
+  Opts0 = orddict:append(?OPT_BUILTIN_TYPES, pid, Opts),
 
   % Forbid type variables in type spec.
   Errors0 =
@@ -148,7 +146,7 @@ check_form({attribute, _, type, {Name, T, Vars}}, Opts, Errors)
       ?pushError(?E_TYPE, ?R_VAR, hd(Vars), Errors);
       true -> Errors
     end,
-  check_type(T, Opts1, Errors0);
+  check_type(T, Opts0, Errors0);
 
 %% @private EOF.
 check_form({eof, _}, _, Errors) ->
@@ -187,8 +185,6 @@ check_form(Form, _, Errors) ->
 %%% ----------------------------------------------------------------------------
 
 check_lit(Lit = {L, _, _}, Opts, Errors) when is_atom(L) ->
-%%  ?TRACE("Checking LIT: ~p", [Lit]),
-%%  ?TRACE("---Opts: ~p", [Opts]),
 
   % Check that atomic literal is supported.
   case lists:member(L, orddict:fetch(?OPT_ATOMIC_LIT, Opts)) of
@@ -352,7 +348,6 @@ check_expr(Expr = {nil, _}, Opts, Errors) ->
 
 %% @private If condition expression.
 check_expr(_Expr = {'if', _, Clauses}, Opts, Errors) when is_list(Clauses) ->
-%%  ?TRACE("Checking IF expression: ~p", [_Expr]),
 
   % Current Pat implementation forbids variable or atomic literal patterns in
   % if clauses. Remove respective keys from options.
@@ -387,7 +382,6 @@ check_expr({op, _, Op, E_0}, Opts, Errors) ->
 
 %% @private Receive expression.
 check_expr(_Expr = {'receive', _, Clauses}, Opts, Errors) when is_list(Clauses) ->
-%%  ?TRACE("Checking RECEIVE expression: ~p", [_Expr]),
 
   % Current Pat implementation forbids variable or atomic literal patterns in
   % if clauses. Remove respective keys from options.
@@ -611,9 +605,9 @@ check_type(Type = {type, _, N, Types}, Opts, Errors) when is_atom(N) ->
     end,
   check_type_seq(Types, Opts, Errors0);
 
-%% @private Type variable.
-check_type({var, _, A}, _, Errors) when is_atom(A) ->
-  Errors;
+%%%% private Type variable.
+%%check_type({var, _, A}, _, Errors) when is_atom(A) ->
+%%  Errors;
 
 %% @private User-defined type.
 check_type({user_type, _, N, Types}, Opts, Errors) when is_atom(N), is_list(Types) ->
@@ -621,7 +615,6 @@ check_type({user_type, _, N, Types}, Opts, Errors) when is_atom(N), is_list(Type
 
 %% @private Atomic literal type.
 check_type(Type = {L, _, _}, Opts, Errors) when is_atom(L) ->
-  ?TRACE("Checking literal type: ~p", [Type]),
   check_lit(Type, Opts, Errors);
 
 %% @private Unsupported types:
