@@ -9,8 +9,6 @@
 -module(erl_subsyntax).
 -author("duncan").
 
-%%-compile(export_all).
-
 %%% Includes.
 -include_lib("stdlib/include/assert.hrl").
 -include("log.hrl").
@@ -89,7 +87,7 @@ check_forms(Forms) ->
 check_forms([], _, Errors) ->
   lists:reverse(Errors);
 check_forms([Form | Forms], Opts, Errors) ->
-  ?DEBUG("Checking form: ~p", [Form]),
+%%  ?DEBUG("Checking form: ~p", [Form]),
   Errors0 = check_form(Form, Opts, Errors),
   check_forms(Forms, Opts, Errors0).
 

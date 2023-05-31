@@ -57,14 +57,19 @@ file(File, Opts) when is_list(File), is_list(Opts) ->
 
           % 1. Check file. Should have its own error handling with unsupported.
           Errors = erl_subsyntax:check_forms(Forms),
-          errors:show_errors(File, Errors);
+          errors:show_errors(File, Errors),
 
         % 2. Build type_tbl. Should have its own error reporting.
+          TInfo = types:get(Forms),
+          ?TRACE("Collected types: ~p", [TInfo]),
+
+
 
         % 3. Expand the tree for the mailboxes.
 
         % 4. Analyse the regexes to infer the free clauses in guards.
 
+          ok;
         {error, Errors} ->
           errors:show_errors(File, Errors)
       end;
