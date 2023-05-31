@@ -22,21 +22,41 @@
 -spec file(file:name_all()) -> any().
 file(File) when is_list(File) ->
 
+%%  % Parse and preprocess file, applying macro expansions to the AST.
+%%  case epp:open([{name, File}]) of
+%%    {ok, Epp} ->
+%%      case parse(Epp) of
+%%        {ok, Forms} ->
+%%
+%%          % 1. Check file. Should have its own error handling with unsupported.
+%%          Errors = erl_subsyntax:check_forms(Forms),
+%%          errors:show_errors(File, Errors);
+%%
+%%        % 2. Build type_tbl. Should have its own error reporting.
+%%
+%%        % 3. Expand the tree for the mailboxes.
+%%
+%%        % 4. Analyse the regexes to infer the free clauses in guards.
+%%
+%%        {error, Errors} ->
+%%          errors:show_errors(File, Errors)
+%%      end;
+%%    {error, Error} ->
+%%      errors:show_error({epp, Error})
+%%  end.
+  file(File, []).
+
+file(File, Opts) when is_list(File), is_list(Opts) ->
+
+  ?TRACE("Full options: ~p", [[{name, File} | Opts]]),
   % Parse and preprocess file, applying macro expansions to the AST.
-  case epp:open([{name, File}]) of
+  case epp:open([{name, File} | Opts]) of
     {ok, Epp} ->
       case parse(Epp) of
         {ok, Forms} ->
-%%          ?DEBUG("Got forms ~p", [Forms]);
 
-        % 1. Check file. Should have its own error handling with unsupported.
-          Errors = erl_subsyntax:check(Forms),
-
-          % Extract relative file name for error reporting.
-          FName = lists:last(filename:split(File)),
-          IoList = [[FName, erl_subsyntax:format_error(Error), $\n] || Error <- Errors],
-          file:write(standard_error, IoList),
-
+          % 1. Check file. Should have its own error handling with unsupported.
+          Errors = erl_subsyntax:check_forms(Forms),
           errors:show_errors(File, Errors);
 
         % 2. Build type_tbl. Should have its own error reporting.
@@ -51,6 +71,7 @@ file(File) when is_list(File) ->
     {error, Error} ->
       errors:show_error({epp, Error})
   end.
+
 
 parse(Epp) when is_pid(Epp) ->
   case parse_forms(Epp, [], []) of

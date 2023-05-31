@@ -12,6 +12,8 @@
 %%% Includes.
 -include("paterl.hrl").
 
+-import(io, [format/2]).
+
 %%% API.
 -export([main/0]).
 
@@ -84,6 +86,7 @@ resolved_future(X) ->
 %%-spec user(pid()) -> integer().
 user(Future) ->
   Future ! {get, self()},
+  Future ! {get, self()},
   ?mb_state("reply"),
   receive
     {reply, X} -> % of type reply().
@@ -101,15 +104,11 @@ user(Future) ->
 -spec main() -> none().
 main() ->
   Future = spawn(?MODULE, future_fun, []),
-  % Need to support lists, but specifically in spawn only (EXPR)!
   Future ! {put, 5},
 
-  io:format("Got ~p.~n", [user(Future)]),
-  io:format("Got ~p.~n", [user(Future)]).
-  % Need to support lists in io:format only (EXPR).
-  % Need to support the only remote function call io:format only (EXPR)!
-
-%%TEST THIS AND MAKE IT WORK.
+  [1, 2],
+  format("Got ~p.~n", [user(Future)]),
+  format("Got ~p.~n", [user(Future)]).
 
 
 
