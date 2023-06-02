@@ -43,7 +43,7 @@
 %%           fail(self)[Unit]
 %%   }
 %% }
--spec free_lock() -> none().
+-spec free_lock() -> no_return().
 free_lock() ->
   ?mb_state_free("acquire*"),
   % Whenever we have a *, we generate a free guard clause in Pat, unless
@@ -65,7 +65,7 @@ free_lock() ->
 %%       freeLock(self)
 %%   }
 %% }
--spec busy_lock(user()) -> none().
+-spec busy_lock(user()) -> no_return().
 busy_lock(Owner) ->
   Owner ! {reply, self()},
   ?mb_state("acquire*.release", no_free),
@@ -84,7 +84,7 @@ busy_lock(Owner) ->
 %%       free(self)
 %%   }
 %% }
--spec user(integer(), lock()) -> none().
+-spec user(integer(), lock()) -> free. % TODO: This is not the way to do it, but will serve as a crutch for now.
 user(Num, Lock) -> % TODO: We need a built-in function free or a macro free.
 
   Lock ! {acquire, self()},
@@ -102,7 +102,7 @@ user(Num, Lock) -> % TODO: We need a built-in function free or a macro free.
 %%   spawn { user(1, lock) };
 %%   spawn { user(2, lock) }
 %% }
--spec main() -> none().
+%%-spec main() -> none().
 main() ->
   Lock = spawn(?MODULE, free_lock, []),
   spawn(?MODULE, user, [1, Lock]),

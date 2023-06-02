@@ -83,7 +83,7 @@ file(File, Opts) when is_list(File), is_list(Opts) ->
 
           ok;
         {error, Errors} ->
-          errors:show_messages(File, Errors)
+          errors:show_errors(File, Errors)
       end;
     {error, Error} ->
       errors:show_error({epp, Error})

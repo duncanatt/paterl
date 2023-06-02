@@ -34,8 +34,8 @@
 -type reply() :: {reply, integer()}.
 
 %% Mailbox interfaces.
-%%-type future() :: pid() | put() | get().
--type future() :: put() | get().
+-type future() :: pid() | put() | get().
+%%-type future() :: put() | get().
 -type user() :: pid() | reply().
 %%-type user() :: pid().
 %%-type user() :: reply().

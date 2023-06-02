@@ -39,21 +39,19 @@
 
 -spec show_errors([{file:filename(), errors()}]) -> any().
 show_errors(Errors = [{_, _}]) ->
-  show_messages(?L_ERROR, Errors).
+  show_errors(?L_ERROR, Errors).
 
 -spec show_warnings([{file:filename(), errors()}]) -> any().
 show_warnings(Warnings = [{_, _}]) ->
-  show_messages(?L_WARNING, Warnings).
+  show_errors(?L_WARNING, Warnings).
 
 -spec show_error({file:name_all(), error()} | error()) -> ok.
-%%show_error(M = {_, {_, _, _}}) ->
 show_error(E) ->
-  show_message(?L_ERROR, E).
+  show_error(?L_ERROR, E).
 
 -spec show_warning({file:name_all(), error()} | error()) -> ok.
-%%show_warning(M = {_, {_, _, _}}) ->
 show_warning(W) ->
-  show_message(?L_WARNING, W).
+  show_error(?L_WARNING, W).
 
 
 %%% ----------------------------------------------------------------------------
@@ -61,21 +59,21 @@ show_warning(W) ->
 %%% ----------------------------------------------------------------------------
 
 %% @private Prints the specified list of issues to standard_error.
--spec show_messages(string(), [{file:filename(), errors()}]) -> any().
-show_messages(Level, [{File, Errors}]) ->
+-spec show_errors(string(), [{file:filename(), errors()}]) -> any().
+show_errors(Level, [{File, Errors}]) ->
   File0 = lists:last(filename:split(File)),
-  [show_message(Level, {File0, E}) || E <- Errors].
+  [show_error(Level, {File0, E}) || E <- Errors].
 
 %% @private Prints the specified issue to standard_error.
--spec show_message(string(), {file:name_all(), error()} | error()) -> ok.
-show_message(Severity, {File, {ANNO, Mod, E}}) ->
+-spec show_error(string(), {file:name_all(), error()} | error()) -> ok.
+show_error(Severity, {File, {ANNO, Mod, E}}) ->
   io:format(
     standard_error, "~ts:~w: ~ts: ~ts~n",
     [File, ANNO, Severity, Mod:format_error(E)]
   );
-show_message(Severity, {ANNO, Mod, E}) ->
+show_error(Severity, {ANNO, Mod, E}) ->
   io:format(
     standard_error, "~w: ~ts: ~ts~n", [ANNO, Severity, Mod:format_error(E)]
   );
-show_message(Severity, {Mod, E}) ->
+show_error(Severity, {Mod, E}) ->
   io:format(standard_error, "~ts: ~ts~n", [Severity, Mod:format_error(E)]).
