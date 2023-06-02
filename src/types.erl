@@ -4,7 +4,7 @@
 %%% @doc
 %%%
 %%% @end
-%%% Created : 24. May 2023 15:01
+%%% Created : 02. Jun 2023 11:30
 %%%-------------------------------------------------------------------
 -module(types).
 -author("duncan").
@@ -22,25 +22,30 @@
 %%% Macro and record definitions.
 %%% ----------------------------------------------------------------------------
 
--define(E_MB_TYPE_NOT_DECL, e_mb_type_not_decl).
--define(E_MB_TYPE_NO_PID, e_mb_type_no_pid).
+-define(E_MB_TYPE_UNDEF, e_mb_type_undef).
+-define(W_MB_TYPE_PID, w_mb_type_pid).
+-define(W_MB_TYPE_EMPTY, w_mb_type_empty).
+%%-define(E_MB_TYPE_INVALID, e_mb_type_invalid).
+-define(E_MB_SIG_TYPE_UNDEF, e_mb_sig_type_undef).
+
 
 %% Error creation macros.
 -define(
 pushError(Class, Node, Errors),
-  [{element(2, Node), ?MODULE, {Class, Node}} | Errors]
+%%  [{element(2, Node), ?MODULE, {Class, Node}} | Errors]
+  [{erl_syntax:get_pos(Node), ?MODULE, {Class, Node}} | Errors]
 ).
 -define(
 pushError(Class, Reason, Node, Errors),
-  [{element(2, Node), ?MODULE, {Class, Reason, Node}} | Errors]
+%%  [{element(2, Node), ?MODULE, {Class, Reason, Node}} | Errors]
+  [{erl_syntax:get_pos(Node), ?MODULE, {Class, Reason, Node}} | Errors]
 ).
-
 
 %% Program type information.
 -record(t_info, {
-  t_specs = [] :: [spec()],
-  f_specs = [] :: [spec()],
-  mb_sigs = [] :: [signature()]
+  t_specs = [] :: [t_spec()],
+  f_specs = [] :: [f_spec()],
+  mb_sigs = [] :: [mb_sig()]
 }).
 
 
@@ -49,266 +54,284 @@ pushError(Class, Reason, Node, Errors),
 %%% ----------------------------------------------------------------------------
 
 -type signature() :: {atom(), arity()}.
-%% Function signature.
+%% Function signature as Fun/Arity.
 
--type spec() :: {atom(), erl_syntax:erl_parse()}.
-%% Type and function spec.
+-type name() :: atom().
+%% Type or function spec name.
+
+-type mailbox() :: atom().
+%% Mailbox interface name.
+
+-type t_spec() :: {name(), {erl_syntax:erl_parse(), erl_syntax:erl_parse()}}.
+%% Type specs map.
+
+-type f_spec() :: {{name(), arity()}, {erl_syntax:erl_parse(), erl_syntax:erl_parse()}}.
+%% Function specs map.
+
+-type mb_sig() :: {mailbox(), {erl_syntax:erl_parse(), [signature()]}}.
+%% Mailbox interface names map that tracks the Erlang functions implementing the
+%% mailbox type.
+
+-type t_info() :: #t_info{}.
+%% Program type information.
 
 
 %%% ----------------------------------------------------------------------------
 %%% Public API.
 %%% ----------------------------------------------------------------------------
 
+-spec table(erl_syntax:forms()) -> t_info().
+table(Forms) ->
+  TInfo = get_types(Forms, #t_info{}),
 
-%%-spec get(erl_syntax:syntaxTree()) -> ok.
-get(Forms) ->
-  get_forms(Forms, #t_info{}).
-%%  ok.
-
-
-
-
-
+  ?TRACE("TInfo~n~s", [lists:duplicate(80, $-)]),
+  ?TRACE("t_specs: ~p", [TInfo#t_info.t_specs]),
+  ?TRACE("f_specs: ~p", [TInfo#t_info.f_specs]),
+  ?TRACE("mb_sigs: ~p~n~n", [TInfo#t_info.mb_sigs]),
 
 
-
-get_forms([], Table) ->
-  Table;
-get_forms([Form | Forms], Table) ->
-  ?DEBUG("Processing form: ~p", [Form]),
-  Table0 = get_form(Form, Table),
-  get_forms(Forms, Table0).
-
-
-get_form(Type = {attribute, _, spec, {{Name, Arity}, FTypes}}, TInfo = #t_info{f_specs = FSpecs})
-  when is_atom(Name), is_integer(Arity), is_list(FTypes) ->
-
-
-  [{type, 120, 'fun',
-    [{type, 120, product,
-      [{user_type, 120, future, []},
-        {type, 120, atom, []}]},
-      {type, 120, integer, []}]}
-  ],
-
-  [{type, 120, 'fun',
-    [{type, 120, product,
-      [{user_type, 120, future, []},
-        {type, 120, atom, []}]},
-      {type, 120, integer, []}]},
-    {type, 120, 'fun',
-      [{type, 120, product,
-        [{user_type, 120, future, []},
-          {type, 120, atom, []}]},
-        {type, 120, float, []}]}
-  ],
-
-%%  {type,_,'fun',[{type,_,product,Types},T_0]}
+  case check_mb_types(TInfo#t_info.mb_sigs, TInfo#t_info.t_specs) of
+    {[], Warnings0} ->
+      case check_mb_has_pid(TInfo#t_info.mb_sigs, TInfo#t_info.t_specs) of
+        {[], Warnings1} ->
+          case check_mb_sig_types(TInfo#t_info.mb_sigs, TInfo#t_info.f_specs) of
+            {[], Warnings2} ->
+              {ok, TInfo, Warnings0 ++ Warnings1 ++ Warnings2};
+            {Errors2, Warnings2} ->
+              ?ERROR("----- Errros were found!"),
+              {errors, Errors2, Warnings0 ++ Warnings1 ++ Warnings2}
+          end;
+        {Errors1, Warnings1} ->
+          {errors, Errors1, Warnings0 ++ Warnings1}
+      end;
+    {Errors0, Warnings0} ->
+      {errors, Errors0, Warnings0}
+  end.
 
 
-  TInfo#t_info{f_specs = orddict:store(Name, {erl_syntax:revert(erl_syntax:attribute_name(Type)), FTypes}, FSpecs)};
-
-get_form({attribute, _, type, {Name, T, _}}, TInfo = #t_info{t_specs = TSpecs}) ->
-  TInfo#t_info{t_specs = orddict:store(Name, T, TSpecs)};
-
-%% @private Wild attribute associating mailbox type to functions.
-get_form(Type = {attribute, _, Name, Sigs}, TInfo = #t_info{mb_sigs = MbSigs})
-  when is_atom(Name), Name =/= export, is_list(Sigs) ->
-
-  % Predicate determines whether the specified tuple is a signature.
-  IsSig =
-    fun({F, A}, Flag) when is_atom(F), is_integer(A) -> Flag and true;
-      (_, _) -> false
-    end,
 
 
-  case lists:foldl(IsSig, true, Sigs) of
+get_types([], TInfo = #t_info{}) ->
+  TInfo;
+get_types([Form | Forms], TInfo = #t_info{}) ->
+  TInfo0 = get_type(Form, TInfo),
+  get_types(Forms, TInfo0).
+
+
+get_type(Form = {attribute, _, spec, {{Name, Arity}, FTypes}}, TInfo = #t_info{f_specs = FSpecs})
+  when
+  is_atom(Name), is_integer(Arity), is_list(FTypes) ->
+
+  Node = erl_syntax:set_pos(erl_syntax:atom(Name), erl_syntax:get_pos(Form)),
+  TInfo#t_info{f_specs = orddict:store({Name, Arity}, {Node, FTypes}, FSpecs)};
+
+get_type(Form = {attribute, _, type, {Name, T, []}}, TInfo = #t_info{t_specs = TSpecs})
+  when
+  is_atom(Name) ->
+
+  Node = erl_syntax:set_pos(erl_syntax:atom(Name), erl_syntax:get_pos(Form)),
+  TInfo#t_info{t_specs = orddict:store(Name, {Node, T}, TSpecs)};
+
+get_type(Form = {attribute, _, Name, Sigs}, TInfo = #t_info{mb_sigs = MbSigs})
+  when
+  is_atom(Name), Name =/= export, is_list(Sigs) ->
+  case is_signatures(Sigs) of
     true ->
-      TInfo#t_info{mb_sigs = orddict:store(Name, {erl_syntax:revert(erl_syntax:attribute_name(Type)), Sigs}, MbSigs)};
+      Node = erl_syntax:attribute_name(Form),
+      TInfo#t_info{mb_sigs = orddict:store(Name, {Node, Sigs}, MbSigs)};
     false ->
       TInfo
   end;
 
-get_form(_, TInfo = #t_info{}) ->
+get_type(_, TInfo = #t_info{}) ->
   TInfo.
 
 
-%%type_form({attribute, _, type, TSpec = {Name, T, Vars}}, TSpecs, MbSigs)
-%%  when is_atom(Name), is_list(Vars) ->
-%%  {[TSpec | TSpecs], MbSigs};
+%%% ----------------------------------------------------------------------------
+%%% Type consistency checking functions.
+%%% ----------------------------------------------------------------------------
 
 
-%%type_form({attribute, _, Name, Sigs}, TSpecs, MbSigs)
-%%  when is_atom(Name), is_list(Sigs) ->
+%% 1. Aim: To check that the mailbox interface names (which associate Erlang
+%% functions to the mailbox interfaces) are declared as type specs.
+%%
+%% How: For each key in mb_sigs check that it is a key in t_specs.
+%% Error: Mailbox interface '~s' is not defined as a type spec.
 
-
-%% Checks that types in the table are consistent and existing.
-% ok, {errors, []}
-check(TInfo = #t_info{}) ->
-
-
-  case check_mb_sigs(TInfo) of
-    [] ->
-%%      check_mb_types(TInfo);
-      check_f_specs(TInfo);
-    Errors ->
-      Errors
-  end.
-
-
-%% @private Checks that the mailbox interface name that associates the mailbox
-%% to the functions adhering to it is defined as a type spec. Should be the last.
-check_mb_sigs(#t_info{t_specs = TSpecs, mb_sigs = MbSigs}) ->
-
-  %% Checks that the mailbox interface name is declared as a type spec.
-  HasTypeSpec =
-    fun(Name, {A, _}, Errors) ->
-      case orddict:is_key(Name, TSpecs) of
-        true ->
-          Errors; % Mailbox type declared.
-        false ->
-          ?pushError(?E_MB_TYPE_NOT_DECL, A, Errors) % Mailbox type not declared.
-      end
-    end,
-  orddict:fold(HasTypeSpec, [], MbSigs).
-
-%% @private Checks that user-defined type specs referenced in function specs
-%% exist.
-%% Should be the first lightweight check. Assumes nothing.
-check_f_specs(#t_info{t_specs = TSpecs, f_specs = FSpecs}) ->
-
-  %% 1. For each FSpec in FSpecs
-  %%    a. Get the product list of parameters and for each element in the list
-  %%       i. Check that it is a key in TSpecs.
-  %%    b. Get the return type and check that it is a key in TSpecs.
-
-
-  % FOR now we support exactly on function type spec.
-  HasUserDefinedTypes =
-    fun(Key, {N, [{type, _, 'fun', [{type, _, product, Types}, T_0]}]}, Errors) ->
-      ?TRACE("Name is ~p, Types are ~p", [Key, Types]),
-
-      lists:foldl(
-        fun(T = {user_type, _, UTypeName, []}, E) ->
-          case orddict:is_key(UTypeName, TSpecs) of
-            true ->
-              E;
-            false ->
-              ?pushError(non_existent_user_type, T, E)
-          end;
-          (_, E) ->
-            E
-        end,
-        Errors, [T_0 | Types]);
-
-      (_, {N, [_, _ | _]}, Errors) ->
-        ?pushError(mult_fun_typespec_not_supported, N, Errors)
-    end,
-
-
-  orddict:fold(HasUserDefinedTypes, [], FSpecs).
-
-
-%% @private Checks that the mailbox interface name that associates the mailbox
-%% to the functions adhering to it includes the built-in type 'pid' as its type
-%% or in its type union.
-check_mb_types(#t_info{t_specs = TSpecs, mb_sigs = MbSigs}) ->
-
-
-  ?DEBUG("TSpecs = ~p", [TSpecs]),
-
-  HasPidType =
-    fun(Name, {Atom, _}, Errors) ->
-      ?TRACE("TYPE Checking name ~p", [Name]),
-
-      %% We assume that it exists based on the previous checking.
-      ?assert(orddict:is_key(Name, TSpecs)),
-      case orddict:fetch(Name, TSpecs) of
-        {type, _, pid, []} ->
-          Errors;
-        {type, _, union, Types} ->
-          case has_pid_type(Types) of
-            true ->
-              Errors;
-            false ->
-%%              [Name | Errors]
-              ?pushError(?E_MB_TYPE_NO_PID, Atom, Errors)
-          end;
-        {user_type, _, _, []} ->
-          ?pushError(?E_MB_TYPE_NO_PID, Atom, Errors)
-%%          [Name | Errors]
-      end
-    end,
-
-
-  orddict:fold(HasPidType, [], MbSigs).
-
-
-check_f_sigs(FSigs, Forms) when is_list(FSigs), is_list(Forms) ->
+-spec check_mb_types([mb_sig()], [t_spec()]) -> {Warnings, Errors}
+  when
+  Warnings :: errors:errors(),
+  Errors :: errors:errors().
+check_mb_types(MbSigs, TSpecs) ->
   orddict:fold(
-    fun(Key, Val, Errors) ->
-      Errors
-    end, [], FSigs).
+    fun(MbName, {Node, _}, {Errors, Warnings}) ->
+      case orddict:is_key(MbName, TSpecs) of
+        true ->
+          {Errors, Warnings};
+        false ->
+          {?pushError(?E_MB_TYPE_UNDEF, Node, Errors), Warnings}
+      end
+    end,
+    {[], []}, MbSigs).
 
 
-%%is_pid_type({type, _, pid, []}) ->
-%%  true;
-%%is_pid_type(_) ->
-%%  false.
-
-has_pid_type([]) ->
-  false;
-has_pid_type([{type, _, pid, []} | _]) ->
-  true;
-has_pid_type([_ | Types]) ->
-  has_pid_type(Types).
-
-
-%% 1. Check that the function signature references (values) in mb_sigs refer to
-%% functions defined in forms. This ensures that these references describe
-%% existing functions. Why? To check that the function specs are valid.
-
-%% 2. Check that the function signature references (values) in mb_sigs exist
-%% in the f_specs table. This ensures that these references are type-annotated.
-%% Error: Function reference F/A is not annotated.
-%% Why? To detect missing function spec annotations for the functions that
-%% are used by mailbox interfaces.
-
-%% 2. Check that the function names (keys) in mb_sigs are defined as types in
+%% 2. Aim: To check that the mailbox interface names have the built-in 'pid'
+%% type associated with them, thereby enabling other tools like Dialyzer to
+%% type check them successfully.
+%%
+%% Assumes: That an entry for the mailbox interface name of mb_specs exists in
 %% t_specs.
+%% How: For each key in mb_specs, find the corresponding type in t_specs, and
+%% check that its type spec definition is (i) either a 'pid' or (ii) is a type
+%% union that itself contains a 'pid'. For now, the use of 'pid' is direct, i.e.
+%% we do not recurse in case we find a user-defined type, and check whether that
+%% type itself contains a 'pid', and so on.
+%% Warn: Type spec '~s' requires also type 'pid()'
+-spec check_mb_has_pid([mb_sig()], [t_spec()]) -> {Warnings, Errors}
+  when
+  Warnings :: errors:errors(),
+  Errors :: errors:errors().
+check_mb_has_pid(MbSigs, TSpecs) ->
+  orddict:fold(
+    fun(MbName, {Node, _}, {Errors, Warnings}) ->
+
+      % Assume that mailbox interface name is defined as a type spec.
+      ?assert(orddict:is_key(MbName, TSpecs)),
+      case orddict:fetch(MbName, TSpecs) of
+        {_, {type, _, pid, []}} ->
+
+          % Mailbox type defined as the built-in type 'pid'. While this is a
+          % valid Erlang type spec, it corresponds to an empty mailbox interface
+          % in Pat.
+          {Errors, ?pushError(?W_MB_TYPE_EMPTY, Node, Warnings)};
+
+        {_, {type, _, union, Types}} ->
+
+          % Check that type union for mailbox type spec contains built-in type
+          % 'pid'.
+          case has_builtin(pid, Types) of
+            true ->
+
+              % Mailbox type union contains built-in type 'pid'.
+              {Errors, Warnings};
+            false ->
+
+              % Mailbox type union does not contain built-in type 'pid'. While
+              % this is a valid Pat mailbox interface definition, it does not
+              % type check under Dialyzer.
+              {Errors, ?pushError(?W_MB_TYPE_PID, Node, Errors)}
+          end;
+        {_, _} ->
+
+          % Mailbox type not defined as the built-in type 'pid'. While this is a
+          % valid Pat mailbox interface definition, it does not type check under
+          % Dialyzer.
+          {Errors, ?pushError(?W_MB_TYPE_PID, Node, Warnings)}
+      end
+    end,
+    {[], []}, MbSigs).
 
 
-
-
-
-
-
+%% 3. Aim: To check that the functions that are instantiated to processes the
+%% mailbox interface have the necessary type information.
 %%
-%%
-%%
-%% that use
-%% a user-defined type is defined as a user type in t_specs.
+%% How: For each key in mb_specs, for each of its F/A in its values, check that
+%% there is a key in the f_specs table. As a key, I might have to use the
+%% {name, arity}, rather than the name alone.
+%% Error: Function F/A used in mailbox interface '~s' is not annotated.
 
 
+%% @private Checks that the Erlang functions implementing the mailbox type are
+%% annotated with type information.
+-spec check_mb_sig_types([mb_sig()], [f_spec()]) -> {Warnings, Errors}
+  when
+  Warnings :: errors:errors(),
+  Errors :: errors:errors().
+check_mb_sig_types(MbSigs, FSpecs) ->
+  orddict:fold(
+    fun(MbName, {Node, Sigs}, {Errors, Warnings}) ->
+
+      ?TRACE("Processing mbname: ~p", [MbName]),
+      lists:foldl(
+        fun(Sig, EW = {Errors0, _}) ->
+          ?TRACE("Looking up sig ~p", [Sig]),
+          ?TRACE("FSpecs ~w", [FSpecs]),
+          case orddict:is_key(Sig, FSpecs) of
+            true ->
+              ?TRACE("Function ~p has been found", [Sig]),
+              EW;
+            false ->
+
+              FA = erl_syntax:set_pos(
+                erl_syntax:atom(
+                  lists:flatten(io_lib:format("~s/~w", tuple_to_list(Sig)))
+                ),
+                erl_syntax:get_pos(Node)),
+
+              ?ERROR("Function ~p was not found.", [Sig]), % Need a function name for the error.
+              {?pushError(?E_MB_SIG_TYPE_UNDEF, FA, Errors0), Warnings}
+          end
+        end,
+        {Errors, Warnings}, Sigs)
+    end,
+    {[], []}, MbSigs).
 
 
-%% 2. Check that the function signatures in f_specs that use a user_type type is
-%% found in the t_specs.
+%%% ----------------------------------------------------------------------------
+%%% Helper functions.
+%%% ----------------------------------------------------------------------------
 
-%% 3. Check that the keys in mb_sigs have a pid() type in the type union defined
-%% in t_specs.
+%% @private Determines whether the elements in specified list are function
+%% signatures.
+is_signatures([]) ->
+  false;
+is_signatures([{F, A}]) when is_atom(F), is_integer(A) ->
+  true;
+is_signatures([{F, A} | Sigs]) when is_atom(F), is_integer(A) ->
+  is_signatures(Sigs);
+is_signatures([_ | _]) ->
+  false.
+
+%% @private Determines whether the specified list of types contains a type with
+%% name. TODO: May be improved by extending it wil the different type patterns
+%% in sec 8.7 of the EAF spec to search recursively for the type, and make it
+%% more explicit in that if no pattern matches, the function fails.
+has_builtin(_, []) ->
+  false;
+has_builtin(N, [{type, _, N, _} | _]) ->
+  true;
+has_builtin(N, [_ | Types]) ->
+  has_builtin(N, Types).
 
 
+%%% ----------------------------------------------------------------------------
+%%% Error handling and reporting.
+%%% ----------------------------------------------------------------------------
 
-
-
--spec format_error(any()) -> ok.
-format_error({?E_MB_TYPE_NOT_DECL, Node}) ->
-  io_lib:format("mailbox type '~s' not declared", [erl_prettypr:format(Node)]);
-format_error({?E_MB_TYPE_NO_PID, Node}) ->
+%% @doc Formats the specified error to human-readable form.
+format_error({?E_MB_TYPE_UNDEF, Node}) ->
   io_lib:format(
-    "illegal mailbox type '~s' must contain pid() built-in type",
+    "mailbox interface '~s' has no corresponding typespec defined",
     [erl_prettypr:format(Node)]
   );
-format_error(E) ->
-  io_lib:format("unknown error ~p", [E]).
+format_error({?W_MB_TYPE_PID, Node}) ->
+  io_lib:format(
+    "mailbox typespec definition '~s' missing built-in type pid()",
+    [erl_prettypr:format(Node)]
+  );
+
+format_error({?W_MB_TYPE_EMPTY, Node}) ->
+  io_lib:format("mailbox interface '~s' is empty", [erl_prettypr:format(Node)]);
+
+%%format_error({?E_MB_TYPE_INVALID, Node}) ->
+%%  io_lib:format(
+%%    "mailbox interface has invalid type '~s'", [erl_prettypr:format(Node)]
+%%  );
+
+format_error({?E_MB_SIG_TYPE_UNDEF, Node}) ->
+  io_lib:format(
+    "no type information found for function ~s used in mailbox interface",
+    [erl_prettypr:format(Node)]
+  ).
+
+

@@ -106,8 +106,17 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
           errors:show_errors([{File, Errors0}]),
 
           % 2. Build type_tbl. Should have its own error reporting.
-          TInfo = types:get(Forms),
-          ?TRACE("Collected types: ~p", [TInfo]),
+          case types:table(Forms) of
+            {ok, TInfo, Warnings1} ->
+              errors:show_warnings([{File, Warnings1}]),
+              ok;
+            {errors, Errors1, Warnings1} ->
+              ?ERROR("Warnings1: ~p", [Warnings1]),
+              ?ERROR("Errors1: ~p", [Errors1]),
+              errors:show_warnings([{File, Warnings1}]),
+              errors:show_errors([{File, Errors1}]),
+              error
+          end,
 
           ok;
         {error, Errors, Warnings} ->

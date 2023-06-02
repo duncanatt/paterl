@@ -42,16 +42,18 @@ show_errors(Errors = [{_, _}]) ->
   show_messages(?L_ERROR, Errors).
 
 -spec show_warnings([{file:filename(), errors()}]) -> any().
-show_warnings(Errors = [{_, _}]) ->
-  show_messages(?L_WARNING, Errors).
+show_warnings(Warnings = [{_, _}]) ->
+  show_messages(?L_WARNING, Warnings).
 
 -spec show_error({file:name_all(), error()} | error()) -> ok.
-show_error(M = {_, {_, _, _}}) ->
-  show_message(?L_ERROR, M).
+%%show_error(M = {_, {_, _, _}}) ->
+show_error(E) ->
+  show_message(?L_ERROR, E).
 
 -spec show_warning({file:name_all(), error()} | error()) -> ok.
-show_warning(M = {_, {_, _, _}}) ->
-  show_message(?L_WARNING, M).
+%%show_warning(M = {_, {_, _, _}}) ->
+show_warning(W) ->
+  show_message(?L_WARNING, W).
 
 
 %%% ----------------------------------------------------------------------------

@@ -25,8 +25,8 @@
 
 %% Mailbox interface-function associations.
 %% E.g. The mailbox interface future() is used by future_fun/0, full_future/1.
--future([future_fun/0, full_future/1]).
--user([user/0]).
+-future([future_fun/0, resolved_future/1]).
+-user([user/1]).
 
 %% Message types.
 -type put() :: {put, integer()}.
@@ -34,9 +34,12 @@
 -type reply() :: {reply, integer()}.
 
 %% Mailbox interfaces.
--type future() :: pid() | put() | get().
+%%-type future() :: pid() | put() | get().
+-type future() :: put() | get().
 -type user() :: pid() | reply().
-
+%%-type user() :: pid().
+%%-type user() :: reply().
+-type dummy() :: pid().
 
 %% def future(self: Future?): Unit {
 %%   guard self : Put.(*Get) {
@@ -99,7 +102,7 @@ user(Future) ->
 %%   print(intToString(user(future_mb)));
 %%   print(intToString(user(future_mb)))
 %% }
--spec main() -> ok.
+%%-spec main() -> ok.
 main() ->
   Future = spawn(?MODULE, future_fun, []),
   Future ! {put, 5},

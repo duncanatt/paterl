@@ -27,7 +27,6 @@
 -define(OPT_ALLOW_LIST_EXPR, allow_list).
 -define(OPT_BUILTIN_TYPES, builtin_types).
 -define(OPT_ATOMIC_LIT, atomic_lit).
-%%-define(OPT_ENABLE_PATS, enable_pats).
 
 %% Error classes used to label the syntactic fragments that the Erlang-to-Pat
 %% translation does not currently handle. Each class identifies general errors
@@ -61,11 +60,13 @@
 %% Error creation macros.
 -define(
 pushError(Class, Node, Errors),
-  [{element(2, Node), ?MODULE, {Class, Node}} | Errors]
+%%  [{element(2, Node), ?MODULE, {Class, Node}} | Errors]
+  [{erl_syntax:get_pos(Node), ?MODULE, {Class, Node}} | Errors]
 ).
 -define(
 pushError(Class, Reason, Node, Errors),
-  [{element(2, Node), ?MODULE, {Class, Reason, Node}} | Errors]
+%%  [{element(2, Node), ?MODULE, {Class, Reason, Node}} | Errors]
+  [{erl_syntax:get_pos(Node), ?MODULE, {Class, Reason, Node}} | Errors]
 ).
 
 
@@ -73,7 +74,7 @@ pushError(Class, Reason, Node, Errors),
 %%% Public API.
 %%% ----------------------------------------------------------------------------
 
--spec check_forms(Forms :: erl_syntax:forms()) -> errors:errors().
+-spec check_forms(erl_syntax:forms()) -> errors:errors().
 check_forms(Forms) ->
   Opts = [{?OPT_ATOMIC_LIT, ?ATOMIC_LIT}, {?OPT_BUILTIN_TYPES, ?BUILTIN_TYPES}],
   check_forms(Forms, orddict:from_list(Opts), []).
@@ -87,7 +88,7 @@ check_forms(Forms) ->
 check_forms([], _, Errors) ->
   lists:reverse(Errors);
 check_forms([Form | Forms], Opts, Errors) ->
-%%  ?DEBUG("Checking form: ~p", [Form]),
+  ?DEBUG("Checking form: ~p", [Form]),
   Errors0 = check_form(Form, Opts, Errors),
   check_forms(Forms, Opts, Errors0).
 
@@ -691,11 +692,6 @@ fun_call_type(_) ->
 %%% ----------------------------------------------------------------------------
 %%% Error handling and reporting.
 %%% ----------------------------------------------------------------------------
-
-%%ERROR HANDLING MACROS MUST BE PUT AGAIN IN HERE.
-%%CLEANUP CODE
-%%COLLECT TABLES WITH TYPES
-%%EMIT TABLES WITH TYPES.
 
 %% @doc Formats the specified error to human-readable form.
 format_error({?E_FORM, Node}) ->
