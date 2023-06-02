@@ -55,15 +55,27 @@ file(File, Opts) when is_list(File), is_list(Opts) ->
       case parse(Epp) of
         {ok, Forms} ->
 
+
+%%          case
+
+          Ret = erl_lint:module(Forms),
+
+          ?TRACE("Ret: ~p", [Ret]),
+%%
+%%          pf(Forms),
+
           % 1. Check file. Should have its own error handling with unsupported.
-          Errors = erl_subsyntax:check_forms(Forms),
-          errors:show_errors(File, Errors),
+%%          Errors = erl_subsyntax:check_forms(Forms),
+%%          errors:show_errors(File, Errors),
 
         % 2. Build type_tbl. Should have its own error reporting.
-          TInfo = types:get(Forms),
-          ?TRACE("Collected types: ~p", [TInfo]),
+%%          TInfo = types:get(Forms),
+%%          ?TRACE("Collected types: ~p", [TInfo]),
 
+%%          Errors0 = types:check(TInfo),
+%%          errors:show_errors(File, Errors0),
 
+%%          ?TRACE("check_mb_types: ~p", [Errors0]),
 
         % 3. Expand the tree for the mailboxes.
 
@@ -71,11 +83,44 @@ file(File, Opts) when is_list(File), is_list(Opts) ->
 
           ok;
         {error, Errors} ->
-          errors:show_errors(File, Errors)
+          errors:show_messages(File, Errors)
       end;
     {error, Error} ->
       errors:show_error({epp, Error})
   end.
+
+compile(File, Opts) when is_list(File), is_list(Opts) ->
+%%  Use epp parse_file, followed by erl_lint. Only once the error list of erl_lint
+%%  is empty can we invoke our check and types modules.
+
+  case epp:parse_file(File, Opts) of
+    {ok, Forms} ->
+
+      % File is preprocessed.
+      case erl_lint:module(Forms) of
+        {ok, Warnings} ->
+
+          % File is valid.
+          % 1. Check file. Should have its own error handling with unsupported.
+          Errors0 = erl_subsyntax:check_forms(Forms),
+          errors:show_errors([{File, Errors0}]),
+
+          % 2. Build type_tbl. Should have its own error reporting.
+          TInfo = types:get(Forms),
+          ?TRACE("Collected types: ~p", [TInfo]),
+
+          ok;
+        {error, Errors, Warnings} ->
+          errors:show_warnings(Warnings),
+          errors:show_errors(Errors),
+          error
+      end;
+    {error, Error} ->
+      errors:show_error({epp, Error}),
+      error
+  end.
+
+
 
 
 parse(Epp) when is_pid(Epp) ->
@@ -98,6 +143,12 @@ parse_forms(Epp, Forms, Errors) ->
       {[Eof | Forms], Errors}
   end.
 
+
+pf([]) ->
+  [];
+pf([Form | Forms]) ->
+  erl_parse:parse_form(Form),
+  pf(Forms).
 
 
 

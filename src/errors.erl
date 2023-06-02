@@ -10,19 +10,26 @@
 -author("duncan").
 
 %%% Public API.
--export([show_errors/1, show_errors/2, show_error/1]).
+-export([show_errors/1, show_warnings/1, show_error/1, show_warning/1]).
 
 %%% Types.
 -export_type([error/0, errors/0]).
+
+
+%%% ----------------------------------------------------------------------------
+%%% Macro and record definitions.
+%%% ----------------------------------------------------------------------------
+
+-define(L_ERROR, "Error").
+-define(L_WARNING, "Warning").
 
 %%% ----------------------------------------------------------------------------
 %%% Type definitions.
 %%% ----------------------------------------------------------------------------
 
-%%{element(2, Node), ?MODULE, {Class, Node}}
-
--type error() :: {Anno :: erl_anno:anno(), Mod :: module(), Error :: any()} |
-{Mod :: module(), Error :: any()}.
+-type error() ::
+{Anno :: erl_anno:location() | none, Mod :: module(), Detail :: term()} |
+{Mod :: module(), Detail :: term()}.
 -type errors() :: [error()].
 
 
@@ -30,21 +37,43 @@
 %%% Public API.
 %%% ----------------------------------------------------------------------------
 
--spec show_errors(errors()) -> any().
-show_errors(Errors) ->
-  [show_error(E) || E <- Errors].
+-spec show_errors([{file:filename(), errors()}]) -> any().
+show_errors(Errors = [{_, _}]) ->
+  show_messages(?L_ERROR, Errors).
 
--spec show_errors(file:name_all(), errors()) -> any().
-show_errors(File, Errors) ->
+-spec show_warnings([{file:filename(), errors()}]) -> any().
+show_warnings(Errors = [{_, _}]) ->
+  show_messages(?L_WARNING, Errors).
+
+-spec show_error({file:name_all(), error()} | error()) -> ok.
+show_error(M = {_, {_, _, _}}) ->
+  show_message(?L_ERROR, M).
+
+-spec show_warning({file:name_all(), error()} | error()) -> ok.
+show_warning(M = {_, {_, _, _}}) ->
+  show_message(?L_WARNING, M).
+
+
+%%% ----------------------------------------------------------------------------
+%%% Helper functions.
+%%% ----------------------------------------------------------------------------
+
+%% @private Prints the specified list of issues to standard_error.
+-spec show_messages(string(), [{file:filename(), errors()}]) -> any().
+show_messages(Level, [{File, Errors}]) ->
   File0 = lists:last(filename:split(File)),
-  [show_error({File0, E}) || E <- Errors].
+  [show_message(Level, {File0, E}) || E <- Errors].
 
--spec show_error(Descriptor :: {file:name_all(), error()} | error()) -> any().
-show_error({File, {ANNO, Mod, E}}) ->
+%% @private Prints the specified issue to standard_error.
+-spec show_message(string(), {file:name_all(), error()} | error()) -> ok.
+show_message(Severity, {File, {ANNO, Mod, E}}) ->
   io:format(
-    standard_error, "~ts:~w: Error: ~ts~n", [File, ANNO, Mod:format_error(E)]
+    standard_error, "~ts:~w: ~ts: ~ts~n",
+    [File, ANNO, Severity, Mod:format_error(E)]
   );
-show_error({ANNO, Mod, E}) ->
-  io:format(standard_error, "~w: Error: ~ts~n", [ANNO, Mod:format_error(E)]);
-show_error({Mod, E}) ->
-  io:format(standard_error, "Error: ~ts~n", [Mod:format_error(E)]).
+show_message(Severity, {ANNO, Mod, E}) ->
+  io:format(
+    standard_error, "~w: ~ts: ~ts~n", [ANNO, Severity, Mod:format_error(E)]
+  );
+show_message(Severity, {Mod, E}) ->
+  io:format(standard_error, "~ts: ~ts~n", [Severity, Mod:format_error(E)]).
