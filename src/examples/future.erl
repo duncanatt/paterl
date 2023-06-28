@@ -25,8 +25,8 @@
 
 %% Mailbox interface-function associations.
 %% E.g. The mailbox interface future() is used by future_fun/0, full_future/1.
--future([future_fun/0, resolved_future/1]).
--user([user/1]).
+-future([future_fun/0, resolved_future/1]).  % Always marks the receiving end.
+-user([user/1]). % Always marks the receiving end.
 
 %% Message types.
 -type put() :: {put, integer()}.

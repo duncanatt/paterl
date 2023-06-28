@@ -38,10 +38,15 @@
 %%% ----------------------------------------------------------------------------
 
 -spec show_errors([{file:filename(), errors()}]) -> any().
+show_errors([]) ->
+  ok;
 show_errors(Errors = [{_, _}]) ->
   show_errors(?L_ERROR, Errors).
 
 -spec show_warnings([{file:filename(), errors()}]) -> any().
+show_warnings([]) -> % This is how the internal structure of the EPP works. When it has no errors, it returns [],
+% otherwise it returns [{file,list of errors}].
+  ok;
 show_warnings(Warnings = [{_, _}]) ->
   show_errors(?L_WARNING, Warnings).
 

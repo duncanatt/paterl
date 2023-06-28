@@ -17,8 +17,10 @@
 %% These define the mailbox type with the functions that manipulate that mailbox.
 -future([future_fun/0, full_future/1]). % Error message would be: Mailbox type 'future' is not defined.
 -user([user/0]).
+%%-duncan([ff/0]).
 
 
+-type singly() :: {singly, pid()}.
 -type put() :: {putty, integer()}.
 -type get() :: {get, user()}. % may also be a PID type?
 -type reply() :: {reply, integer()}.
@@ -32,6 +34,7 @@
 
 -type future() :: pid() | put() | get().
 -type user() :: pid() | reply().
+-type dummy() :: pid().
 
 -type erroneous(T) :: T.
 -type erroneous2(T) :: T.
@@ -57,8 +60,9 @@
 % So the messages in the regex are a subset inclusion.
 
 
--spec future_fun() -> pid().
+-spec future_fun() -> no_return().
 future_fun() ->
+  5.6,
   {},
   {hello},
   {there, 5},
@@ -66,13 +70,21 @@ future_fun() ->
   {fun() -> ok end, duncan},
   {10 + 2, ok},
 
+  K = 197,
   X = 10,
   200 = X,
   {tag, X} = 200,
   if
-    X + 2 =:= {} -> ok;
+    K + 2 =:= {} -> ok;
+    K -> adrian;
     true -> not_ok
   end,
+
+  Y = 22 + 11,
+  2 + 1 = Y,
+  +1 = 2,
+  2 = +1,
+
 
   ?state("put()"), % The type here must be defined above.
   receive
@@ -83,10 +95,16 @@ future_fun() ->
     {} ->
       ok;
     D ->
-      ok
+      ok;
+    {5.5, ok} ->
+      duncan;
+    matt ->
+      ok;
+    77.7 ->
+      jas
   end.
 
--spec full_future(pid()) -> none().
+-spec full_future(pid()) -> no_return().
 full_future(X) ->
   "@regex: put().get()*", %% When we find star, we immediately enter the free clause as one of the guards of the receive.
   ?state("put().get()*"),
@@ -99,8 +117,11 @@ full_future(X) ->
   end.
 
 
-%%-spec user(future()) -> integer().
-user(FuturePid) ->
+-spec user(future(), atom()) -> integer() ; (future(), atom()) -> float().
+%%-spec user(future(), atom()) -> integer().
+%%-spec user(future(), cikku()) -> peppi().
+%%-spec user(future(), cikku()) -> peppi().
+user(FuturePid, true) ->
   %% New user mailbox is created automatically. An implicit reference is obtained via self.
 
   FuturePid ! {get, self()},
@@ -112,7 +133,7 @@ user(FuturePid) ->
   end.
 
 
-%%main() ->
-%%  Pid = spawn(fun() -> future_fun() end), %% This might have to achieved using MFArgs ?MODULE, fun, Args.
-%%  Pid ! {put, 5},
-%%  user(Pid).
+main() ->
+  Pid = spawn(fun() -> future_fun() end), %% This might have to achieved using MFArgs ?MODULE, fun, Args.
+  Pid ! {put, 5},
+  user(Pid, true).

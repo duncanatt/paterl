@@ -89,6 +89,7 @@ file(File, Opts) when is_list(File), is_list(Opts) ->
       errors:show_error({epp, Error})
   end.
 
+% This is the latest function used to process erl files to pat.
 compile(File, Opts) when is_list(File), is_list(Opts) ->
 %%  Use epp parse_file, followed by erl_lint. Only once the error list of erl_lint
 %%  is empty can we invoke our check and types modules.
