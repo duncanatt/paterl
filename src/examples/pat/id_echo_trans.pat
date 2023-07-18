@@ -57,8 +57,8 @@ def echo_server(self: EchoServer?): Unit {
 #   end.
 def id_client(mainMb: Main?, serverMb: IdServer!): (Main? * Int) {
     serverMb ! Get(mainMb);
-    # guard mainMb: (Id . Reply) { # Would have thought this would be the correct pattern.
-    guard mainMb: Id {
+    guard mainMb: (Id . Reply) { # Would have thought this would be the correct pattern. It is incorrect however because the calls are synchronous, so the main mailbox cannot contain reply until the request is made. The correct regex should consist of just Id.
+    # guard mainMb: Id {
         receive Id(id) from mainMb ->
             (mainMb, id)
     }

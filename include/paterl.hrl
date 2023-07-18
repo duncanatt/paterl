@@ -20,3 +20,12 @@
 
 %% Specifies that a free guard is to be injected in the generated IR.
 -define(free, free).
+
+%% Asserts the state of the mailbox in terms of the messages it can contain.
+%%-define(mb_state(Regex, MbName), {mb_state, usable, Regex, MbName}).
+
+%% Asserts the state of the mailbox in terms of the messages it can contain and
+%% specifies that a free guard is to be injected in the generated Pat IR.
+%%-define(mb_state_free(Regex, MbName), {mb_state, free, Regex, MbName}).
+
+%%-define(free(MbName), {mb_state, free, "shouldbefilledautomatically?", MbName}).
