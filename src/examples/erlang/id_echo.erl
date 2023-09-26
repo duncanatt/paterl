@@ -41,11 +41,19 @@
 -type echo_server() :: pid() | echo().
 -type echo_client() :: pid() | reply().
 
+%% Mailbox interface associations.
 -id_server([id_server/1]).
+%%-id_client([{id_client/1, local}]).
 -id_client([id_client/1]).
+-id_client({local, [id_client/1]}).
 
 -echo_server([echo_server/0]).
 -echo_client([echo_client/2]).
+
+%%Scope = local or split
+%%-id_server(private, []). local    local
+%%-id_server(global, []). extended, shared
+
 
 %% def id_server(self: IdServer?, next: Int): Unit {
 %%   guard self: *Get {
@@ -111,7 +119,7 @@ id_client(Server) ->
 -spec echo_client(echo_server(), string()) -> string().
 echo_client(Server, Msg) ->
   Server ! {echo, self(), Msg},
-  ?mb_state("reply", echo_client),
+  ?mb_state("reply", echo_client), % This is the type of interface.
   receive
     {reply, Echoed} ->
       Echoed

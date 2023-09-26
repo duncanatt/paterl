@@ -70,6 +70,8 @@
 
 % TODO: Investigate the relationship between mailbox creation (internal | external)
 % TODO: and where they are freed (internal | external). Enumerate them.
+% TODO: Investigate the type of calls (sync and async), and whether free can
+% TODO: always be injected.
 
 -spec id_server() -> no_return().
 id_server() ->
@@ -103,8 +105,9 @@ init(IdServer, Start) ->
       ok
   end.
 
+% @local @interface id_client. Are we saying that this is illegal?
 -spec id_asy(id_server()) -> ok.
-id_asy(IdServer) -> % Can also use any/term as the unit value, since Erlang does not have one except ok.
+id_asy(IdServer) -> % Can also use any()/term() as the unit value, since Erlang does not have one except ok.
   IdServer ! {get, self()},
   ok.
 
@@ -137,12 +140,12 @@ main() ->
 
   % Issue asynchronous request to ID server.
   id_asy(IdServer),
-
+  Id = id_get(),
   % Issue synchronous request to Echo server.
   Echo = echo(EchoServer, "hello"),
 
   % Fulfil ID request.
-  Id = id_get(),
+
 
   % Print.
   format("~p~n", [Id]),

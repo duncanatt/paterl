@@ -50,7 +50,7 @@ def init(server: IdServer!, start: Int): Unit {
     }
 }
 
-# Local mailbox.
+# Local mailbox. @local @interface IdClient
 def id_asy(server: IdServer!): IdClient? {
     let self = new [IdClient] in
     server ! Get(self);

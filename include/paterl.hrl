@@ -29,3 +29,5 @@
 %%-define(mb_state_free(Regex, MbName), {mb_state, free, Regex, MbName}).
 
 %%-define(free(MbName), {mb_state, free, "shouldbefilledautomatically?", MbName}).
+
+-define(mb_assert(Regex, Interface), {"@state:" ++ Regex, Interface}).

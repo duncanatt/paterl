@@ -11,7 +11,7 @@ def main(): Unit {
     # When I do not use val0 and val1, I get the following error:
     # [CONSTRAINT GENERATION (Synth)] Cannot synthesise type for variable : Only able to synthesise
     #             base variable types
-    # Cannot understand why exactly.
+    # Cannot understand why exactly. Would have expected an error about not using val0 and val1.
 }
 
 main()
