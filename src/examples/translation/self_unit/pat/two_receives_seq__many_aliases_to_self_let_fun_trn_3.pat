@@ -10,7 +10,7 @@ interface ClientMb { Ans(Int) }
 
 ## Typed Erlang (server side).
 
-# def server(mb0: ServerMb?): (Unit * ServerMb?) { # Will see how to solve this!
+#def server(mb0: ServerMb?): (Unit * ServerMb?) { # Will see how to solve this!
 def server(mb0: ServerMb?): Unit {
   guard mb0: *Add . *Mul {                                                      # MB = mb0, L = {}
     receive Add(client, a, b) from mb1 ->                                       # MB = mb0, L = {}
@@ -25,7 +25,8 @@ def server(mb0: ServerMb?): Unit {
       in
         x0;
         server(mb2)                                                             # MB = mb2, L = {}
-    free -> () # Inserted manually for now.
+    #free -> ((), mb0) # Inserted manually for now. [PRETYPE] Type mismatch. Expected Unit but got (Unit * ServerMb).
+    free -> () # Inserted manually for now. [PRETYPE] Type mismatch. Expected (Unit * ServerMb) but got Unit.
   }
 }
 
