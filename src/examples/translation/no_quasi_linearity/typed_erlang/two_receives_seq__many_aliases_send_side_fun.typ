@@ -21,8 +21,8 @@ server•ServerMb^o(): Unit ->
 
   ServerPid1 = serverPid0,
 
-  Self0 = self•ClientMb,
-  Self1 = self•ClientMb,
+  Self0 = get_self•ClientMb(),
+  Self1 = get_self•ClientMb(),
 
   ServerPid1 ! {add, Self0, 1, 2},
   ServerPid0 ! {mul, Self1, 3, 4},
@@ -39,7 +39,7 @@ server•ServerMb^o(): Unit ->
     {ans, B} -> B
   end,
 
-  A + B.
+  add(A, B).
 
 get_self•ClientMb^.(): ClientMb! ->
   self
