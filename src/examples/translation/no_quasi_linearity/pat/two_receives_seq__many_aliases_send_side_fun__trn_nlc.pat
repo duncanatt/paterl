@@ -11,6 +11,7 @@ interface ClientMb { Ans(Int) }
 ## Typed Erlang (server side).
 
 def server(mb0: ServerMb?): Unit {
+#def server(mb0: ServerMb?): (Unit * ServerMb?) {
   guard mb0: *Add . *Mul {
     receive Add(client, a, b) from mb1 ->
       let (x0, mb2): (Unit * ServerMb?) =
