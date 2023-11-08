@@ -24,6 +24,7 @@ def server(mb0: ServerMb?): Unit {
       in
         server(mb2) # See whether I can correct the function invocation to use pairs!!
     free -> ()
+    #free -> (((), mb0): (Unit * ServerMb?))
   }
 }
 
@@ -36,8 +37,8 @@ def main0(): Int {
      in
        main(mb1))
   in
-    let x1: Unit =
-      free(mb1)
+    let x1 =
+      (free(mb1): Unit)
     in
       x0
 }
@@ -48,7 +49,8 @@ def main(mb0: ClientMb?): (Int * ClientMb?) {
       new [ServerMb]
     in
       let x0 =
-        spawn { server(mb2) }
+        spawn { server(mb2) } # How to handle the tuple returned by the server.
+        #spawn { (server(mb2): (Unit * ClientMb?)) }
       in
         (mb2, mb0))
   in
@@ -64,9 +66,9 @@ def main(mb0: ClientMb?): (Int * ClientMb?) {
           (mb4, mb4)
         in
           let (x1, mb6) =
-            (serverPid1 ! Add(self0, 1, 2), mb5)
+            ((serverPid1 ! Add(self0, 1, 2), mb5): (Unit * ClientMb?))
           in
-            x1;
+            #x1;
             let (x2, mb7) =
               (serverPid0 ! Mul(self1, 3, 4), mb6)
             in
