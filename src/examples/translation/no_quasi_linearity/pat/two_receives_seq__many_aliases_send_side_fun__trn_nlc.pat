@@ -10,8 +10,8 @@ interface ClientMb { Ans(Int) }
 
 ## Typed Erlang (server side).
 
-def server(mb0: ServerMb?): Unit {
-#def server(mb0: ServerMb?): (Unit * ServerMb?) {
+#def server(mb0: ServerMb?): Unit {
+def server(mb0: ServerMb?): (Unit * ServerMb?) {
   guard mb0: *Add . *Mul {
     receive Add(client, a, b) from mb1 ->
       let (x0, mb2): (Unit * ServerMb?) =
@@ -23,8 +23,8 @@ def server(mb0: ServerMb?): Unit {
         (client ! Ans(a * b), mb1)
       in
         server(mb2) # See whether I can correct the function invocation to use pairs!!
-    free -> ()
-    #free -> (((), mb0): (Unit * ServerMb?))
+    #free -> ()
+    empty(mb1) -> ((), mb1)
   }
 }
 
@@ -49,8 +49,8 @@ def main(mb0: ClientMb?): (Int * ClientMb?) {
       new [ServerMb]
     in
       let x0 =
-        spawn { server(mb2) } # How to handle the tuple returned by the server.
-        #spawn { (server(mb2): (Unit * ClientMb?)) }
+        #spawn { server(mb2) } # How to handle the tuple returned by the server.
+        spawn { let (xx, mb) = server(mb2) in xx; free(mb) }
       in
         (mb2, mb0))
   in
