@@ -24,7 +24,7 @@ def server(mb0: ServerMb?): (Unit * ServerMb?) {
       in
         server(mb2) # See whether I can correct the function invocation to use pairs!!
     #free -> ()
-    empty(mb1) -> ((), mb1)
+    empty(mb1) -> ((), mb1) # Here we would use undefined.
   }
 }
 
@@ -62,8 +62,7 @@ def main(mb0: ClientMb?): (Int * ClientMb?) {
         #(mb3, mb3)
       in
         let (self1, mb5) =
-          #get_self(mb4) # Does not work when I enable this. It says assertion failed. Why?
-          (mb4, mb4)
+          get_self(mb4)
         in
           let (x1, mb6) =
             ((serverPid1 ! Add(self0, 1, 2), mb5): (Unit * ClientMb?))
@@ -89,6 +88,7 @@ def main(mb0: ClientMb?): (Int * ClientMb?) {
 }
 
 def get_self(mb0: ClientMb?): (ClientMb! * ClientMb?) {
+  let x = if (1 > 0) { () } else { () }: Unit in
   (mb0, mb0)
 }
 
