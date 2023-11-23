@@ -21,7 +21,7 @@
 
 %%% Type definitions.
 
-%% Future interface.
+%% Future interface (a la EDoc annotations!).
 %% interface Future { Put(Int), Get(User!) }
 %% @type future() :: {put, integer()} | {get, user()} | pid()
 
@@ -40,7 +40,7 @@ future() ->
   %% @new future()
   %% @assert put.get*
   receive {put, X} ->
-    %% @use future() (derived from the interface of the resolved_future function)
+    %% @use future() (@use is derived from the interface of the resolved_future function)
     resolved_future(X)
   end.
 
@@ -80,9 +80,11 @@ resolved_future(Value) ->
 %% @spec user(future()) -> integer()
 %% @new user()
 user(FuturePid) ->
-  %% @new user()
-  Self = self(),
+  Self =
+    %% @new user()
+    self(),
   FuturePid ! {get, Self},
+
   %% @new user()
   %% @assert reply
   receive
@@ -101,8 +103,9 @@ user(FuturePid) ->
 %% @spec  main() -> any()
 %% @new user()
 main() ->
-  %% @new future()
-  FuturePid = spawn(?MODULE, future, []),
+  FuturePid =
+    %% @new future()
+    spawn(?MODULE, future, []),
   FuturePid ! {put, 5},
 
   Get1 =
