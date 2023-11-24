@@ -61,9 +61,9 @@ def main(mb0: User?): (Unit * User?) {
       new [Future]
     in
       let x0 =
-        spawn { let (x1, mb3) = future(mb1) in x1; free(mb3) }
+        spawn { let (x1, mb3) = future(mb1) in free(mb3); x1 }
       in
-        x0;
+        #x0;
         (mb1, mb0))
   in
     let (x1, mb4) =
@@ -80,7 +80,7 @@ def main(mb0: User?): (Unit * User?) {
             let x3 =
               free(mb7)
             in
-              x3;
+              #x3;
               (x2, mb4))
       in
         (print(intToString(get1)), mb5)
