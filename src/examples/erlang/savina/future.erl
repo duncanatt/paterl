@@ -23,11 +23,11 @@
 
 %% Future interface (a la EDoc annotations!).
 %% interface Future { Put(Int), Get(User!) }
-%% @type future() :: {put, integer()} | {get, user()} | pid()
+%% @type future() :: {put, integer()} | {get, user()} (don't need the pid if I'm not using dialyzer)
 
 %% User interface.
 %% interface User { Reply(Int) }
-%% @type user() :: {reply, integer()} | pid()
+%% @type user() :: {reply, integer()} | (don't need the pid if I'm not using dialyzer)
 
 %% def future(self: Future?): Unit {
 %%   guard self : Put.(*Get) {
@@ -39,9 +39,9 @@
 future() ->
   %% @new future()
   %% @assert put.get*
-  receive {put, X} ->
+  receive {put, Value} ->
     %% @use future() (@use is derived from the interface of the resolved_future function)
-    resolved_future(X)
+    resolved_future(Value)
   end.
 
 %% def resolvedFuture(self: Future?, value: Int): Unit {
@@ -88,8 +88,8 @@ user(FuturePid) ->
   %% @new user()
   %% @assert reply
   receive
-    {reply, X} ->
-      X
+    {reply, Value} ->
+      Value
   end.
 
 %% def main(): Unit {
