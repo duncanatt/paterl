@@ -29,6 +29,8 @@
 %% interface User { Reply(Int) }
 %% @type user() :: {reply, integer()} | (don't need the pid if I'm not using dialyzer)
 
+%%% API.
+
 %% def future(self: Future?): Unit {
 %%   guard self : Put.(*Get) {
 %%     receive Put(x) from self -> resolvedFuture(self, x)
@@ -37,7 +39,7 @@
 %% @spec future() -> none()
 %% @new future()
 future() ->
-  %% @new future()
+  %% @mb future()
   %% @assert put.get*
   receive {put, Value} ->
     %% @use future() (@use is derived from the interface of the resolved_future function)
@@ -57,11 +59,9 @@ future() ->
 %% @spec resolved_future(integer()) -> none()
 %% @use future()
 resolved_future(Value) ->
-  %% @use future()
+  %% @mb future()
   %% @assert get*
   receive
-    {put, X} ->
-      error("error");
     {get, UserPid} ->
       UserPid ! {reply, Value},
       %% @use future()
@@ -81,11 +81,11 @@ resolved_future(Value) ->
 %% @new user()
 user(FuturePid) ->
   Self =
-    %% @new user()
+    %% @mb user()
     self(),
   FuturePid ! {get, Self},
 
-  %% @new user()
+  %% @mb user()
   %% @assert reply
   receive
     {reply, Value} ->
@@ -115,4 +115,4 @@ main() ->
   Get2 =
     %% @new user
     user(FuturePid),
-  format("B: ~p~n", [Get2]).
+  format("B: ~p~n", [Get2]).g
