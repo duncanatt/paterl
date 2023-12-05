@@ -64,11 +64,11 @@ master() ->
     {task, ReplyTo, Task} ->
       format("= Master received task '~p' from client ~n", [Task]),
       _Dummy =
-        %% @new farm_mb()
+        %% @new pool_mb()
         farm(Task),
 
       Result =
-        %% @use farm_mb()
+        %% @use pool_mb()
         harvest(Task, 0),
       ReplyTo ! {result, Result},
 
@@ -89,7 +89,7 @@ master() ->
 %%     farm(task, chunks, pool)
 %%   }
 %% }
-%% @spec farm(integer(), integer()) -> integer()
+%% @spec farm(integer()) -> integer()
 %% @new pool_mb()
 farm(Chunk) ->
   if Chunk == 0 ->
@@ -107,8 +107,8 @@ farm(Chunk) ->
       WorkerPid ! {work, Self, Chunk},
       Next = Chunk - 1,
 
-      %% @use farm_mb()
-      farm(Next) %% HERE!!
+      %% @use pool_mb()
+      farm(Next)
   end.
 
 %% def harvest(acc: Int, pool: PoolMb?): Int {
@@ -119,15 +119,15 @@ farm(Chunk) ->
 %%       harvest(acc + n, pool)
 %%   }
 %% }
-%% @spec harvest(integer()) -> integer()
+%% @spec harvest(integer(), integer()) -> integer()
 %% @use pool_mb()
 harvest(Chunk, Acc) ->
-  %% @mb pool_mb
-  %% @assert result*
   if Chunk == 0 ->
     format("= Harvesting complete~n", []),
     Acc;
     true ->
+      %% @mb pool_mb
+      %% @assert result*
       receive
         {result, N} ->
           format("= Harvested task ~p with result '~p'~n", [Chunk, N]),
@@ -146,7 +146,7 @@ compute(N) ->
   N * N.
 
 %% def worker(self: WorkerMb?): Unit {
-%%   guard self: Work {
+%%   guard self: work {
 %%     receive Work(replyTo, n) from self ->
 %%       replyTo ! Result(compute(n));
 %%       free(self)
@@ -201,8 +201,12 @@ client(Task, MasterPid) ->
 %% @spec main() -> none()
 %% @new client_mb()
 main() ->
-  MasterPid = spawn(?MODULE, master, []),
+  MasterPid =
+    %% @new master_mb()
+    spawn(?MODULE, master, []),
+  %% @new client_mb()
   spawn(?MODULE, client, [5, MasterPid]),
+  %% @new client_mb()
   spawn(?MODULE, client, [6, MasterPid]).
 
 
