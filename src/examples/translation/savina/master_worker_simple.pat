@@ -58,6 +58,7 @@ def master(mb0: MasterMb?): (Unit * MasterMb?) {
       let (z0, mb1) =
         (replyTo ! Result(0), mb0)
       in
+        z0;
         master(mb1)
   }
 }
@@ -103,7 +104,7 @@ def farm_and_harvest(mb0: PoolMb?, chunks: Int): (Int * PoolMb?) {
 
 def farm(mb0: PoolMb?, chunk: Int): (Int * PoolMb?) {
   if (chunk == 0) {
-    chunk
+    (chunk, mb0)
   }
   else {
     let (workerPid, mb1) =
@@ -119,7 +120,7 @@ def farm(mb0: PoolMb?, chunk: Int): (Int * PoolMb?) {
       let (self, mb4) =
         (mb1, mb1)
       in
-        let (z0_, mb5) =
+        let (z0, mb5) =
           (workerPid ! Work(self, chunk), mb4)
         in
           let (next, mb6) =
@@ -149,7 +150,7 @@ def farm(mb0: PoolMb?, chunk: Int): (Int * PoolMb?) {
 ##   end.
 def harvest(mb0: PoolMb?, chunk: Int, acc: Int): (Int * PoolMb?) {
   if (chunk == 0) {
-    acc
+    (acc, mb0)
   }
   else {
     guard mb0: *Result {
@@ -252,14 +253,7 @@ def main(mb0: ClientMb?): (Unit * ClientMb?) {
           mb5
       , mb1)
     in
-      (let mb7 =
-        new [ClientMb]
-      in
-        let y2 =
-          spawn { let (x2, mb8) = client(mb7, 6, masterPid) in free(mb8); x2 }
-        in
-          mb7
-      , mb4)
+      ((), mb4)
 }
 
 
