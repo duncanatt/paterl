@@ -59,30 +59,6 @@ def master(mb0: MasterMb?): (Unit * MasterMb?) {
   }
 }
 
-#def farm_and_harvest(mb0: PoolMb?, chunks: Int): (Int * PoolMb?) {
-#  let (workerPid, mb1) =
-#    (let mb2 =
-#      new [WorkerMb]
-#    in
-#      let y0 =
-#        spawn { let (x0, mb3) = worker(mb2) in free(mb3); x0}
-#      in
-#        mb2
-#    , mb0)
-#  in
-#    let (self, mb4) =
-#      (mb1, mb1)
-#    in
-#      let (z0, mb5) =
-#        (workerPid ! Work(self, chunks), mb4)
-#      in
-#        z0;
-#        guard mb5: Result {
-#          receive Result(n) from mb6 ->
-#            (n, mb6)
-#        }
-#}
-
 def farm_and_harvest(mb0: PoolMb?, chunks: Int): (Int * PoolMb?) {
   let (dummy, mb1) =
     farm(mb0, chunks)
