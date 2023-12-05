@@ -87,7 +87,6 @@ def farm_and_harvest(mb0: PoolMb?, chunks: Int): (Int * PoolMb?) {
   let (dummy, mb1) =
     farm(mb0, chunks)
   in
-    #print(intToString(dummy));
     dummy;
     harvest(mb1, chunks, 0)
 }
@@ -123,17 +122,16 @@ def harvest(mb0: PoolMb?, chunk: Int, acc: Int): (Int * PoolMb?) {
 }
 
 
-#def compute(n: Int): Int {
-#  n * n
-#}
+def compute(n: Int): Int {
+  n * n
+}
 
 
 def worker(mb0: WorkerMb?): (Unit * WorkerMb?) {
   guard mb0: Work {
     receive Work(replyTo, chunk) from mb1 ->
       let (result, mb2) =
-        #(compute(chunk), mb1)
-        (chunk, mb1)
+        (compute(chunk), mb1)
       in
         (replyTo ! Result(result), mb2)
   }
@@ -177,9 +175,7 @@ def client(mb0: ClientMb?, task: Int, masterPid: MasterMb!): (Unit * ClientMb?) 
 ##     %% @new master_mb()
 ##     spawn(?MODULE, master, []),
 ##   %% @new client_mb()
-##   spawn(?MODULE, client, [5, MasterPid]),
-##   %% @new client_mb()
-##   spawn(?MODULE, client, [6, MasterPid]).
+##   spawn(?MODULE, client, [5, MasterPid])
 def main(mb0: ClientMb?): (ClientMb! * ClientMb?) {
   let (masterPid, mb1) =
     (let mb2 =
