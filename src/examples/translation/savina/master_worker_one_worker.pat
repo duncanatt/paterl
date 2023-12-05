@@ -59,15 +59,36 @@ def master(mb0: MasterMb?): (Unit * MasterMb?) {
   }
 }
 
+## %% @spec farm(integer()) -> integer()
+## %% @new pool_mb()
+## farm_and_harvest(Chunks) ->
+##   _Dummy =
+##     %% @use pool_mb()
+##     farm(Chunks),
+##
+##   %% @use pool_mb()
+##   harvest(Chunks).
 def farm_and_harvest(mb0: PoolMb?, chunks: Int): (Int * PoolMb?) {
   let (dummy, mb1) =
     farm(mb0, chunks)
   in
     dummy;
-    harvest(mb1, chunks, 0)
+    harvest(mb1)
 }
 
-
+## %% @spec farm(integer()) -> none()
+## %% @use pool_mb()
+## farm(Chunk) ->
+##   format("= Farming chunk ~p~n", [Chunk]),
+##   WorkerPid =
+##     %% @new worker_mb()
+##     spawn(?MODULE, worker, []),
+##
+##   Self =
+##     %% @mb pool_mb()
+##     self(),
+##   WorkerPid ! {work, Self, Chunk},
+##   ok.
 def farm(mb0: PoolMb?, chunk: Int): (Unit * PoolMb?) {
   let (workerPid, mb1) =
     (let mb2 =
@@ -90,19 +111,41 @@ def farm(mb0: PoolMb?, chunk: Int): (Unit * PoolMb?) {
 }
 
 
-def harvest(mb0: PoolMb?, chunk: Int, acc: Int): (Int * PoolMb?) {
+## %% @spec harvest() -> integer()
+## %% @use pool_mb()
+## harvest() ->
+##   %% @mb pool_mb
+##   %% @assert result*
+##   receive
+##     {result, N} ->
+##       format("= Harvested result '~p'~n", [N]),
+##       N
+##   end.
+def harvest(mb0: PoolMb?): (Int * PoolMb?) {
   guard mb0: Result {
     receive Result(n) from mb1 ->
       (n, mb1)
   }
 }
 
-
+## %% @spec compute(integer()) -> integer()
+## compute(N) ->
+##   N * N.
 def compute(n: Int): Int {
   n * n
 }
 
-
+## %% @spec worker() -> none()
+## %% @new worker_mb()
+## worker() ->
+##   %% @mb worker_mb()
+##   %% @assert Work
+##   receive
+##     {work, ReplyTo, Chunk} ->
+##       format("= Worker computing chunk ~p~n", [Chunk]),
+##       Result = compute(Chunk),
+##       ReplyTo ! {result, Result}
+##   end.
 def worker(mb0: WorkerMb?): (Unit * WorkerMb?) {
   guard mb0: Work {
     receive Work(replyTo, chunk) from mb1 ->
@@ -112,8 +155,6 @@ def worker(mb0: WorkerMb?): (Unit * WorkerMb?) {
         (replyTo ! Result(result), mb2)
   }
 }
-
-
 
 ## %% @spec client(integer(), master_mb()) -> none()
 ## %% @new client_mb()
