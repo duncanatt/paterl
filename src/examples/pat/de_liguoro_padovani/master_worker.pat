@@ -5,7 +5,7 @@ interface MasterMb { Task(ClientMb!, Int) }
 
 ## Pool interface.
 ## @type pool_mb() :: {result, integer() }
-interface PoolMb { Result(Int) }
+interface PoolMb { Result(Int), Done() }
 
 ## Worker interface.
 ## @type worker_mb() :: {work, pool_mb(), integer()}
@@ -43,10 +43,20 @@ def master(mb0: MasterMb?): (Unit * MasterMb?) {
           let (x0, mb4) =
             farm_and_harvest(mb3, task)
           in
-            let y0 =
-              free(mb4)
+            # Introduced manually to handle flushing. Ask Simon about this whether it can be handled in Pat.
+            let (x1, mbX) =
+              flush(mb4)
             in
-              x0
+              x1;
+              let y0 =
+                free(mbX)
+              in
+                x0
+
+            #let y0 =
+            #  free(mb4)
+            #in
+            #  x0
         , mb1)
       in
         let (z0, mb5) =
@@ -59,94 +69,127 @@ def master(mb0: MasterMb?): (Unit * MasterMb?) {
   }
 }
 
+## %% @spec farm(integer()) -> integer()
+## %% @new pool_mb()
+## farm_and_harvest(Chunks) ->
+##   _Dummy =
+##     %% @use pool_mb()
+##     farm(Chunks),
+##
+##   %% @use pool_mb()
+##   harvest(Chunks).
 def farm_and_harvest(mb0: PoolMb?, chunks: Int): (Int * PoolMb?) {
-  let (workerPid, mb1) =
-    (let mb2 =
-      new [WorkerMb]
-    in
-      let y0 =
-        spawn { let (x0, mb3) = worker(mb2) in free(mb3); x0}
-      in
-        mb2
-    , mb0)
+  let (x0, mb1) =
+    farm(mb0, chunks)
   in
-    let (self, mb4) =
-      (mb1, mb1)
-    in
-      let (z0, mb5) =
-        (workerPid ! Work(self, chunks), mb4)
-      in
-        z0;
-        guard mb5: Result {
-          receive Result(n) from mb6 ->
-            (n, mb6)
-        }
+    x0;
+    harvest(mb1, 0)
 }
 
-#def farm_and_harvest(mb0: PoolMb?, chunks: Int): (Int * PoolMb?) {
-#  let (dummy, mb1) : (Int * PoolMb?) =
-#    farm(mb0, chunks)
-#  in
-#    harvest(mb1, chunks, 0)
-#  #(chunks, mb0)
-#}
-
-
-#def farm(mb0: PoolMb?, chunk: Int): (Int * PoolMb?) {
-#  let (workerPid, mb1) =
-#    (let mb2 =
-#      new [WorkerMb]
-#    in
-#      let y0 =
-#        spawn { let (x0, mb3) = worker(mb2) in free(mb3); x0}
-#      in
-#        mb2
-#    , mb0)
-#  in
-#    let (self, mb4) =
-#      (mb1, mb1)
-#    in
-#      let (z0, mb5) =
-#        (workerPid ! Work(self, chunk), mb4)
-#      in
-#        z0;
-#        let (next, mb6) =
-#          (chunk - 1, mb5)
-#        in
-#          farm(mb6, next)
-#}
-
-
-#def harvest(mb0: PoolMb?, chunk: Int, acc: Int): (Int * PoolMb?) {
-#  guard mb0: *Result {
-#    receive Result(n) from mb1 ->
-#      let (next, mb2) =
-#        (chunk - 1, mb1)
-#      in
-#        harvest(mb2, next, acc + n)
-#    empty(mb1) ->
-#      (0, mb1)
-#  }
-#}
-
-
-#def compute(n: Int): Int {
-#  n * n
-#}
-
-
-def worker(mb0: WorkerMb?): (Unit * WorkerMb?) {
-  guard mb0: Work {
-    receive Work(replyTo, chunk) from mb1 ->
-      let (result, mb2) =
-        #(compute(chunk), mb1)
-        (chunk, mb1)
+## %% @spec farm(integer()) -> none()
+## %% @use pool_mb()
+## farm(Chunk) ->
+##   format("= Farming chunk ~p~n", [Chunk]),
+##   WorkerPid =
+##     %% @new worker_mb()
+##     spawn(?MODULE, worker, []),
+##
+##   Self =
+##     %% @mb pool_mb()
+##     self(),
+##   WorkerPid ! {work, Self, Chunk},
+##   ok.
+def farm(mb0: PoolMb?, chunk: Int): (Unit * PoolMb?) {
+  if (chunk == 0) {
+    ((), mb0)
+  }
+  else {
+    let (workerPid, mb1) =
+      (let mb2 =
+        new [WorkerMb]
       in
-        (replyTo ! Result(result), mb2)
+        let y0 =
+          spawn { let (x0, mb3) = worker(mb2) in free(mb3); x0}
+        in
+          mb2
+      , mb0)
+    in
+      let (self, mb4) =
+        (mb1, mb1)
+      in
+        let (z0, mb5) =
+          (workerPid ! Work(self, chunk), mb4)
+        in
+          z0;
+          farm(mb5, chunk - 1)
   }
 }
 
 
+## %% @spec harvest() -> integer()
+## %% @use pool_mb()
+## harvest() ->
+##   %% @mb pool_mb
+##   %% @assert result*
+##   receive
+##     {result, N} ->
+##       format("= Harvested result '~p'~n", [N]),
+##       N
+##   end.
+def harvest(mb0: PoolMb?, acc: Int): (Int * PoolMb?) {
+  if (0 == 0) {
+    #let (dummy, mb1) =
+    #  flush(mb0)
+    #in
+    #  dummy;
+      (acc, mb0)
+  }
+  else {
+    guard mb0: *Result {
+      receive Result(n) from mb1 ->
+        harvest(mb1, acc + n)
+      empty(mb1) ->
+        (acc, mb1)
+    }
+  }
+}
+
+def flush(mb0: PoolMb?): (Unit * PoolMb?) {
+  guard mb0: *Result {
+    receive Result(n) from mb1 ->
+      flush(mb1)
+    empty(mb1) ->
+      ((), mb1)
+  }
+}
+
+## %% @spec compute(integer()) -> integer()
+## compute(N) ->
+##   N * N.
+def compute(n: Int): Int {
+  n * n
+}
+
+## %% @spec worker() -> none()
+## %% @new worker_mb()
+## worker() ->
+##   %% @mb worker_mb()
+##   %% @assert Work
+##   receive
+##     {work, ReplyTo, Chunk} ->
+##       format("= Worker computing chunk ~p~n", [Chunk]),
+##       Result = compute(Chunk),
+##       ReplyTo ! {result, Result}
+##   end.
+def worker(mb0: WorkerMb?): (Unit * WorkerMb?) {
+  guard mb0: Work {
+    receive Work(replyTo, chunk) from mb1 ->
+      let (result, mb2) =
+        (compute(chunk), mb1)
+      in
+        (replyTo ! Result(result), mb2)
+  }
+}
 
 ## %% @spec client(integer(), master_mb()) -> none()
 ## %% @new client_mb()
@@ -184,9 +227,7 @@ def client(mb0: ClientMb?, task: Int, masterPid: MasterMb!): (Unit * ClientMb?) 
 ##     %% @new master_mb()
 ##     spawn(?MODULE, master, []),
 ##   %% @new client_mb()
-##   spawn(?MODULE, client, [5, MasterPid]),
-##   %% @new client_mb()
-##   spawn(?MODULE, client, [6, MasterPid]).
+##   spawn(?MODULE, client, [5, MasterPid])
 def main(mb0: ClientMb?): (ClientMb! * ClientMb?) {
   let (masterPid, mb1) =
     (let mb2 =
