@@ -115,4 +115,4 @@ main() ->
   Get2 =
     %% @new user
     user(FuturePid),
-  format("B: ~p~n", [Get2]).g
+  format("B: ~p~n", [Get2]).

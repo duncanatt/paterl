@@ -5,6 +5,10 @@
 %%%
 %%% @end
 %%% Created : 04. Dec 2023 12:21
+%%%
+%%% This is a simpler example that combines the farm and harvest functions so
+%%% that the pool mailbox is shared and does not extend over different function
+%%% invocations.
 %%%-------------------------------------------------------------------
 -module(master_worker).
 -author("duncan").
@@ -24,37 +28,17 @@
 %%% Type definitions.
 
 %% Master interface.
-%% interface MasterMb { Task(ClientMb!, Int) }
 %% @type master_mb() :: {task, client_mb(), integer()}
 
 %% Pool interface.
-%% interface PoolMb { Result(Int) }
 %% @type pool_mb() :: {result, integer() }
 
 %% Worker interface.
-%% interface WorkerMb { Work(PoolMb!, Int) }
 %% @type worker_mb() :: {work, pool_mb(), integer()}
 
 %% Client interface.
-%% interface ClientMb { Result(Int) }
 %% @type client_mb() :: {result, integer()}
 
-%% def master(self: MasterMb?): Unit {
-%%   guard self: *Task {
-%%     free -> () # No more tasks to handle.
-%%     receive Task(replyTo, n) from self ->
-%%       # Create a local throwaway mailbox used by the master to farm tasks
-%%       # and collect results.
-%%       let pool = new[PoolMb] in
-%%       farm(0, n, pool);
-%%
-%%       # Block until all the results are computed by each worker and
-%%       # communicate result to client.
-%%       let result = harvest(0, pool) in
-%%       replyTo ! Result(result);
-%%       master(self)
-%%   }
-%% }
 %% @spec master() -> none()
 %% @new master_mb()
 master() ->
@@ -63,38 +47,32 @@ master() ->
   receive
     {task, ReplyTo, Task} ->
       format("= Master received task '~p' from client ~n", [Task]),
-      _Dummy =
-        %% @new pool_mb()
-        farm(Task),
 
       Result =
-        %% @use pool_mb()
-        harvest(Task, 0),
+        %% @new pool_mb()
+        farm_and_harvest(Task),
       ReplyTo ! {result, Result},
 
-      %% @use master_mb() %% Can be detected by a fixed point computation..maybe.
+      %% @use master_mb() %% Can be detected by a fixed point computation..maybe. This is required to determine that in the recursive call, the mailbox is @use, and not @new now!
       master()
   end.
 
-%% def farm(count: Int, chunks: Int, pool: PoolMb!): Unit {
-%%   if (count == chunks) {
-%%     ()
-%%   }
-%%   else {
-%%     let task = count + 1 in
-%%     let workerMb = new[WorkerMb] in
-%%     spawn { worker(workerMb) };
-%%     workerMb ! Work(pool, task);
-%%
-%%     farm(task, chunks, pool)
-%%   }
-%% }
 %% @spec farm(integer()) -> integer()
 %% @new pool_mb()
+farm_and_harvest(Chunks) ->
+  _Dummy =
+    %% @use pool_mb()
+    farm(Chunks),
+
+  %% @use pool_mb()
+  harvest(Chunks, 0).
+
+%% @spec farm(integer()) -> none()
+%% @use pool_mb()
 farm(Chunk) ->
   if Chunk == 0 ->
     format("= Farming complete~n", []),
-    Chunk;
+    ok;
     true ->
       format("= Farming chunk ~p~n", [Chunk]),
       WorkerPid =
@@ -111,14 +89,6 @@ farm(Chunk) ->
       farm(Next)
   end.
 
-%% def harvest(acc: Int, pool: PoolMb?): Int {
-%%   guard pool: *Result {
-%%     free ->
-%%       acc
-%%     receive Result(n) from pool ->
-%%       harvest(acc + n, pool)
-%%   }
-%% }
 %% @spec harvest(integer(), integer()) -> integer()
 %% @use pool_mb()
 harvest(Chunk, Acc) ->
@@ -138,20 +108,10 @@ harvest(Chunk, Acc) ->
       end
   end.
 
-%% def compute(n: Int): Int {
-%%   n * n
-%% }
 %% @spec compute(integer()) -> integer()
 compute(N) ->
   N * N.
 
-%% def worker(self: WorkerMb?): Unit {
-%%   guard self: work {
-%%     receive Work(replyTo, n) from self ->
-%%       replyTo ! Result(compute(n));
-%%       free(self)
-%%   }
-%% }
 %% @spec worker() -> none()
 %% @new worker_mb()
 worker() ->
@@ -164,14 +124,6 @@ worker() ->
       ReplyTo ! {result, Result}
   end.
 
-%% def client(n: Int, self: ClientMb?, masterMb: MasterMb!): Unit {
-%%   masterMb ! Task(self, n);
-%%   guard self: Result {
-%%     receive Result(result) from self ->
-%%       free(self);
-%%       print(intToString(result))
-%%   }
-%% }
 %% @spec client(integer(), master_mb()) -> none()
 %% @new client_mb()
 client(Task, MasterPid) ->
@@ -188,26 +140,14 @@ client(Task, MasterPid) ->
       format("Result: '~p'~n", [Result])
   end.
 
-%% def main(): Unit {
-%%   let masterMb = new[MasterMb] in
-%%   spawn { master(masterMb) };
-%%
-%%   let client1 = new[ClientMb] in
-%%   spawn { client(5, client1, masterMb) };
-%%
-%%   let client2 = new[ClientMb] in
-%%   spawn { client(10, client2, masterMb) }
-%% }
-%% @spec main() -> none()
+%% @spec main() -> client_mb()
 %% @new client_mb()
 main() ->
   MasterPid =
     %% @new master_mb()
     spawn(?MODULE, master, []),
   %% @new client_mb()
-  spawn(?MODULE, client, [5, MasterPid]),
-  %% @new client_mb()
-  spawn(?MODULE, client, [6, MasterPid]).
+  spawn(?MODULE, client, [5, MasterPid]).
 
 
 
