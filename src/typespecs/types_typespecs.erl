@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 02. Jun 2023 11:30
 %%%-------------------------------------------------------------------
--module(types).
+-module(types_typespecs).
 -author("duncan").
 
 -compile(export_all).
@@ -29,7 +29,7 @@
 -define(E_MB_SIG_TYPE_UNDEF, e_mb_sig_type_undef).
 
 
-%% Error creation macros.
+%%%% Error creation macros.
 -define(
 pushError(Class, Node, Errors),
 %%  [{element(2, Node), ?MODULE, {Class, Node}} | Errors]

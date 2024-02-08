@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 25. May 2023 16:48
 %%%-------------------------------------------------------------------
--module(erl_subsyntax).
+-module(erl_subsyntax_typespecs).
 -author("duncan").
 
 %%% Includes.

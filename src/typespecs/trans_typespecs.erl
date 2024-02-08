@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 09. May 2023 12:44
 %%%-------------------------------------------------------------------
--module(trans).
+-module(trans_typespecs).
 -author("Duncan Paul Attard").
 
 %%% Includes.

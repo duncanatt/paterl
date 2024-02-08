@@ -2,7 +2,7 @@
 %%% @author duncan
 %%% @copyright (C) 2023, <COMPANY>
 %%% @doc
-%%%
+%%% This file is intended for users of paterl.
 %%% @end
 %%% Created : 24. May 2023 09:39
 %%%-------------------------------------------------------------------
@@ -30,4 +30,11 @@
 
 %%-define(free(MbName), {mb_state, free, "shouldbefilledautomatically?", MbName}).
 
--define(mb_assert(Regex, Interface), {"@state:" ++ Regex, Interface}).
+-define(mb_assert(Mailbox, Regex), {Mailbox, "@state:" ++ Regex}).
+
+-define(mb_type(Mailbox), Mailbox).
+
+-define(mb_use(Mailbox), Mailbox).
+
+-define(mb_new(Mailbox), Mailbox).
+

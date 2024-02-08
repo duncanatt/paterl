@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 16. May 2023 11:25
 %%%-------------------------------------------------------------------
--module(future_test).
+-module(future_test_typespecs).
 -author("duncan").
 
 

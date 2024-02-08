@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 24. May 2023 15:01
 %%%-------------------------------------------------------------------
--module(types2).
+-module(types_typespecs2).
 -author("duncan").
 
 -compile(export_all).
