@@ -21,31 +21,24 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
       % File preprocessed.
       case erl_lint:module(Forms) of
         {ok, Warnings0} ->
-
           % File valid but possible warnings.
           errors:show_warnings(Warnings0),
 
-%%          io:format("AST: ~p~n", [Forms]),
-
-%%          Comments = erl_comment_scan:file(File),
-%%          io:format("Comments: ~p~n", [Comments]),
-
-%%          Map = paterl_comment:to_map(Comments),
-%%          io:format("Comments map: ~p~n", [Map]),
-
-%%          Zipped = paterl_anno_unneeded:zip(Forms, Comments),
-%%          io:format("Zipped ~p~n", [Zipped]),
-
-          io:format("RET: ~p", [paterl_types:table(Forms)]),
-
+          % Get program types table.
           case paterl_types:table(Forms) of
-            {ok, _, _} ->
+            {ok, _, Warnings1} ->
               % Type table is valid.
+
+
+              % Table valid but possible warnings.
+              errors:show_warnings({File, Warnings1}),
               ok;
             #error{errors = Errors1, warnings = Warnings1} ->
               % File contains errors.
-              errors:show_warnings([{File, Warnings1}]),
-              errors:show_errors([{File, Errors1}]),
+%%              errors:show_warnings([{File, Warnings1}]),
+%%              errors:show_errors([{File, Errors1}]),
+              errors:show_warnings({File, Warnings1}),
+              errors:show_errors({File, Errors1}),
               errors
           end;
 

@@ -63,7 +63,7 @@ show_warnings([]) -> % This is how the internal structure of the EPP works. When
 show_warnings([Warning = {_, Warnings}]) when is_list(Warnings) ->
   show_faults(?S_WARNING, Warning);
 show_warnings(Warning = {_, Warnings}) when is_list(Warnings) ->
-  show_faults(?S_ERROR, Warning).
+  show_faults(?S_WARNING, Warning).
 
 -spec show_error({file:name_all(), fault()} | fault()) -> ok.
 show_error(E) ->

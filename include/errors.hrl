@@ -19,8 +19,8 @@ pushError(Code, Node, Error),
 ).
 
 -define(
-pushWarning(Code, Node, Error),
-  errors:push_warning(?MODULE, {Code, Node}, Error)
+pushWarning(Code, Node, Warning),
+  errors:push_warning(?MODULE, {Code, Node}, Warning)
 ).
 
 %%-define(
