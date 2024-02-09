@@ -73,8 +73,11 @@ set_pos/2
 %% Invalid message element type. Supported types are integers and strings.
 -define(E_MB_MSG_ELEM_TYPE_BAD, e_mb_msg_elem_type_bad).
 
+%% No pid() associated with mailbox type.
 -define(W_MB_NO_PID, w_mb_no_pid).
 
+%% Mailbox not initialized with new modality.
+-define(E_MB_NO_NEW, e_mb_no_new).
 
 %%-define(E_MB_TYPE_UNDEF, e_mb_type_undef).
 -define(W_MB_TYPE_PID, w_mb_type_pid).
@@ -167,13 +170,20 @@ table(Forms) ->
           io:format("MbNames: ~p~n", [MbNames]),
           io:format("~s SIGS & TINFO ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
 
+
           case check_mb_types_defined(MbNames, Types) of
             {ok, []} ->
               case check_mb_types_valid(Types) of
                 {ok, Warnings} ->
 
-
-                  {ok, TInfo, Warnings};
+                  %% TODO: Check mb is new (we have no use without new). Uses MbNames.
+                  case check_mb_new(MbNames) of
+                    {ok, []} ->
+                      {ok, TInfo, Warnings};
+                    Error = #error{} ->
+                      % One or more mailbox definitions are used without new.
+                      Error
+                  end;
                 Error = #error{} ->
                   % One or more invalid messages types in mailbox definitions.
                   Error
@@ -235,9 +245,9 @@ get_t_info(Forms) ->
   ?TRACE("Specs: ~p", [Specs]),
 
   % Sigs = Specs = list
-  Sigs0 = make_sigs(Sigs),
+  Sigs0 = #{} = make_sigs(Sigs),
 %%  Specs0 = maps:from_list(Specs),
-  Specs0 = make_specs(Specs),
+  Specs0 = #{} = make_specs(Specs),
 
   ?TRACE("First Specs map = ~p", [Specs0]),
   return(
@@ -256,6 +266,7 @@ get_t_info(Forms) ->
 
                 % Get unique mailbox names.
                 MbNames = make_mb_names(MbDefs),
+
 
                 % Type info record.
                 #t_info{
@@ -321,8 +332,13 @@ make_specs(Specs) when is_list(Specs) ->
 %% @returns Mailbox names.
 make_mb_names(MbDefs) when is_list(MbDefs) ->
   lists:foldl(
-    fun({{_, Name}, {ANNO, _}}, Names) ->
-      Names#{Name => {ANNO}}
+%%    fun({{Modality, Name}, {ANNO, _}}, Names) ->
+%%      Names#{Name => {ANNO}}
+%%    end,
+%%    fun({{new, Name}, {ANNO, _}}, Names) ->
+%%      Names#{Name => {ANNO, new}};
+    fun({{Modality, Name}, {ANNO, _}}, Names) ->
+      maps:update_with(Name, fun({_, new}) -> {ANNO, new}; (_) -> {ANNO, Modality} end, {ANNO, Modality}, Names)
     end,
     #{}, MbDefs).
 
@@ -463,7 +479,7 @@ check_mb_sigs_defined(MbDefs = #{}, Sigs = #{}) ->
 check_mb_types_defined(MbNames = #{}, Types = #{}) ->
   return(
     maps:fold(
-      fun(Mailbox, {ANNO}, Error) ->
+      fun(Mailbox, {ANNO, _}, Error) ->
         case maps:is_key(Mailbox, Types) of
           true ->
 
@@ -480,6 +496,17 @@ check_mb_types_defined(MbNames = #{}, Types = #{}) ->
       #error{}, MbNames)
   ).
 
+check_mb_new(MbNames) when is_map(MbNames) ->
+  ?TRACE("Checking for newness"),
+  return(
+    maps:fold(
+      fun(_, {_, ?M_NEW}, Error) ->
+        Error;
+        (Name, {ANNO, ?M_USE}, Error) ->
+          ?pushError(?E_MB_NO_NEW, to_erl_af(ANNO, Name), Error)
+      end,
+      #error{}, MbNames)
+  ).
 
 % TODO: Implementing this.
 check_mb_types_valid(Types = #{}) ->
@@ -902,6 +929,11 @@ format_error({?E_MB_MSG_ELEM_TYPE_BAD, Node}) ->
 format_error({?W_MB_NO_PID, Node}) ->
   io_lib:format(
     "mailbox type '~s' does not contain pid() that makes it incompatible with Dialyzer",
+    [erl_prettypr:format(Node)]
+  );
+format_error({?E_MB_NO_NEW, Node}) ->
+  io_lib:format(
+    "used mailbox type '~s' is never initialized with 'new'",
     [erl_prettypr:format(Node)]
   ).
 
