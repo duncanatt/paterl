@@ -55,8 +55,11 @@ set_pos/2
 %% Invalid function Fun/Arity signature.
 -define(E_MB_SIG_BAD, e_mb_sig_bad).
 
+%% Untyped function signature.
+-define(E_MB_SIG_TYPE_UNDEF, e_mb_sig_type_undef).
+
 %% Function signature associated with more than one mailbox type.
--define(E_MB_SIG_NOT_UNIQUE, e_mb_sig_not_unique). %%
+-define(E_MB_SIG_NOT_UNIQUE, e_mb_sig_not_unique).
 
 %% Undefined function signature.
 -define(E_MB_SIG_UNDEF, e_mb_sig_undef).
@@ -169,7 +172,6 @@ table(Forms) ->
               case check_mb_types_valid(Types) of
                 {ok, Warnings} ->
 
-                  %% Final. Check that all functions are type speced.
 
                   {ok, TInfo, Warnings};
                 Error = #error{} ->
@@ -232,41 +234,59 @@ get_t_info(Forms) ->
   ?TRACE("Types: ~p", [Types]),
   ?TRACE("Specs: ~p", [Specs]),
 
-  % Get mailbox definition map for convenient use for type consistency checking.
-  % Check that each function signature is associated to at most one mailbox
-  % definition and modality.
+  % Sigs = Specs = list
+  Sigs0 = make_sigs(Sigs),
+%%  Specs0 = maps:from_list(Specs),
+  Specs0 = make_specs(Specs),
+
+  ?TRACE("First Specs map = ~p", [Specs0]),
   return(
-    case make_mb_defs(MbDefs) of
-      {ok, MbDefs0 = #{}, []} ->
+    case check_sigs_have_specs(Sigs0, Specs0) of
+      {ok, []} ->
+        % Get mailbox definition map for convenient use for type consistency checking.
+        % Check that each function signature is associated to at most one mailbox
+        % definition and modality.
+        case make_mb_defs(MbDefs) of
+          {ok, MbDefs0 = #{}, []} ->
 
-        % Check that function signatures used in mailbox definitions are defined.
-        case check_mb_sigs_defined(MbDefs0, Sigs) of
-          {ok, []} ->
+            ?TRACE("Mapped MbDefs = ~p", [MbDefs0]),
+            % Check that function signatures used in mailbox definitions are defined.
+            case check_mb_sigs_defined(MbDefs0, Sigs0) of
+              {ok, []} ->
 
-            % Get unique mailbox names.
-            MbNames = make_mb_names(MbDefs),
+                % Get unique mailbox names.
+                MbNames = make_mb_names(MbDefs),
 
-            % Type info record.
-            #t_info{
-              types = make_types(Types, MbNames),
-              specs = make_specs(Specs, MbDefs0),
-              mb_names = MbNames,
-              mb_defs = MbDefs0
-            };
+                % Type info record.
+                #t_info{
+                  types = make_types(Types, MbNames),
+                  specs = Specs0,
+                  mb_names = MbNames,
+                  mb_defs = MbDefs0
+                };
+
+              Error = #error{} ->
+                % One or more function signatures in mailbox definitions are not
+                % declared as types.
+                Error
+            end;
           Error = #error{} ->
-            % One or more function signatures in mailbox definitions are not
-            % declared as types.
+            % One or more function signatures are associated with the same mailbox.
             Error
         end;
       Error = #error{} ->
-        % One or more function signatures are associated with the same mailbox.
+        % One or more function signatures do not have specs.
         Error
     end
   ).
 
 
+
+
+
+
 new_sig(ANNO, Sig = {_, _}, Sigs) when is_list(Sigs) ->
-  [Sig | Sigs].
+  [{ANNO, Sig} | Sigs].
 
 new_mb_def(ANNO, Sigs, Modality, Mailbox, MbSpecs)
   when is_list(Sigs), is_list(MbSpecs) ->
@@ -284,6 +304,18 @@ new_type(ANNO, Name, Type, Vars, Types) when is_list(Vars), is_list(Types) ->
 new_spec(ANNO, Sig = {_, _}, Types, Specs) when is_list(Types), is_list(Specs) ->
   [{Sig, {ANNO, Types}} | Specs].
 
+
+%% @private Returns the map of function signatures.
+%% @returns Function signatures.
+make_sigs(Sigs) when is_list(Sigs) ->
+  lists:foldl(
+    fun({ANNO, Sig = {_, _}}, Sigs0) ->
+      Sigs0#{Sig => {ANNO}}
+    end,
+    #{}, Sigs).
+
+make_specs(Specs) when is_list(Specs) ->
+  maps:from_list(Specs).
 
 %% @private Returns the map of mailbox names defined.
 %% @returns Mailbox names.
@@ -313,23 +345,23 @@ make_types(Types, MbNames = #{}) when is_list(Types) ->
     #{}, Types).
 
 
-make_specs(Specs, MbDefs = #{}) when is_list(Specs) ->
-%%  Sigs = maps:keys(MbDefs),
-  lists:foldl(
-    fun({Sig, {ANNO, Types}}, Map) ->
-%%      case lists:member(Sig, Sigs) of
-      case maps:is_key(Sig, MbDefs) of
-        true ->
-
-          % Function uses a mailbox.
-          Map#{Sig => {?T_MBOX, ANNO, Types}};
-        false ->
-
-          % Function does not use a mailbox.
-          Map#{Sig => {?T_SPEC, ANNO, Types}}
-      end
-    end,
-    #{}, Specs).
+%%make_specs(Specs, MbDefs = #{}) when is_list(Specs) ->
+%%%%  Sigs = maps:keys(MbDefs),
+%%  lists:foldl(
+%%    fun({Sig, {ANNO, Types}}, Map) ->
+%%%%      case lists:member(Sig, Sigs) of
+%%      case maps:is_key(Sig, MbDefs) of
+%%        true ->
+%%
+%%          % Function uses a mailbox.
+%%          Map#{Sig => {?T_MBOX, ANNO, Types}};
+%%        false ->
+%%
+%%          % Function does not use a mailbox.
+%%          Map#{Sig => {?T_SPEC, ANNO, Types}}
+%%      end
+%%    end,
+%%    #{}, Specs).
 
 
 %%% ----------------------------------------------------------------------------
@@ -406,17 +438,16 @@ make_mb_defs(MbDefs) when is_list(MbDefs) ->
 %% defined.
 %% @returns `{ok, Warnings}` if all signatures are defined, otherwise
 %% `{error, Warnings, Errors}`. Warnings is always the empty list.
-check_mb_sigs_defined(MbDefs = #{}, Sigs) when is_list(Sigs) ->
+check_mb_sigs_defined(MbDefs = #{}, Sigs = #{}) ->
+  ?TRACE("Sigs in check_mb_sigs_defined = ~p", [Sigs]),
   return(
     maps:fold(
-      fun(Sig = {_, _}, {ANNO, _, _}, Error) ->
-        case lists:member(Sig, Sigs) of
+      fun(Sig = {_, _}, {_, ANNO, _}, Error) ->
+        case maps:is_key(Sig, Sigs) of
           true ->
-
             % Function signature in mailbox spec defined.
             Error;
           false ->
-
             % Undefined function signature in mailbox spec.
             Node = to_erl_af(ANNO, Sig),
             ?pushError(?E_MB_SIG_UNDEF, Node, Error)
@@ -604,6 +635,26 @@ check_valid_tuple_nodes([Node = {user_type, ANNO, Type, _} | Nodes], Types = #{}
   end;
 check_valid_tuple_nodes([Node | Nodes], Types = #{}, Error) ->
   check_valid_tuple_nodes(Nodes, Types, ?pushError(?E_MB_MSG_ELEM_TYPE_BAD, Node, Error)).
+
+%% @private Checks that function signatures names have a corresponding spec
+%% defined.
+%% @returns `{ok, Warnings}` if all function signatures have a corresponding
+%% spec defined, otherwise `{error, Errors, Warnings}`. Warnings is always the
+%% empty list.
+check_sigs_have_specs(Sigs = #{}, Specs = #{}) ->
+  return(
+    maps:fold(
+      fun(Sig = {_, _}, {ANNO}, Error) ->
+        case maps:is_key(Sig, Specs) of
+          true ->
+            Error;
+          false ->
+            Node = to_erl_af(ANNO, Sig),
+            ?pushError(?E_MB_SIG_TYPE_UNDEF, Node, Error)
+        end
+      end,
+      #error{}, Sigs)
+  ).
 
 
 %%is_valid_tag({atom, _, _}) ->
@@ -818,9 +869,14 @@ format_error({?E_MB_SIG_BAD, Node}) ->
     "mailbox spec contains bad function signature '~s'",
     [erl_prettypr:format(Node)]
   );
+format_error({?E_MB_SIG_TYPE_UNDEF, Node}) ->
+  io_lib:format(
+    "function signature has no associated spec '~s'",
+    [erl_prettypr:format(Node)]
+  );
 format_error({?E_MB_SIG_NOT_UNIQUE, Node}) ->
   io_lib:format(
-    "function signature '~s' associated with more than one mailbox spec",
+    "function signature '~s' associated with more than one mailbox definition",
     [erl_prettypr:format(Node)]
   );
 format_error({?E_MB_SIG_UNDEF, Node}) ->
