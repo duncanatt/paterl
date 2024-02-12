@@ -245,13 +245,13 @@ get_t_info(Forms) ->
   ?TRACE("Specs: ~p", [Specs]),
 
   % Sigs = Specs = list
-  Sigs0 = #{} = make_sigs(Sigs),
+  SigsCtx = #{} = make_sigs_ctx(Sigs),
 %%  Specs0 = maps:from_list(Specs),
-  Specs0 = #{} = make_specs(Specs),
+  SpecsCtx = #{} = make_specs_ctx(Specs),
 
-  ?TRACE("First Specs map = ~p", [Specs0]),
+  ?TRACE("First Specs map = ~p", [SpecsCtx]),
   return(
-    case check_sigs_have_specs(Sigs0, Specs0) of
+    case check_sigs_have_specs(SigsCtx, SpecsCtx) of
       {ok, []} ->
         % Get mailbox definition map for convenient use for type consistency checking.
         % Check that each function signature is associated to at most one mailbox
@@ -261,18 +261,17 @@ get_t_info(Forms) ->
 
             ?TRACE("Mapped MbDefs = ~p", [MbDefs0]),
             % Check that function signatures used in mailbox definitions are defined.
-            case check_mb_sigs_defined(MbDefs0, Sigs0) of
+            case check_mb_sigs_defined(MbDefs0, SigsCtx) of
               {ok, []} ->
 
                 % Get unique mailbox names.
-                MbNames = make_mb_names(MbDefs),
-
+                MbNamesCtx = make_mb_names_ctx(MbDefs),
 
                 % Type info record.
                 #t_info{
-                  types = make_types(Types, MbNames),
-                  specs = Specs0,
-                  mb_names = MbNames,
+                  types = make_types_ctx(Types, MbNamesCtx),
+                  specs = SpecsCtx,
+                  mb_names = MbNamesCtx,
                   mb_defs = MbDefs0
                 };
 
@@ -303,14 +302,8 @@ new_mb_def(ANNO, Sigs, Modality, Mailbox, MbSpecs)
   when is_list(Sigs), is_list(MbSpecs) ->
   [{{Modality, Mailbox}, {ANNO, Sigs}} | MbSpecs].
 
-%%put_type(ANNO, Name, Type, Vars, Types = #{}) when is_list(Vars) ->
-%%  Types#{Name => {ANNO, Type, Vars}}.
-
 new_type(ANNO, Name, Type, Vars, Types) when is_list(Vars), is_list(Types) ->
   [{Name, {ANNO, Type, Vars}} | Types].
-
-%%put_spec(ANNO, Sig = {_, _}, Types, Specs = #{}) when is_list(Types) ->
-%%  Specs#{Sig => {ANNO, Types}}.
 
 new_spec(ANNO, Sig = {_, _}, Types, Specs) when is_list(Types), is_list(Specs) ->
   [{Sig, {ANNO, Types}} | Specs].
@@ -318,66 +311,48 @@ new_spec(ANNO, Sig = {_, _}, Types, Specs) when is_list(Types), is_list(Specs) -
 
 %% @private Returns the map of function signatures.
 %% @returns Function signatures.
-make_sigs(Sigs) when is_list(Sigs) ->
+make_sigs_ctx(Sigs) when is_list(Sigs) ->
   lists:foldl(
     fun({ANNO, Sig = {_, _}}, Sigs0) ->
       Sigs0#{Sig => {ANNO}}
     end,
     #{}, Sigs).
 
-make_specs(Specs) when is_list(Specs) ->
-  maps:from_list(Specs).
+make_specs_ctx(Specs) when is_list(Specs) ->
+  lists:foldl(
+    fun({Sig = {_, _},
+      {ANNO, Spec}}, Ctx) ->
+      Ctx#{Sig => {spec, ANNO, Spec}}
+    end,
+    #{}, Specs).
+%%  maps:from_list(Specs).
 
 %% @private Returns the map of mailbox names defined.
 %% @returns Mailbox names.
-make_mb_names(MbDefs) when is_list(MbDefs) ->
+make_mb_names_ctx(MbDefs) when is_list(MbDefs) ->
   lists:foldl(
-%%    fun({{Modality, Name}, {ANNO, _}}, Names) ->
-%%      Names#{Name => {ANNO}}
-%%    end,
-%%    fun({{new, Name}, {ANNO, _}}, Names) ->
-%%      Names#{Name => {ANNO, new}};
-    fun({{Modality, Name}, {ANNO, _}}, Names) ->
-      maps:update_with(Name, fun({_, new}) -> {ANNO, new}; (_) -> {ANNO, Modality} end, {ANNO, Modality}, Names)
+    fun({{Modality, Name}, {ANNO, _}}, Ctx) ->
+      maps:update_with(Name, fun({_, new}) -> {ANNO, new}; (_) -> {ANNO, Modality} end, {ANNO, Modality}, Ctx)
     end,
     #{}, MbDefs).
 
-make_types(Types, MbNames = #{}) when is_list(Types) ->
+make_types_ctx(Types, MbNames = #{}) when is_list(Types) ->
 %%  Mailboxes = lists:map(fun({_, _, Name}) -> Name end, maps:values(MbDefs)),
   lists:foldl(
-    fun({Name, {ANNO, Type, Vars}}, Map) ->
+    fun({Name, {ANNO, Type, Vars}}, Ctx) ->
       case maps:is_key(Name, MbNames) of
 %%      case maps:take(Name, MbNames) of %TODO: Optimisation if we use take!
         true ->
 
           % Type defines a mailbox.
-          Map#{Name => {?T_MBOX, ANNO, Type, Vars}};
+          Ctx#{Name => {?T_MBOX, ANNO, Type, Vars}};
         false ->
 
           % Type does not define a mailbox.
-          Map#{Name => {?T_TYPE, ANNO, Type, Vars}}
+          Ctx#{Name => {?T_TYPE, ANNO, Type, Vars}}
       end
     end,
     #{}, Types).
-
-
-%%make_specs(Specs, MbDefs = #{}) when is_list(Specs) ->
-%%%%  Sigs = maps:keys(MbDefs),
-%%  lists:foldl(
-%%    fun({Sig, {ANNO, Types}}, Map) ->
-%%%%      case lists:member(Sig, Sigs) of
-%%      case maps:is_key(Sig, MbDefs) of
-%%        true ->
-%%
-%%          % Function uses a mailbox.
-%%          Map#{Sig => {?T_MBOX, ANNO, Types}};
-%%        false ->
-%%
-%%          % Function does not use a mailbox.
-%%          Map#{Sig => {?T_SPEC, ANNO, Types}}
-%%      end
-%%    end,
-%%    #{}, Specs).
 
 
 %%% ----------------------------------------------------------------------------
