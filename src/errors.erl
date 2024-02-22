@@ -17,7 +17,7 @@
 -export([push_error/3, push_warning/3]).
 
 %%% Types.
--export_type([fault/0, errors/0, warnings/0]).
+-export_type([error/0, fault/0, errors/0, warnings/0]).
 
 
 %%% ----------------------------------------------------------------------------
@@ -39,6 +39,7 @@
 -type errors() :: [fault()].
 -type warnings() :: [fault()].
 
+-type error() :: #error{}.
 
 %%% ----------------------------------------------------------------------------
 %%% Public API.

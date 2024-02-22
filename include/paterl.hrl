@@ -30,11 +30,32 @@
 
 %%-define(free(MbName), {mb_state, free, "shouldbefilledautomatically?", MbName}).
 
--define(mb_assert(Mailbox, Regex), {Mailbox, "@state:" ++ Regex}).
+%%-define(mb_assert(Mailbox, Regex), {'@state', Mailbox, Regex}).
+-define(mb_assert(Mailbox, Regex), {'@state', Mailbox, Regex}).
+-define(mb_assert_regex(Regex), {'@state', Regex}).
 
--define(mb_type(Mailbox), Mailbox).
+-define(mb_type(Mailbox), {'@type', Mailbox}).
 
--define(mb_use(Mailbox), Mailbox).
+-define(mb_new(Mailbox), {'@new', Mailbox}).
 
--define(mb_new(Mailbox), Mailbox).
+-define(mb_use(Mailbox), {'@use', Mailbox}).
+
+-define(mb_new_x(Mailbox, Expr), {'@new', Mailbox, Ret = Expr}, Ret).
+
+-define(mb_use_x(Mailbox, Expr), {'@use', Mailbox, Ret = Expr}, Ret).
+
+
+-record(t_info, {
+  types = #{} :: paterl_types:types(), % Global type def names to AST.
+  specs = #{} :: paterl_types:specs(), % Function signatures to AST.
+  mb_defs = #{} :: paterl_types:mb_defs(),  % Mailbox names to mailbox modality and function signatures.
+  mb_names = [] :: paterl_types:mb_names()
+}).
+
+-define(M_NEW, new).
+-define(M_USE, use).
+
+-define(T_TYPE, type).
+-define(T_SPEC, spec).
+-define(T_MBOX, mbox).
 

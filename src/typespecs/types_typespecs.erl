@@ -62,13 +62,13 @@ pushError(Class, Reason, Node, Errors),
 -type mailbox() :: atom().
 %% Mailbox interface name.
 
--type t_spec() :: {name(), {erl_syntax:erl_parse(), erl_syntax:erl_parse()}}.
+-type t_spec() :: {name(), {erl_syntax:syntaxTree(), erl_syntax:syntaxTree()}}.
 %% Type specs map.
 
--type f_spec() :: {{name(), arity()}, {erl_syntax:erl_parse(), erl_syntax:erl_parse()}}.
+-type f_spec() :: {{name(), arity()}, {erl_syntax:syntaxTree(), erl_syntax:syntaxTree()}}.
 %% Function specs map.
 
--type mb_sig() :: {mailbox(), {erl_syntax:erl_parse(), [signature()]}}.
+-type mb_sig() :: {mailbox(), {erl_syntax:syntaxTree(), [signature()]}}.
 %% Mailbox interface names map that tracks the Erlang functions implementing the
 %% mailbox type.
 

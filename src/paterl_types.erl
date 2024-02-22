@@ -13,6 +13,7 @@
 -include_lib("stdlib/include/assert.hrl").
 -include("log.hrl").
 -include("errors.hrl").
+-include("paterl.hrl").
 
 %%% Imports.
 -import(erl_syntax, [
@@ -34,18 +35,14 @@ set_pos/2
 %%% Public API.
 -export([table/1]).
 
+%%% Public types.
+-export_type([types/0, specs/0, mb_defs/0, mailbox/0, mb_names/0]).
+
 -compile(export_all).
 
 %%% ----------------------------------------------------------------------------
 %%% Macro and record definitions.
 %%% ----------------------------------------------------------------------------
-
--define(M_NEW, new).
--define(M_USE, use).
-
--define(T_TYPE, type).
--define(T_SPEC, spec).
--define(T_MBOX, mbox).
 
 %%% Error types.
 
@@ -79,12 +76,6 @@ set_pos/2
 %% Mailbox not initialized with new modality.
 -define(E_MB_NO_NEW, e_mb_no_new).
 
-%%-define(E_MB_TYPE_UNDEF, e_mb_type_undef).
--define(W_MB_TYPE_PID, w_mb_type_pid).
--define(W_MB_TYPE_EMPTY, w_mb_type_empty).
-%%-define(E_MB_TYPE_INVALID, e_mb_type_invalid).
-%%-define(E_MB_SIG_TYPE_UNDEF, e_mb_sig_type_undef).
-
 
 %% Error macros.
 
@@ -96,13 +87,12 @@ set_pos/2
 %%}).
 
 
-
--record(t_info, {
-  types = #{} :: types(), % Global type def names to AST.
-  specs = #{} :: specs(), % Function signatures to AST.
-  mb_defs = #{} :: mb_defs(),  % Mailbox names to mailbox modality and function signatures.
-  mb_names = [] :: [mailbox()]
-}).
+%%-record(t_info, {
+%%  types = #{} :: types(), % Global type def names to AST.
+%%  specs = #{} :: specs(), % Function signatures to AST.
+%%  mb_defs = #{} :: mb_defs(),  % Mailbox names to mailbox modality and function signatures.
+%%  mb_names = [] :: [mailbox()]
+%%}).
 
 %%-record(p_data, {
 %%  f_sigs = [] :: [signature()] %% List of function signatures.
@@ -112,47 +102,57 @@ set_pos/2
 %%% Type definitions.
 %%% ----------------------------------------------------------------------------
 
--type signature() :: {function(), arity()}.
+-type signature() :: {name(), arity()}.
 %% Function signature Name/Arity type.
 
 -type name() :: atom().
-%% Type spec or function spec name.
+%% Function name type.
+
+-type type() :: atom().
+%% Type name type.
 
 -type mailbox() :: atom().
-%% Mailbox type name.
+%% Mailbox name type.
 
 -type modality() :: ?M_NEW | ?M_USE.
+%% Mailbox usage modality type.
 
--type ast() :: erl_syntax:erl_parse().
+-type anno() :: erl_anno:anno().
 
-%%-type t_spec() :: {spec(), {erl_syntax:erl_parse(), erl_syntax:erl_parse()}}.
 
-%%-type signatures() :: [signature()].
 
--type types() :: #{name() => {ast(), ast()}}.
 
-%%-type f_spec() :: {signature(), {erl_syntax:erl_parse(), erl_syntax:erl_parse()}}.
--type specs() :: #{signature() => {ast(), ast()}}.
 
-%%-type mb_sig() :: {mailbox(), {new | use, [signature()]}}.
-%%-type mb_sigs() :: #{mailbox() => {new | use, [signature()]}}.
+-type types() :: #{Name :: type() => {
+  type | mbox,
+  ANNO :: anno(),
+  Type :: erl_parse:abstract_type(),
+  TypeVars :: [erl_parse:abstract_expr()]}
+}.
 
-%%-type mb_specs() :: #{signature() => [{modality(), mailbox()}]}.
--type mb_defs() :: [{{modality(), mailbox()}, [signature()]}].
+-type specs() :: #{signature() => {
+  spec,
+  ANNO :: anno(),
+  FunTypes :: [erl_parse:abstract_type()]}
+}.
+
+-type mb_defs() :: #{signature() => {modality(), ANNO :: anno(), mailbox()}}.
+
+-type mb_names() :: #{mailbox() => {ANNO :: anno(), modality()}}.
 
 
 %% Mailbox interface names map that tracks the Erlang functions implementing the
 %% mailbox type.
 
 -type t_info() :: #t_info{}.
-%% Program type information.
+%% Program type information type.
 
 
 %%% ----------------------------------------------------------------------------
 %%% Public API.
 %%% ----------------------------------------------------------------------------
 
--spec table(erl_syntax:forms()) -> t_info().
+-spec table(erl_syntax:forms()) -> {ok, t_info(), errors:warnings()} | errors:error().
 table(Forms) ->
   case check_mb_specs_syntactic(Forms) of % TODO: Move it to the syntax checking file.
     {ok, _} ->
@@ -163,12 +163,12 @@ table(Forms) ->
 
           #t_info{types = Types, specs = Specs, mb_defs = MbDefs, mb_names = MbNames} = TInfo,
 
-          io:format("~n~s SIGS & TINFO ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
-          io:format("Types: ~p~n", [Types]),
-          io:format("Specs: ~p~n", [Specs]),
-          io:format("MbDefs: ~p~n", [MbDefs]),
-          io:format("MbNames: ~p~n", [MbNames]),
-          io:format("~s SIGS & TINFO ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
+%%          io:format("~n~s SIGS & TINFO ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
+%%          io:format("Types: ~p~n", [Types]),
+%%          io:format("Specs: ~p~n", [Specs]),
+%%          io:format("MbDefs: ~p~n", [MbDefs]),
+%%          io:format("MbNames: ~p~n", [MbNames]),
+%%          io:format("~s SIGS & TINFO ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
 
 
           case check_mb_types_defined(MbNames, Types) of
@@ -205,29 +205,30 @@ table(Forms) ->
 % {Sigs, MbSigs, Types, Specs}
 read_attribs(Forms) ->
   lists:foldl(
-    fun({function, ANNO, Fun, Arity, _}, {Sigs, MbSigs, Types, Specs}) ->
-      ?TRACE("~b: ~s/~b", [ANNO, Fun, Arity]),
-%%      {new_sig(ANNO, {Fun, Arity}, Sigs), Sigs};
-      {new_sig(ANNO, {Fun, Arity}, Sigs), MbSigs, Types, Specs};
-      ({attribute, ANNO, Modality, {Mailbox, Sigs0}}, {Sigs, MbSigs, Types, Specs})
+    fun(_Form = {function, ANNO, Fun, Arity, _}, {Sigs, MbDefs, Types, Specs}) ->
+      ?TRACE("Fun: ~p", [_Form]),
+      ?DEBUG("~b: ~s/~b", [ANNO, Fun, Arity]),
+      {new_sig(ANNO, {Fun, Arity}, Sigs), MbDefs, Types, Specs};
+
+      (_Form = {attribute, ANNO, Modality, {Mailbox, Sigs0}}, {Sigs, MbDefs, Types, Specs})
         when Modality =:= ?M_NEW; Modality =:= ?M_USE ->
-        ?TRACE("~b: -~s ~s with ~p", [ANNO, Modality, Mailbox, Sigs0]),
-%%        {Sigs, new_mb_sigs(ANNO, Sigs0, Modality, Mailbox, TInfo)};
-        {Sigs, new_mb_def(ANNO, Sigs0, Modality, Mailbox, MbSigs), Types, Specs};
+        ?TRACE("MbDef: ~p", [_Form]),
+        ?DEBUG("~b: -~s ~s with ~p", [ANNO, Modality, Mailbox, Sigs0]),
+        {Sigs, new_mb_def(ANNO, Sigs0, Modality, Mailbox, MbDefs), Types, Specs};
 
-      %{attribute, ANNO, type, {Name, Rep(T), [Rep(V_1), ..., Rep(V_k)]}}
-      ({attribute, ANNO, type, {Name, Type, Vars}}, {Sigs, MbSigs, Types, Specs}) ->
-        ?TRACE("~b: -type ~s", [ANNO, Name]),
-%%        {Sigs, put_type(Name, Type, Defs, TInfo)};
-        {Sigs, MbSigs, new_type(ANNO, Name, Type, Vars, Types), Specs};
+      (_Form = {attribute, ANNO, type, {Name, Type, Vars}}, {Sigs, MbDefs, Types, Specs}) ->
+        ?TRACE("Type: ~p", [_Form]),
+        ?DEBUG("~b: -type ~s", [ANNO, Name]),
+        {Sigs, MbDefs, new_type(ANNO, Name, Type, Vars, Types), Specs};
 
-      %{attribute, ANNO, spec, {Sig = {Name,Arity}, [Rep(Ft_1), ..., Rep(Ft_k)]}}.
-      ({attribute, ANNO, spec, {Sig = {Name, Arity}, Types0}}, {Sigs, MbSigs, Types, Specs}) ->
-        ?TRACE("~b: -spec ~s/~b", [ANNO, Name, Arity]),
-%%        {Sigs, put_spec(Sig, Body, TInfo)};
-        {Sigs, MbSigs, Types, new_spec(ANNO, Sig, Types0, Specs)};
+      (_Form = {attribute, ANNO, spec, {Sig = {Name, Arity}, Types0}}, {Sigs, MbDefs, Types, Specs}) ->
+        ?TRACE("Spec: ~p", [_Form]),
+        ?DEBUG("~b: -spec ~s/~b", [ANNO, Name, Arity]),
+        {Sigs, MbDefs, Types, new_spec(ANNO, Sig, Types0, Specs)};
+
       (_Form, Data) ->
-        ?TRACE("~b: ~s ~p", [element(2, _Form), element(1, _Form),
+        ?TRACE("Form: ~p", [_Form]),
+        ?DEBUG("~b: ~s ~p", [element(2, _Form), element(1, _Form),
           if size(_Form) > 2 -> element(3, _Form); true -> undefined end]),
         Data
     end, {[], [], [], []}, Forms).
@@ -320,8 +321,7 @@ make_sigs_ctx(Sigs) when is_list(Sigs) ->
 
 make_specs_ctx(Specs) when is_list(Specs) ->
   lists:foldl(
-    fun({Sig = {_, _},
-      {ANNO, Spec}}, Ctx) ->
+    fun({Sig = {_, _}, {ANNO, Spec}}, Ctx) ->
       Ctx#{Sig => {spec, ANNO, Spec}}
     end,
     #{}, Specs).
@@ -517,12 +517,12 @@ check_mb_types_valid(Types = #{}) ->
 
 
 
-check_msg_type_valid(T = {type, _, pid, _}, #{}, Error, _) ->
-  ?TRACE("Type: ~p", [T]),
+check_msg_type_valid(Type = {type, _, pid, _}, #{}, Error, _) ->
+  ?TRACE("Type: ~p", [Type]),
   {true, Error};
 
-check_msg_type_valid(T = {type, ANNO, tuple, [Node]}, #{}, Error, HasPid) ->
-  ?TRACE("Type: ~p", [T]),
+check_msg_type_valid(Type = {type, ANNO, tuple, [Node]}, #{}, Error, HasPid) ->
+  ?TRACE("Type: ~p", [Type]),
 
 %%  case is_valid_tag(Elem) of
 %%    true ->
@@ -536,8 +536,8 @@ check_msg_type_valid(T = {type, ANNO, tuple, [Node]}, #{}, Error, HasPid) ->
 
 
 
-check_msg_type_valid(T = {type, _, tuple, [Node | Nodes]}, Types = #{}, Error, HasPid) ->
-  ?TRACE("Type: ~p", [T]),
+check_msg_type_valid(Type = {type, _, tuple, [Node | Nodes]}, Types = #{}, Error, HasPid) ->
+  ?TRACE("Type: ~p", [Type]),
 
 
 %%  case is_valid_tag(Elem) of

@@ -51,7 +51,7 @@ pushError(Class, Reason, Node, Errors),
 -type signature() :: {atom(), arity()}.
 %% Function signature.
 
--type spec() :: {atom(), erl_syntax:erl_parse()}.
+-type spec() :: {atom(), erl_syntax:syntaxTree()}.
 %% Type and function spec.
 
 

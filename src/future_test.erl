@@ -7,8 +7,8 @@
 %%% Created : 21. Nov 2023 16:53
 %%%-------------------------------------------------------------------
 -module(future_test).
--author("duncan").
--compile({parse_transform, main_pt}).
+%%-author("duncan").
+%%-compile({parse_transform, main_pt}).
 
 %%% Includes.
 -include("paterl.hrl").
@@ -28,11 +28,12 @@
 -new({future_mb, [future/0]}).
 %%-use({future_mb, [future/0]}).
 
--use({future_mb, [resolved_future/1]}).
+-use({future_mb, [resolved_future/2]}).
 
 -new({user_mb, [user/1]}).
 
 -new({main_mb, [main/0]}).
+%%-use({future_mb, [main/0]}).
 
 
 
@@ -41,18 +42,25 @@
 %% interface Future { Put(Int), Get(User!) }
 %% @type future_mb() :: {put, integer()} | {get, user_mb()}
 
--type get() :: {get, future_mb()}
-%%| pid()
+-type simpl() :: ok.
+-type tina() :: pid() | pid().
+
+-type get() :: {get, user_mb()}
+| pid()
+| tina()
 .
 
 -type future_mb() ::
 {put, integer()} |
 %%{get, user_mb()} |
-%%pid() |
+pid() |
 get().
 %%pid().
 
 -type duncan(Key, Value, Elvis) :: {Key, Value, Elvis} |  Elvis | ok.
+
+-type type_with_variable(TypeVariable) :: {TypeVariable} | tina.
+
 %% User interface.
 %% interface User { Reply(Int) }
 %% @type user() :: {reply, integer()}
@@ -87,11 +95,11 @@ future() ->
 future() ->
   %% @mb future()
   %% @assert put.get*
-  ?mb_assert(future_mb, "put.get*"),
+  ?mb_assert_regex("put.get*"),
   receive {put, Value} ->
     %% @use future() (@use is derived from the interface of the resolved_future function)
     ?mb_use(future_mb),
-    resolved_future(Value)
+    resolved_future(Value, 42)
   end.
 
 %% def resolvedFuture(self: Future?, value: Int): Unit {
@@ -107,19 +115,18 @@ future() ->
 %% @spec resolved_future(integer()) -> none()
 %% @use future()
 %%-use future.
-resolved_future(Value) ->
+-spec resolved_future(integer(), integer()) -> none().
+resolved_future(Value, 42) ->
   %% @mb future()
   %% @assert get*
-  ?mb_assert(future_mb, "get*"),
-%%  paterl:annotate(future_mb, "Get*"),
-  "pater: get*",
+  ?mb_assert_regex("get*"),
   ok,
   receive
     {get, UserPid} ->
       UserPid ! {reply, Value},
       %% @use future()
       ?mb_use(future_mb),
-      resolved_future(Value)
+      resolved_future(Value, 42)
   end.
 
 %% def user(future: Future!): Int {
@@ -137,13 +144,13 @@ resolved_future(Value) ->
 user(FuturePid) ->
   Self =
     %% @mb user()
-    ?mb_type(user_mb),
+%%    ?mb_type(user_mb),
     self(),
   FuturePid ! {get, Self},
 
   %% @mb user()
   %% @assert reply
-  ?mb_assert(user_mb, "reply"),
+  ?mb_assert_regex("reply"),
   receive
     {reply, Value} ->
       Value
@@ -161,6 +168,8 @@ user(FuturePid) ->
 %% @new user()
 -spec main() -> any().
 main() ->
+  if a == b -> hello; true -> goodbye end,
+
   FuturePid =
     %% @new future()
     ?mb_new(future_mb),
@@ -179,4 +188,11 @@ main() ->
   format("B: ~p~n", [Get2]).
 
 -type
-user_mb() :: {reply, integer()}.
+user_mb() :: {reply, integer()}
+%%| pid()
+.
+
+-spec a_non_annotated_fun() -> ok.
+a_non_annotated_fun() ->
+  ok.
+%%unused() -> ok.
