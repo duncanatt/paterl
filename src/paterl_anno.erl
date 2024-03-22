@@ -23,6 +23,16 @@
 %%% Macro and record definitions.
 %%% ----------------------------------------------------------------------------
 
+%%% Mailbox annotation types.
+
+-define(MA_TYPE, type).
+
+-define(MA_INTERFACE, interface).
+
+-define(MA_MODALITY, modality).
+
+-define(MA_STATE, state).
+
 %%% Error types.
 
 % ERROR TYPES HERE.
@@ -313,7 +323,7 @@ annotate_clause(Clause = {clause, Anno, PatSeq, GuardSeq = [], Body},
 
 
 %%  Body0 = annotate_expr_seq(Body, undefined, MbScope, TInfo),
-  Body0 = annotate_expr_seq2(Body, MbScope, TInfo),
+  Body0 = annotate_expr_seq(Body, MbScope, TInfo),
 
   erl_syntax:revert(
     erl_syntax:set_pos(erl_syntax:clause(AnnPatSeq, GuardSeq, Body0), Anno)
@@ -338,7 +348,7 @@ annotate_clause(Clause = {clause, Anno, _PatSeq = [], GuardSeq, Body},
   ?TRACE("If clause: ~p", [Clause]),
 
 %%  Body0 = annotate_expr_seq(Body, undefined, MbScope, TInfo),
-  Body0 = annotate_expr_seq2(Body, MbScope, TInfo),
+  Body0 = annotate_expr_seq(Body, MbScope, TInfo),
 
 
   erl_syntax:clause(GuardSeq, Body0);
@@ -354,70 +364,93 @@ annotate_clause(Clause, _, _) ->
 
 %% TODO: Alternate implementation ----------------------------------------------
 
-annotate_expr_seq2([], _, TInfo) ->
+%% @private Body.
+%%
+%% Match expressions are handled depending on whether the RHS is a mailbox
+%% annotation or otherwise. In the former case, the mailbox-annotation AST node
+%% is replaced with the AST node of the expression that follows the match
+%% expression in the sequence of expressions. Otherwise, the AST of the match
+%% expression is not modified and its RHS is annotated.
+annotate_expr_seq([], _, _) ->
   [];
-annotate_expr_seq2([Match = {match, Anno, Pat, Expr} | ExprSeq], MbScope, TInfo) ->
+annotate_expr_seq([Match = {match, Anno, Pat, Expr} | ExprSeq], MbScope, TInfo) ->
+  % Check whether current expression is a mailbox annotation and extract its
+  % components.
   case is_anno_expr(Expr) of
     {true, AnnoName, Value} ->
-      % RHS of match expression is an annotation expression. Use the recovered
-      % type annotation to annotate the next expression in the sequence
-      % following the match. A next expression must exist, otherwise it is an
-      % error. Replace the annotation expression in the RHS of match with the
-      % newly-annotated expression.
+      % RHS of match expression is a mailbox annotation. Use mailbox annotation
+      % name and value to annotate the AST node of the next expression in the
+      % sequence following the match expression. The next expression must exist,
+      % otherwise it is an error. Replace the RHS mailbox-annotation AST node of
+      % the match expression with the AST of the newly-annotation expression.
       case hd(ExprSeq) of
         [] ->
-          % Annotation expression must always be followed by an annotated
-          % expression.
+          % Mailbox-annotation must be followed by an expression.
           error_missing_annotated_expression;
         Expr0 ->
-          % Replace annotation expression with annotated expression.
+          % Replace AST node of mailbox-annotation with newly-annotated
+          % expression and annotate remaining expressions in the sequence.
           [Expr0 | ExprSeq0] = ExprSeq,
-
           Match0 = erl_syntax:revert(
             erl_syntax:set_pos(erl_syntax:match_expr(Pat, Expr0), Anno)
           ),
-          [annotate_expr2(Match0, {AnnoName, Value}, MbScope, TInfo) | annotate_expr_seq2(ExprSeq0, MbScope, TInfo)]
+          [annotate_expr(Match0, {AnnoName, Value}, MbScope, TInfo) | annotate_expr_seq(ExprSeq0, MbScope, TInfo)]
       end;
     false ->
-      % RHS of match expression is a normal (non-annotation) expression.
-      [annotate_expr2(Match, undefined, MbScope, TInfo) | annotate_expr_seq2(ExprSeq, MbScope, TInfo)]
+      % RHS of match expression is a non mailbox-annotated expression.
+      [annotate_expr(Match, undefined, MbScope, TInfo) | annotate_expr_seq(ExprSeq, MbScope, TInfo)]
   end;
 
-annotate_expr_seq2([Expr | ExprSeq], MbScope, TInfo) ->
+annotate_expr_seq([Expr | ExprSeq], MbScope, TInfo) ->
+  % Check whether current expression is a mailbox annotation and extract its
+  % components.
   case is_anno_expr(Expr) of
     {true, AnnoName, Value} ->
-      % Expression is an annotation expression. Use the recovered type
-      % annotation to annotate the next expression in the sequence. A next
-      % expression must exist, otherwise it is an error. Eat the annotation
-      % expression.
+      % Expression is a mailbox-annotation. Use mailbox annotation name and
+      % value to annotate the AST node of the next expression in the sequence.
+      % The next expression must exist, otherwise it is an error. Eat the
+      % mailbox annotation expression.
       case hd(ExprSeq) of
         [] ->
           % Annotation expression must always be followed by an annotated
           % expression.
           error_missing_annotated_expression;
         Expr0 ->
-          % Annotate next expression.
+          % Annotate next expression and remaining expressions in the sequence.
           [Expr0 | ExprSeq0] = ExprSeq,
-          [annotate_expr2(Expr0, {AnnoName, Value}, MbScope, TInfo) | annotate_expr_seq2(ExprSeq0, MbScope, TInfo)]
+          [annotate_expr(Expr0, {AnnoName, Value}, MbScope, TInfo) | annotate_expr_seq(ExprSeq0, MbScope, TInfo)]
       end;
     false ->
-      % RHS of match expression is a normal (non-annotation) expression.
-      [annotate_expr2(Expr, undefined, MbScope, TInfo) | annotate_expr_seq2(ExprSeq, MbScope, TInfo)]
+      % Expression is a normal (non mailbox annotation) expression.
+      [annotate_expr(Expr, undefined, MbScope, TInfo) | annotate_expr_seq(ExprSeq, MbScope, TInfo)]
   end.
 
 
-annotate_expr2({call, Anno, Spawn = {atom, _, spawn}, MFArgs}, {AnnoName, MbName}, MbScope, TInfo)
+%%- HERE FILL COMMENTS
+%%- USE MACROS NAMES FOR SAVING ANNOTATIONS AS PART OF THE AST
+%%- HANDLE ERRORS AND RETURN VALUES
+%% @private Expressions.
+%%
+%% The following expressions are annotated:
+%% 1. Mailbox-annotated spawn call
+%% 2. Non mailbox-annotated self call
+%% 3. (Non) mailbox-annotated internal function call
+%% 4. If expression
+%% 5. Match operator
+%% 6. Receive
+annotate_expr({call, Anno, Spawn = {atom, _, spawn}, MFArgs}, {AnnoName, MbName}, MbScope, TInfo)
   when is_list(MFArgs), AnnoName == new ->
   % Mailbox-annotated spawn expression.
   Anno0 = set_modality(AnnoName, set_interface(MbName, Anno)),
   erl_syntax:revert(
     erl_syntax:set_pos(erl_syntax:application(Spawn, MFArgs), Anno0)
   );
-annotate_expr2({call, Anno, {atom, _, spawn}, Exprs = [M, F, Args]}, undefined, _, TInfo) ->
+
+annotate_expr({call, Anno, {atom, _, spawn}, Exprs = [M, F, Args]}, undefined, _, TInfo) ->
   % Non mailbox-annotated spawn expression.
   error_spawn_must_be_annotated;
 
-annotate_expr2({call, Anno, Self = {atom, _, self}, []}, undefined, MbScope, TInfo) ->
+annotate_expr({call, Anno, Self = {atom, _, self}, []}, undefined, MbScope, TInfo) ->
   % Non mailbox-annotated self expression. Mailbox interface name can be
   % inferred from the enclosing mailbox scope.
   Anno0 = set_interface(MbScope, Anno),
@@ -425,8 +458,7 @@ annotate_expr2({call, Anno, Self = {atom, _, self}, []}, undefined, MbScope, TIn
     erl_syntax:set_pos(erl_syntax:application(Self, []), Anno0)
   );
 
-%%annotate_expr2(_Expr = {call, Anno, Operator = {atom, _, Name}, Exprs}, undefined, MbScope,
-annotate_expr2(_Expr = {call, Anno, Operator = {atom, _, Name}, Exprs}, MbTypeAnno, MbScope,
+annotate_expr(_Expr = {call, Anno, Operator = {atom, _, Name}, Exprs}, MbTypeAnno, MbScope,
     TInfo = #t_info{mb_defs = MbDefsCtx})
   when is_tuple(MbTypeAnno), size(MbTypeAnno) == 2;
   MbTypeAnno == undefined ->
@@ -457,61 +489,100 @@ annotate_expr2(_Expr = {call, Anno, Operator = {atom, _, Name}, Exprs}, MbTypeAn
         % Non mailbox-annotated function.
         Anno
     end,
-  Exprs0 = annotate_expr_seq2(Exprs, MbScope, TInfo),
+  Exprs0 = annotate_expr_seq(Exprs, MbScope, TInfo),
   erl_syntax:revert(
     erl_syntax:set_pos(erl_syntax:application(Operator, Exprs0), Anno0)
   );
 
-annotate_expr2(_Expr = {call, Anno, Operator, Exprs}, {AnnoName, MbName}, MbScope, TInfo) ->
+annotate_expr(_Expr = {call, Anno, Operator, Exprs}, {AnnoName, MbName}, MbScope, TInfo) ->
   % Implicit function call where the function name an expression. Function call
   % must be annotated since it cannot be inferred from the called function
   % definition.
-  Exprs0 = annotate_expr_seq2(Exprs, MbScope, TInfo),
+  Exprs0 = annotate_expr_seq(Exprs, MbScope, TInfo),
   Anno0 = set_modality(AnnoName, set_interface(MbName, Anno)),
   erl_syntax:revert(
     erl_syntax:set_pos(erl_syntax:application(Operator, Exprs0), Anno0)
   );
 
-annotate_expr2(_Expr = {'if', Anno, Clauses}, undefined, MbScope, TInfo) ->
+annotate_expr(_Expr = {'if', Anno, Clauses}, undefined, MbScope, TInfo) ->
   % Non-annotated if expression.
   Clauses0 = annotate_clauses(Clauses, MbScope, TInfo),
   erl_syntax:revert(
     erl_syntax:set_pos(erl_syntax:if_expr(Clauses0), Anno)
   );
 
-annotate_expr2(_Expr = {'if', Anno, Clauses}, _, MbScope, TInfo) ->
+annotate_expr(_Expr = {'if', Anno, Clauses}, _, MbScope, TInfo) ->
   % Annotated if expression.
   error_if_cannot_be_annotated;
 
-annotate_expr2(_Expr = {match, Anno, Pat, Expr}, MbTypeAnno, MbScope, TInfo)
+annotate_expr(_Expr = {match, Anno, Pat, Expr}, MbTypeAnno, MbScope, TInfo)
   when is_tuple(MbTypeAnno), size(MbTypeAnno) == 2;
   MbTypeAnno == undefined ->
   % Annotated match RHS expression or normal non-annotated RHS expression.
-  Expr0 = annotate_expr2(Expr, MbTypeAnno, MbScope, TInfo),
+  Expr0 = annotate_expr(Expr, MbTypeAnno, MbScope, TInfo),
   erl_syntax:revert(
     erl_syntax:set_pos(erl_syntax:match_expr(Pat, Expr0), Anno)
   );
 
-annotate_expr2(_Expr = {'receive', Anno, Clauses}, X = {AnnoName, Regex}, MbScope, TInfo) ->
+% Receive without timeout.
+annotate_expr(_Expr = {'receive', Anno, Clauses}, X = {AnnoName, Regex}, MbScope, TInfo) ->
   % Mailbox-annotated receive expression. Mailbox name can be inferred from
   % enclosing mailbox scope.
-  ?TRACE("----------------------------------> ~p", [X]),
-  ?TRACE("----------------------------------> ~p", [MbScope]),
+%%  ?TRACE("----------------------------------> ~p", [X]),
+%%  ?TRACE("----------------------------------> ~p", [MbScope]),
   Clauses0 = annotate_clauses(Clauses, MbScope, TInfo),
   Anno0 = set_state(Regex, set_interface(MbScope, Anno)),
   erl_syntax:revert(
     erl_syntax:set_pos(erl_syntax:receive_expr(Clauses0), Anno0)
   );
-annotate_expr2(_Expr = {'receive', Anno, Clauses}, undefined, MbScope, TInfo) ->
+
+annotate_expr(_Expr = {'receive', Anno, Clauses}, undefined, MbScope, TInfo) ->
   % Non-annotated receive expression.
   % ERR: Expected mailbox assertion annotation.
   error_receive_must_be_annotated;
 
-annotate_expr2(Expr, _, _, _) ->
-  % Non-annotated expression.
+%% The following expressions are not annotated:
+%% 1. Atomic literal
+%% 2. Bitstring comprehension
+%% 3. Bitstring constructor
+%% 4. Block
+%% 5. Case
+%% 6. Catch
+%% 7. Cons skeleton
+%% 8. Internal fun
+%% 9. External fun
+%% 10. Anonymous fun
+%% 11. Named fun
+%% 12. External function call
+%% 13. List comprehension
+%% 14. Map comprehension
+%% 15. Map creation
+%% 16. Map update
+%% 17. Conditional match operator
+%% 18. Maybe
+%% 19. Maybe else
+%% 20. Nil
+%% 21. Binary operator
+%% 22. Unary operator
+%% 23. Parenthesized
+%% 24. Receive after
+%% 25. Record creation
+%% 26. Record field access
+%% 27. Record field index
+%% 28. Record update
+%% 29. Tuple skeleton
+%% 30. Try catch
+%% 31. Try of catch
+%% 32. Try after
+%% 33. Try of after
+%% 34. Try catch after
+%% 35. Try of catch after
+%% 36. Variable
+annotate_expr(Expr, undefined, _, _) ->
+  % Non mailbox-annotated expression.
   Expr;
-annotate_expr2(Expr, _, _, _) ->
-  % Unexpected annotated expression.
+annotate_expr(Expr, _, _, _) ->
+  % Unexpected mailbox-annotated expression.
   Anno = element(2, Expr),
   error_unexpected_annotation.
 
@@ -561,28 +632,28 @@ is_anno_expr(_) ->
 %%% ----------------------------------------------------------------------------
 
 type(Anno) ->
-  get_anno_val(Anno, type, undefined).
+  get_anno_val(Anno, ?MA_TYPE, undefined).
 
 interface(Anno) ->
-  get_anno_val(Anno, interface, undefined).
+  get_anno_val(Anno, ?MA_INTERFACE, undefined).
 
 modality(Anno) ->
-  get_anno_val(Anno, modality, undefined).
+  get_anno_val(Anno, ?MA_MODALITY, undefined).
 
 state(Anno) ->
-  get_anno_val(Anno, state, undefined).
+  get_anno_val(Anno, ?MA_STATE, undefined).
 
 set_type(Type, Anno) when is_atom(Type) ->
-  set_anno_val(Anno, type, Type).
+  set_anno_val(Anno, ?MA_TYPE, Type).
 
 set_interface(Interface, Anno) when is_atom(Interface) ->
-  set_anno_val(Anno, interface, Interface).
+  set_anno_val(Anno, ?MA_INTERFACE, Interface).
 
 set_modality(Modality, Anno) when Modality =:= 'new'; Modality =:= 'use' ->
-  set_anno_val(Anno, modality, Modality).
+  set_anno_val(Anno, ?MA_MODALITY, Modality).
 
 set_state(State, Anno) when is_list(State) ->
-  set_anno_val(Anno, state, State).
+  set_anno_val(Anno, ?MA_STATE, State).
 
 
 
