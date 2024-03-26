@@ -45,14 +45,14 @@
 %% Unexpected mailbox annotation.
 -define(E_BAD_ANNO, e_bad_anno).
 
+%% Unexpected mailbox annotation before expression.
+-define(E_BAD_ANNO_BEFORE, e_bad_anno_before).
+
 %% Inferred mailbox annotation mismatch.
 -define(E_MISMATCH_ANNO, e_mismatch_anno).
 
 %% Expected spawn mailbox annotation.
 -define(E_SPAWN_ANNO, e_spawn_anno).
-
-%% Expected new modality mailbox annotation.
--define(E_BAD_SPAWN_ANNO, e_bad_spawn_anno).
 
 %% Expected receive mailbox annotation.
 -define(E_RECEIVE_ANNO, e_receive_anno).
@@ -69,7 +69,6 @@ annotate(Forms, TInfo) when is_list(Forms), is_record(TInfo, t_info) ->
     {_, #error{errors = Errors}} ->
       #error{errors = lists:reverse(Errors)}
   end.
-%%  annotate_forms(Forms, TInfo, #error{}).
 
 get_interfaces(TypesCtx) ->
   lists:reverse(
@@ -222,6 +221,7 @@ annotate_pat(Pat, {Qualifier, _, Type, _}, MbScope, TInfo)
   when Qualifier == type; Qualifier == user_type ->
   ?TRACE("Annotating function pattern '~p' with type '~p'", [Pat, Type]),
   map_anno(fun(Anno) -> set_type(Type, Anno) end, Pat).
+%%  HERE tyring to get rid of map_anno
 
 %%annotate_pat_seq(PatSeq, MbScope, TInfo)
 %%  when is_list(PatSeq) ->
@@ -519,20 +519,34 @@ annotate_clause(Clause, _, _, Error) ->
 
 annotate_expr_seq2([], _, _, Error = #error{errors = Errors}) ->
   ?TRACE("::: Empty expression seq"),
-%%  {[], #error{errors = lists:reverse(Errors)}};
   {[], Error};
-annotate_expr_seq2(Expr = [_MbAnno = {tuple, Anno, [{atom, _, Name}, {_, _, Value}]}], MbScope, TInfo, Error) ->
-  #error{errors = Errors} = ?pushError(?E_EXPECTED_EXPR, {Name, Anno, Value}, Error),
-%%  {[], #error{errors = lists:reverse(Errors)}};
-  {[], ?pushError(?E_EXPECTED_EXPR, {Name, Anno, Value}, Error)};
-annotate_expr_seq2(Expr = [{match, _, Pat, _MbAnno = {tuple, Anno, [{atom, _, Name}, {_, _, Value}]}}], MbScope, TInfo, Error) ->
-  #error{errors = Errors} = ?pushError(?E_EXPECTED_EXPR, {Name, Anno, Value}, Error),
-%%  {[], #error{errors = lists:reverse(Errors)}};
-  {[], ?pushError(?E_EXPECTED_EXPR, {Name, Anno, Value}, Error)};
+annotate_expr_seq2(Expr = [_MbAnno = {tuple, Anno, [Name = {atom, _, _}, Arg = {_, _, _}]}], MbScope, TInfo, Error) ->
+  Macro = erl_syntax:set_pos(erl_syntax:macro(Name, [Arg]), Anno),
+  {[], ?pushError(?E_EXPECTED_EXPR, Macro, Error)};
+annotate_expr_seq2(Expr = [{match, _, Pat, _MbAnno = {tuple, Anno, [Name = {atom, _, _}, Arg = {_, _, _}]}}], MbScope, TInfo, Error) ->
+  Macro = erl_syntax:set_pos(erl_syntax:macro(Name, [Arg]), Anno),
+  {[], ?pushError(?E_EXPECTED_EXPR, Macro, Error)};
+
+annotate_expr_seq2([_MbAnno = {tuple, _, [{atom, _, _}, {_, _, _}]}, MbAnno = {tuple, Anno, [Name = {atom, _, _}, Arg = {_, _, _}]} | ExprSeq], MbScope, TInfo, Error) ->
+  % Two successive mailbox annotations.
+  Macro = erl_syntax:set_pos(erl_syntax:macro(Name, [Arg]), Anno),
+  Error0 = ?pushError(?E_BAD_ANNO, Macro, Error),
+  {_, Error1} = annotate_expr_seq2(ExprSeq, MbScope, TInfo, Error0),
+  {[], Error1};
+
+annotate_expr_seq2([_MbAnno = {tuple, Anno, [Name = {atom, _, _}, Arg = {_, _, _}]}, Match = {match, _, _, _} | ExprSeq], MbScope, TInfo, Error) ->
+  % A mailbox annotation followed by a match.
+  Macro = erl_syntax:set_pos(erl_syntax:macro(Name, [Arg]), Anno),
+  Error0 = ?pushError(?E_BAD_ANNO, Macro, Error),
+  % Check the rest of the expressions INCLUDING the match.
+  {_, Error1} = annotate_expr_seq2([Match | ExprSeq], MbScope, TInfo, Error0),
+  {[], Error1};
+
 
 annotate_expr_seq2([{match, Anno, Pat, _MbAnno = {tuple, _, [{atom, _, Name}, {_, _, Value}]}}, Expr | ExprSeq], MbScope, TInfo, Error) ->
 
   ?TRACE("----------> Match + Anno = ~p", [_MbAnno]),
+  ?TRACE("----------> Next EXPR = ~p", [Expr]),
   Match0 = erl_syntax:revert(
     erl_syntax:set_pos(erl_syntax:match_expr(Pat, Expr), Anno)
   ),
@@ -546,8 +560,7 @@ annotate_expr_seq2([Match = {match, _, Pat, Expr} | ExprSeq], MbScope, TInfo, Er
   {ExprSeq1, Error1} = annotate_expr_seq2(ExprSeq, MbScope, TInfo, Error0),
   {[Expr1 | ExprSeq1], Error1};
 
-%%annotate_expr_seq2([_MbAnno = {tuple, _, [{atom, _, Name}, {_, _, Value}]}, Match = {match, _, Pat, Expr} | ExprSeq], MbScope, TInfo, Error) ->
-%%  {[], ?pushError(?E_BAD_ANNO, Match, Error)};
+
 
 annotate_expr_seq2([_MbAnno = {tuple, _, [{atom, _, Name}, {_, _, Value}]}, Expr | ExprSeq], MbScope, TInfo, Error) ->
 
@@ -587,7 +600,7 @@ annotate_expr({call, Anno, Spawn = {atom, _, spawn}, MFArgs}, {AnnoName, MbName}
 
 annotate_expr(Expr = {call, Anno, Spawn = {atom, _, spawn}, MFArgs}, {AnnoName, MbName}, MbScope, TInfo, Error)
   when is_list(MFArgs)->
-  % Mailbox-annotated spawn expression.
+  % Mailbox-annotated spawn expression annotated with anything other than the new modality.
   {Expr, ?pushError(?E_SPAWN_ANNO, Expr, Error)};
 
 annotate_expr(Expr = {call, Anno, {atom, _, spawn}, Exprs = [M, F, Args]}, undefined, _, TInfo, Error) ->
@@ -663,7 +676,9 @@ annotate_expr(_Expr = {'if', Anno, Clauses}, undefined, MbScope, TInfo, Error) -
 
 annotate_expr(Expr0 = {'if', Anno, Clauses}, _, MbScope, TInfo, Error) ->
   % Annotated if expression.
-  {Expr0, ?pushError(?E_BAD_ANNO, Expr0, Error)};
+
+  If = erl_syntax:set_pos(erl_syntax:if_expr([]), Anno),
+  {Expr0, ?pushError(?E_BAD_ANNO_BEFORE, If, Error)};
 
 annotate_expr(_Expr = {match, Anno, Pat, Expr}, MbTypeAnno, MbScope, TInfo, Error)
   when is_tuple(MbTypeAnno), size(MbTypeAnno) == 2;
@@ -745,7 +760,7 @@ annotate_expr(Expr, undefined, _, _, Error) ->
 annotate_expr(Expr, _, _, _, Error) ->
   % Unexpected mailbox-annotated expression.
   Anno = element(2, Expr),
-  {Expr, ?pushError(?E_BAD_ANNO, Expr, Error)}. % e_bad_anno
+  {Expr, ?pushError(?E_BAD_ANNO_BEFORE, Expr, Error)}. % e_bad_anno
 
 
 
@@ -850,24 +865,6 @@ get_anno_val(Anno, Item, Default) ->
       erlang:error(badarg, [Anno, Item, Default])
   end.
 
-% set 0
-% set all
-% set at
-
-
-%%map_anno(Anno, Tree) ->
-%%  map_anno(Anno, Tree, 0).
-
-%%set_anno(Anno, Tree) ->
-%%  set_anno(Anno, Tree, 0).
-
-%%set_anno(Anno, Tree, Depth) ->
-%%  Map = fun(_, D) when D == Depth -> {Anno, D + 1}; (A, D) -> {A, D + 1} end,
-%%  erl_parse:mapfold_anno(Map, 0, Tree).
-
-%%set_anno_lt(Anno, Tree, Depth) ->
-%%  Map = fun(_, D) when D < Depth -> {Anno, D + 1}; (A, D) -> {A, D + 1} end,
-%%  erl_parse:mapfold_anno(Map, 0, Tree).
 
 map_anno(Fun, Tree) ->
   map_anno(Fun, Tree, 0).
@@ -898,14 +895,24 @@ map_anno_lt(Fun, Tree, Depth) ->
 %%% ----------------------------------------------------------------------------
 
 %% @doc Formats the specified error to human-readable form.
-format_error({?E_EXPECTED_EXPR, {Modality, _, MbName}}) ->
+%%format_error({?E_EXPECTED_EXPR, {Modality, _, MbName}}) ->
+%%  io_lib:format(
+%%%%    "!!expected expression after annotation '~s'",
+%%    "!!expected expression after annotation '?~s(~s)'",
+%%%%    [erl_prettypr:format(Node)]
+%%    [Modality, MbName]
+%%  );
+format_error({?E_EXPECTED_EXPR, Node}) ->
   io_lib:format(
-%%    "!!expected expression after annotation '~s'",
-    "!!expected expression after annotation '?~s(~s)'",
-%%    [erl_prettypr:format(Node)]
-    [Modality, MbName]
+    "!!expected expression after annotation '~s'",
+    [erl_prettypr:format(Node)]
   );
 format_error({?E_BAD_ANNO, Node}) ->
+  io_lib:format(
+    "!!unexpected mailbox annotation '~s'",
+    [erl_prettypr:format(Node)]
+  );
+format_error({?E_BAD_ANNO_BEFORE, Node}) ->
   io_lib:format(
     "!!unexpected mailbox annotation before '~s'",
     [erl_prettypr:format(Node)]
@@ -920,11 +927,6 @@ format_error({?E_SPAWN_ANNO, Node}) ->
     "!!expected ?new annotation before '~s'",
     [erl_prettypr:format(Node)]
   );
-%%format_error({?E_BAD_SPAWN_ANNO, Node}) ->
-%%  io_lib:format(
-%%    "!!expected ?new annotation before '~s'",
-%%    [erl_prettypr:format(Node)]
-%%  );
 format_error({?E_RECEIVE_ANNO, Node}) ->
   io_lib:format(
     "!!expected ?assert annotation before '~s'",
