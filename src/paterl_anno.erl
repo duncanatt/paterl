@@ -49,7 +49,10 @@
 -define(E_MISMATCH_ANNO, e_mismatch_anno).
 
 %% Expected spawn mailbox annotation.
--define(E_ANNO_SPAWN, e_anno_spawn).
+-define(E_SPAWN_ANNO, e_spawn_anno).
+
+%% Expected new modality mailbox annotation.
+-define(E_BAD_SPAWN_ANNO, e_bad_spawn_anno).
 
 %% Expected receive mailbox annotation.
 -define(E_RECEIVE_ANNO, e_receive_anno).
@@ -63,9 +66,8 @@ annotate(Forms, TInfo) when is_list(Forms), is_record(TInfo, t_info) ->
     {Forms0, #error{errors = []}} ->
       ?TRACE("-----> No errors found!"),
       {ok, Forms0};
-    {_, Error = #error{errors = Errors}} ->
+    {_, #error{errors = Errors}} ->
       #error{errors = lists:reverse(Errors)}
-%%      Error
   end.
 %%  annotate_forms(Forms, TInfo, #error{}).
 
@@ -404,14 +406,18 @@ annotate_clause(Clause = {clause, Anno, _PatSeq = [], GuardSeq, Body},
 
 %%  Body0 = annotate_expr_seq(Body, undefined, MbScope, TInfo),
   {Body0, Error0} = annotate_expr_seq2(Body, MbScope, TInfo, Error),
-  Clause0 = erl_syntax:clause(GuardSeq, Body0),
+  Clause0 = erl_syntax:revert(
+    erl_syntax:set_pos(erl_syntax:clause(GuardSeq, Body0), Anno)
+  ),
   {Clause0, Error0};
 
 annotate_clause(Clause = {clause, Anno, PatSeq = [_], GuardSeq = [], Body}, MbScope, TInfo, Error) ->
   ?TRACE("Receive clause: ~p", [Clause]),
 
   {Body0, Error0} = annotate_expr_seq2(Body, MbScope, TInfo, Error),
-  Clause0 = erl_syntax:clause(PatSeq, GuardSeq, Body0),
+  Clause0 = erl_syntax:revert(
+    erl_syntax:set_pos(erl_syntax:clause(PatSeq, GuardSeq, Body0), Anno)
+  ),
   {Clause0, Error0};
 
 %% The following clauses are not annotated:
@@ -579,9 +585,14 @@ annotate_expr({call, Anno, Spawn = {atom, _, spawn}, MFArgs}, {AnnoName, MbName}
   ),
   {Expr0, Error};
 
+annotate_expr(Expr = {call, Anno, Spawn = {atom, _, spawn}, MFArgs}, {AnnoName, MbName}, MbScope, TInfo, Error)
+  when is_list(MFArgs)->
+  % Mailbox-annotated spawn expression.
+  {Expr, ?pushError(?E_SPAWN_ANNO, Expr, Error)};
+
 annotate_expr(Expr = {call, Anno, {atom, _, spawn}, Exprs = [M, F, Args]}, undefined, _, TInfo, Error) ->
   % Non mailbox-annotated spawn expression.
-  {Expr, ?pushError(?E_ANNO_SPAWN, Expr, Error)};
+  {Expr, ?pushError(?E_SPAWN_ANNO, Expr, Error)};
 
 annotate_expr({call, Anno, Self = {atom, _, self}, []}, undefined, MbScope, TInfo, Error) ->
   % Non mailbox-annotated self expression. Mailbox interface name can be
@@ -904,13 +915,20 @@ format_error({?E_MISMATCH_ANNO, {Modality, _, MbName}}) ->
     "!!incorrect mailbox annotation on function call; expected '?~s(~s)'",
     [Modality, MbName]
   );
-format_error({?E_ANNO_SPAWN, Node}) ->
+format_error({?E_SPAWN_ANNO, Node}) ->
   io_lib:format(
     "!!expected ?new annotation before '~s'",
     [erl_prettypr:format(Node)]
   );
+%%format_error({?E_BAD_SPAWN_ANNO, Node}) ->
+%%  io_lib:format(
+%%    "!!expected ?new annotation before '~s'",
+%%    [erl_prettypr:format(Node)]
+%%  );
 format_error({?E_RECEIVE_ANNO, Node}) ->
   io_lib:format(
     "!!expected ?assert annotation before '~s'",
     [erl_prettypr:format(Node)]
   ).
+
+
