@@ -598,14 +598,17 @@ annotate_expr({call, Anno, Spawn = {atom, _, spawn}, MFArgs}, {AnnoName, MbName}
   ),
   {Expr0, Error};
 
-annotate_expr(Expr = {call, Anno, Spawn = {atom, _, spawn}, MFArgs}, {AnnoName, MbName}, MbScope, TInfo, Error)
+%%annotate_expr(Expr = {call, Anno, Operator = {atom, _, spawn}, MFArgs}, {AnnoName, MbName}, MbScope, TInfo, Error)
+annotate_expr(Expr = {call, Anno, Operator = {atom, _, spawn}, MFArgs}, _, MbScope, TInfo, Error)
   when is_list(MFArgs)->
   % Mailbox-annotated spawn expression annotated with anything other than the new modality.
-  {Expr, ?pushError(?E_SPAWN_ANNO, Expr, Error)};
-
-annotate_expr(Expr = {call, Anno, {atom, _, spawn}, Exprs = [M, F, Args]}, undefined, _, TInfo, Error) ->
   % Non mailbox-annotated spawn expression.
-  {Expr, ?pushError(?E_SPAWN_ANNO, Expr, Error)};
+  Spawn = erl_syntax:set_pos(erl_syntax:application(Operator, []), Anno),
+  {Expr, ?pushError(?E_SPAWN_ANNO, Spawn, Error)};
+
+%%annotate_expr(Expr = {call, Anno, Operator = {atom, _, spawn}, Exprs = [M, F, Args]}, undefined, _, TInfo, Error) ->
+  % Non mailbox-annotated spawn expression.
+%%  {Expr, ?pushError(?E_SPAWN_ANNO, Expr, Error)};
 
 annotate_expr({call, Anno, Self = {atom, _, self}, []}, undefined, MbScope, TInfo, Error) ->
   % Non mailbox-annotated self expression. Mailbox interface name can be
@@ -711,7 +714,9 @@ annotate_expr(Expr = {'receive', Anno, Clauses}, undefined, MbScope, TInfo, Erro
   % ERR: Expected mailbox assertion annotation.
   ?TRACE("About to annotate receive clauses WITHOUT type annotation!!"),
 
-  Error0 = ?pushError(?E_RECEIVE_ANNO, Expr, Error),
+
+  Receive = erl_syntax:set_pos(erl_syntax:receive_expr([]), Anno),
+  Error0 = ?pushError(?E_RECEIVE_ANNO, Receive, Error),
   {_, Error1} = annotate_clauses2(Clauses, MbScope, TInfo, Error0),
 
   %TODO: Still cont
@@ -759,7 +764,6 @@ annotate_expr(Expr, undefined, _, _, Error) ->
   {Expr, Error};
 annotate_expr(Expr, _, _, _, Error) ->
   % Unexpected mailbox-annotated expression.
-  Anno = element(2, Expr),
   {Expr, ?pushError(?E_BAD_ANNO_BEFORE, Expr, Error)}. % e_bad_anno
 
 
