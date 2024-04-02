@@ -7,7 +7,9 @@
 %%% Created : 29. Jan 2024 15:20
 %%%-------------------------------------------------------------------
 -module(paterl_anno).
+-feature(maybe_expr,enable).
 -author("duncan").
+
 
 %%% Includes.
 -include_lib("stdlib/include/assert.hrl").
@@ -571,6 +573,38 @@ annotate_expr_seq2([_MbAnno = {tuple, _, [{atom, _, Name}, {_, _, Value}]}, Expr
   {[Expr1 | ExprSeq1], Error1};
 
 annotate_expr_seq2([Expr | ExprSeq], MbScope, TInfo, Error) ->
+
+  % Full errors.
+%%  case annotate_expr(Expr, undefined, MbScope, TInfo, Error) of
+%%    Error0 = #error{} ->
+%%      annotate_expr_seq2(ExprSeq, MbScope, TInfo, Error0); % This will surely return an error since Error0 already has an error in it.
+%%    Expr0 ->
+%%      case annotate_expr_seq2(ExprSeq, MbScope, TInfo, Error) of
+%%        Error1 = #error{} ->
+%%          Error1;
+%%        ExprSeq0 ->
+%%          [Expr0 | ExprSeq0]
+%%      end
+%%  end,
+
+  % Stop at first error. Same verbosity as above.
+%%  case annotate_expr(Expr, undefined, MbScope, TInfo, Error) of
+%%    Error0 = #error{} ->
+%%      Error0;
+%%    Expr0 ->
+%%      case annotate_expr_seq2(ExprSeq, MbScope, TInfo, Error) of
+%%        Error1 = #error{} ->
+%%          Error1;
+%%        ExprSeq0 ->
+%%          [Expr0 | ExprSeq0]
+%%      end
+%%  end,
+
+%%  maybe
+%%    {ok} ?= {ok, nahh},
+%%    ?TRACE("baloo~n")
+%%  end,
+
   ?TRACE("Annotating expression ~p", [Expr]),
   {Expr1, Error0} = annotate_expr(Expr, undefined, MbScope, TInfo, Error),
   {ExprSeq1, Error1} = annotate_expr_seq2(ExprSeq, MbScope, TInfo, Error0),

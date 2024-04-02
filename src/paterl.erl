@@ -42,13 +42,22 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
               io:format("~s SIGS & TINFO ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
 
 
-              Annotated = paterl_anno:annotate(Forms, TInfo),
+              case paterl_anno:annotate(Forms, TInfo) of
 
-              io:format("~n~n~nOriginal forms:~n~p~n", [Forms]),
-              io:format("~n~n~nAnnotated forms:~n~p~n", [Annotated]),
+%%                {Annotated, Error2} = paterl_anno:annotate(Forms, TInfo),
 
-              io:format("~n~n~nCompiler output:~n", []),
-              compile:forms(Annotated);
+                {ok, Annotated} ->
+                  io:format("~n~n~nOriginal forms:~n~p~n", [Forms]),
+                  io:format("~n~n~nAnnotated forms:~n~p~n", [Annotated]),
+
+                  io:format("~n~n~nCompiler output:~n", []),
+                  compile:forms(Annotated);
+                #error{errors = Errors2} ->
+                  io:format("Errors found: ~p", [Errors2]),
+                  % File contains mailbox annotation errors.
+                  errors:show_errors({File, Errors2})
+              end;
+
 
 %%              ok;
             #error{errors = Errors1, warnings = Warnings1} ->
