@@ -78,7 +78,7 @@
 %%
 %% @returns Annotated AST.
 -spec annotate([erl_syntax:syntaxTree()], paterl_types:t_info()) ->
-  {ok, [erl_syntax:syntaxTree()]} | errors:error().
+  {ok, erl_syntax:forms()} | errors:error().
 annotate(Forms, TInfo) when is_list(Forms), is_record(TInfo, t_info) ->
   case annotate_forms(Forms, TInfo, #error{}) of
     {Forms0, #error{errors = []}} ->
@@ -125,7 +125,6 @@ get_interfaces(TypesCtx) when is_map(TypesCtx) ->
           Interface = erl_syntax:set_pos(
             erl_syntax:attribute(
               erl_syntax:atom(interface),
-%%              erl_syntax:atom(type),
               [erl_syntax:tuple([
                 erl_syntax:atom(Mailbox), % Mailbox type name.
                 erl_syntax:abstract(MsgTypesAS), % Lifted message types AS.
@@ -150,11 +149,10 @@ expand_msg_types(Name, TypesCtx) ->
 
   % Type variables not supported.
   ?assertMatch(_TypeVars, []),
-
   lists:reverse(expand_msg_type(Type, TypesCtx, [])).
 
 %% @private Expands a message type to its full definition.
--spec expand_msg_type(tuple(), paterl_types:types(), list()) -> erl_syntax:syntaxTree().
+-spec expand_msg_type(tuple(), paterl_types:types(), [erl_syntax:syntaxTree()]) -> [erl_syntax:syntaxTree()].
 expand_msg_type(Type = {type, _, pid, []}, TypesCtx, Acc) when is_map(TypesCtx) ->
   ?assertEqual(erl_syntax:type(Type), type_application),
   ?TRACE("Found pid() type"),
@@ -237,7 +235,7 @@ annotate_function({function, Anno, Name, Arity, Clauses},
       {Modality, _, MbName} ->
         % Mailbox annotated function.
         ?TRACE("Annotating function '~p/~p' with mailbox scope '~p'", [Name, Arity, MbName]),
-        {Clauses1, Error1} = annotate_clauses2(Clauses, Types, MbName, TInfo, Error),
+        {Clauses1, Error1} = annotate_clauses(Clauses, Types, MbName, TInfo, Error),
         Anno1 = set_modality(Modality, set_interface(MbName, Anno)),
         {Clauses1, Anno1, Error1};
       undefined ->
@@ -249,17 +247,21 @@ annotate_function({function, Anno, Name, Arity, Clauses},
   {Form0, Error0}.
 
 %% @private Annotates a function clause list.
-annotate_clauses2([], [], _, _, Error) ->
+-spec annotate_clauses([erl_syntax:syntaxTree()], [erl_syntax:syntaxTree()], atom(), paterl_types:t_info(), errors:error()) ->
+  {[erl_syntax:syntaxTree()], errors:error()}.
+annotate_clauses([], [], _, _, Error) ->
   {[], Error};
-annotate_clauses2([Clause | Clauses], [Type | Types], MbScope, TInfo, Error) ->
+annotate_clauses([Clause | Clauses], [Type | Types], MbScope, TInfo, Error) ->
   {Clause0, Error0} = annotate_clause(Clause, Type, MbScope, TInfo, Error),
-  {Clauses0, Error1} = annotate_clauses2(Clauses, Types, MbScope, TInfo, Error0),
+  {Clauses0, Error1} = annotate_clauses(Clauses, Types, MbScope, TInfo, Error0),
   {[Clause0 | Clauses0], Error1}.
 
 %% @private Annotates a function clause.
 %%
 %% The following spec-annotated clauses are annotated:
 %% 1. Function clause without guard
+-spec annotate_clause(erl_syntax:syntaxTree(), erl_syntax:syntaxTree(), atom(), paterl_types:t_info(), errors:error()) ->
+  {erl_syntax:syntaxTree(), errors:error()}.
 annotate_clause(Clause = {clause, Anno, PatSeq, GuardSeq = [], Body},
     Type = {type, _, 'fun', [{type, _, product, TypeSeq}, RetType]}, MbScope, TInfo, Error)
   when is_list(PatSeq), is_list(TypeSeq), length(PatSeq) == length(TypeSeq),
@@ -278,7 +280,7 @@ annotate_clause(Clause = {clause, Anno, PatSeq, GuardSeq = [], Body},
 
 
 %%  Body0 = annotate_expr_seq(Body, undefined, MbScope, TInfo),
-  {Body0, Error0} = annotate_expr_seq2(Body, MbScope, TInfo, Error),
+  {Body0, Error0} = annotate_expr_seq(Body, MbScope, TInfo, Error),
 
   ?TRACE(">>>>>>>>> Errors: ~p", [Error0]),
   Clause0 = erl_syntax:revert(
@@ -293,24 +295,28 @@ annotate_clause(Clause, _, _, _, Error) ->
   {Clause, Error}.
 
 %% @private Annotates a non-function clause list.
-annotate_clauses2([], _, _, Error) ->
+-spec annotate_clauses([erl_syntax:syntaxTree()], atom(), paterl_types:t_info(), errors:error()) ->
+  {[erl_syntax:syntaxTree()], errors:error()}.
+annotate_clauses([], _, _, Error) ->
   {[], Error};
-annotate_clauses2([Clause | Clauses], MbScope, TInfo, Error) ->
+annotate_clauses([Clause | Clauses], MbScope, TInfo, Error) ->
   ?TRACE("Annotating clause ~p", [Clause]),
   {Clause0, Error0} = annotate_clause(Clause, MbScope, TInfo, Error),
-  {Clauses0, Error1} = annotate_clauses2(Clauses, MbScope, TInfo, Error0),
+  {Clauses0, Error1} = annotate_clauses(Clauses, MbScope, TInfo, Error0),
   {[Clause0 | Clauses0], Error1}.
 
 %% @private Annotates a non-function clause.
 %%
 %% The following clauses are annotated:
 %% 1. If
+-spec annotate_clause(erl_syntax:syntaxTree(), atom(), paterl_types:t_info(), errors:error()) ->
+  {erl_syntax:syntaxTree(), errors:error()}.
 annotate_clause(Clause = {clause, Anno, _PatSeq = [], GuardSeq, Body},
     MbScope, TInfo, Error)
   when is_list(GuardSeq), is_list(Body) ->
   ?TRACE("If clause: ~p", [Clause]),
 
-  {Body0, Error0} = annotate_expr_seq2(Body, MbScope, TInfo, Error),
+  {Body0, Error0} = annotate_expr_seq(Body, MbScope, TInfo, Error),
   Clause0 = erl_syntax:revert(
     erl_syntax:set_pos(erl_syntax:clause(GuardSeq, Body0), Anno)
   ),
@@ -320,7 +326,7 @@ annotate_clause(Clause = {clause, Anno, _PatSeq = [], GuardSeq, Body},
 annotate_clause(Clause = {clause, Anno, PatSeq = [_], GuardSeq = [], Body}, MbScope, TInfo, Error) ->
   ?TRACE("Receive clause: ~p", [Clause]),
 
-  {Body0, Error0} = annotate_expr_seq2(Body, MbScope, TInfo, Error),
+  {Body0, Error0} = annotate_expr_seq(Body, MbScope, TInfo, Error),
   Clause0 = erl_syntax:revert(
     erl_syntax:set_pos(erl_syntax:clause(PatSeq, GuardSeq, Body0), Anno)
   ),
@@ -336,7 +342,8 @@ annotate_clause(Clause, _, _, Error) ->
 
 
 %% @private Annotates a pattern list.
--spec annotate_pat_seq([erl_syntax:syntaxTree()], [erl_syntax:syntaxTree()], atom(), paterl_types:t_info()) -> [erl_syntax:syntaxTree()].
+-spec annotate_pat_seq([erl_syntax:syntaxTree()], [erl_syntax:syntaxTree()], atom(), paterl_types:t_info()) ->
+  [erl_syntax:syntaxTree()].
 annotate_pat_seq(PatSeq, TypeSeq, MbScope, TInfo)
   when is_list(PatSeq), is_list(TypeSeq), length(PatSeq) == length(TypeSeq) ->
   lists:zipwith(fun(Pat, Type) -> annotate_pat(Pat, Type, MbScope, TInfo) end, PatSeq, TypeSeq).
@@ -364,7 +371,6 @@ annotate_pat(Pat, {Qualifier, _, Type, _}, _MbScope, _TInfo)
 %%    match is followed by another expression in the list
 %% 3. Two successive mailbox-annotation expressions cannot occur in an
 %%    expression list
-%% 4. A mailbox-annotation expression followed by a match expression % TODO: Check this maybe it can be generalized and the clause removed.
 %%
 %% In all other cases, the mailbox-annotation expression is eaten up and the
 %% type information contained in the annotation is used to annotate the next
@@ -376,37 +382,30 @@ annotate_pat(Pat, {Qualifier, _, Type, _}, _MbScope, _TInfo)
 %% the expression that follows the match expression in the expression list.
 %% Otherwise, the AST of the match expression remains unmodified and its RHS
 %% AST is annotated.
-annotate_expr_seq2([], _, _, Error = #error{}) ->
+-spec annotate_expr_seq([erl_syntax:syntaxTree()], atom(), paterl_types:t_info(), errors:error()) ->
+  {[erl_syntax:syntaxTree()], errors:error()}.
+annotate_expr_seq([], _, _, Error = #error{}) ->
   ?TRACE("Empty expression sequence."),
   {[], Error};
 
-annotate_expr_seq2([_MbAnno = {tuple, Anno, [Name = {atom, _, _}, Arg = {_, _, _}]}], _, _, Error) ->
+annotate_expr_seq([_MbAnno = {tuple, Anno, [Name = {atom, _, _}, Arg = {_, _, _}]}], _, _, Error) ->
   % Mailbox-annotation at the end of expression list.
   Macro = erl_syntax:set_pos(erl_syntax:macro(Name, [Arg]), Anno),
   {[], ?pushError(?E_EXPECTED_EXPR, Macro, Error)};
 
-annotate_expr_seq2(Expr = [{match, _, Pat, _MbAnno = {tuple, Anno, [Name = {atom, _, _}, Arg = {_, _, _}]}}], MbScope, TInfo, Error) ->
+annotate_expr_seq(Expr = [{match, _, Pat, _MbAnno = {tuple, Anno, [Name = {atom, _, _}, Arg = {_, _, _}]}}], MbScope, TInfo, Error) ->
   % Mailbox-annotation as match RHS, which is not followed by another expression.
   Macro = erl_syntax:set_pos(erl_syntax:macro(Name, [Arg]), Anno),
   {[], ?pushError(?E_EXPECTED_EXPR, Macro, Error)};
 
-annotate_expr_seq2([_MbAnno = {tuple, _, [{atom, _, _}, {_, _, _}]}, MbAnno = {tuple, Anno, [Name = {atom, _, _}, Arg = {_, _, _}]} | ExprSeq], MbScope, TInfo, Error) ->
+annotate_expr_seq([_MbAnno = {tuple, _, [{atom, _, _}, {_, _, _}]}, MbAnno = {tuple, Anno, [Name = {atom, _, _}, Arg = {_, _, _}]} | ExprSeq], MbScope, TInfo, Error) ->
   % Two successive mailbox annotations.
   Macro = erl_syntax:set_pos(erl_syntax:macro(Name, [Arg]), Anno),
   Error0 = ?pushError(?E_BAD_ANNO, Macro, Error),
-  {_, Error1} = annotate_expr_seq2(ExprSeq, MbScope, TInfo, Error0),
+  {_, Error1} = annotate_expr_seq(ExprSeq, MbScope, TInfo, Error0),
   {[], Error1};
 
-% TODO: See whether this can be eliminated. This could be safely removed as it is a special case of the other errors.
-%%annotate_expr_seq2([_MbAnno = {tuple, Anno, [Name = {atom, _, _}, Arg = {_, _, _}]}, Match = {match, _, _, _} | ExprSeq], MbScope, TInfo, Error) ->
-%%  % A mailbox annotation followed by a match.
-%%  Macro = erl_syntax:set_pos(erl_syntax:macro(Name, [Arg]), Anno),
-%%  Error0 = ?pushError(?E_BAD_ANNO, Macro, Error),
-%%  % Check the rest of the expressions INCLUDING the match.
-%%  {_, Error1} = annotate_expr_seq2([Match | ExprSeq], MbScope, TInfo, Error0),
-%%  {[], Error1};
-
-annotate_expr_seq2([{match, Anno, Pat, _MbAnno = {tuple, _, [{atom, _, Name}, {_, _, Value}]}}, Expr | ExprSeq], MbScope, TInfo, Error) ->
+annotate_expr_seq([{match, Anno, Pat, _MbAnno = {tuple, _, [{atom, _, Name}, {_, _, Value}]}}, Expr | ExprSeq], MbScope, TInfo, Error) ->
   % RHS of match expression is a mailbox-annotation expression. Use mailbox-
   % annotation name and value to annotate the AST node of the next expression in
   % the expression list. At this point, the next expression must exist. Replace
@@ -417,22 +416,22 @@ annotate_expr_seq2([{match, Anno, Pat, _MbAnno = {tuple, _, [{atom, _, Name}, {_
   ),
 
   {Expr1, Error0} = annotate_expr(Match0, {Name, Value}, MbScope, TInfo, Error),
-  {ExprSeq1, Error1} = annotate_expr_seq2(ExprSeq, MbScope, TInfo, Error0),
+  {ExprSeq1, Error1} = annotate_expr_seq(ExprSeq, MbScope, TInfo, Error0),
   {[Expr1 | ExprSeq1], Error1};
 
-annotate_expr_seq2([Match = {match, _, _Pat, _Expr} | ExprSeq], MbScope, TInfo, Error) ->
+annotate_expr_seq([Match = {match, _, _Pat, _Expr} | ExprSeq], MbScope, TInfo, Error) ->
   % RHS of match expression is a non mailbox-annotated expression.
   {Expr1, Error0} = annotate_expr(Match, undefined, MbScope, TInfo, Error),
-  {ExprSeq1, Error1} = annotate_expr_seq2(ExprSeq, MbScope, TInfo, Error0),
+  {ExprSeq1, Error1} = annotate_expr_seq(ExprSeq, MbScope, TInfo, Error0),
   {[Expr1 | ExprSeq1], Error1};
 
-annotate_expr_seq2([_MbAnno = {tuple, _, [{atom, _, Name}, {_, _, Value}]}, Expr | ExprSeq], MbScope, TInfo, Error) ->
+annotate_expr_seq([_MbAnno = {tuple, _, [{atom, _, Name}, {_, _, Value}]}, Expr | ExprSeq], MbScope, TInfo, Error) ->
   % Mailbox-annotated expression.
   {Expr1, Error0} = annotate_expr(Expr, {Name, Value}, MbScope, TInfo, Error),
-  {ExprSeq1, Error1} = annotate_expr_seq2(ExprSeq, MbScope, TInfo, Error0),
+  {ExprSeq1, Error1} = annotate_expr_seq(ExprSeq, MbScope, TInfo, Error0),
   {[Expr1 | ExprSeq1], Error1};
 
-annotate_expr_seq2([Expr | ExprSeq], MbScope, TInfo, Error) ->
+annotate_expr_seq([Expr | ExprSeq], MbScope, TInfo, Error) ->
   % Non mailbox-annotated expression.
 
   % The commented below are tests to see whether it is more clean to return
@@ -476,7 +475,7 @@ annotate_expr_seq2([Expr | ExprSeq], MbScope, TInfo, Error) ->
 
   ?TRACE("Annotating expression ~p", [Expr]),
   {Expr1, Error0} = annotate_expr(Expr, undefined, MbScope, TInfo, Error),
-  {ExprSeq1, Error1} = annotate_expr_seq2(ExprSeq, MbScope, TInfo, Error0),
+  {ExprSeq1, Error1} = annotate_expr_seq(ExprSeq, MbScope, TInfo, Error0),
   {[Expr1 | ExprSeq1], Error1}.
 
 
@@ -503,7 +502,15 @@ annotate_expr_seq2([Expr | ExprSeq], MbScope, TInfo, Error) ->
 %% 3. (Non) mailbox-annotated internal function call
 %% 4. If expression
 %% 5. Match operator
-%% 6. Receive
+%% 6. Receive without timeout
+-spec annotate_expr(Expr, MbAnno, MbScope, TInfo, Error) ->
+  {erl_syntax:syntaxTree(), errors:error()}
+  when
+  Expr :: erl_syntax:syntaxTree(),
+  MbAnno :: {atom(), atom() | string()} | undefined, %TODO: Enumerate the Mb-annotations, state | use | new, etc.
+  MbScope :: atom(),
+  TInfo :: paterl_types:t_info(),
+  Error :: errors:error().
 annotate_expr({call, Anno, Spawn = {atom, _, spawn}, MFArgs}, {AnnoName, MbName}, MbScope, TInfo, Error)
   when is_list(MFArgs), AnnoName == new ->
   % Mailbox-annotated spawn expression.
@@ -515,14 +522,10 @@ annotate_expr({call, Anno, Spawn = {atom, _, spawn}, MFArgs}, {AnnoName, MbName}
 
 annotate_expr(Expr = {call, Anno, Operator = {atom, _, spawn}, MFArgs}, _, MbScope, TInfo, Error)
   when is_list(MFArgs) ->
-  % Mailbox-annotated spawn expression annotated with anything other than the new modality.
-  % Non mailbox-annotated spawn expression.
+  % Mailbox-annotated spawn expression annotated with anything other than the new modality or a
+  % non mailbox-annotated spawn expression.
   Spawn = erl_syntax:set_pos(erl_syntax:application(Operator, []), Anno),
   {Expr, ?pushError(?E_SPAWN_ANNO, Spawn, Error)};
-
-%%annotate_expr(Expr = {call, Anno, Operator = {atom, _, spawn}, Exprs = [M, F, Args]}, undefined, _, TInfo, Error) ->
-% Non mailbox-annotated spawn expression.
-%%  {Expr, ?pushError(?E_SPAWN_ANNO, Expr, Error)};
 
 annotate_expr({call, Anno, Self = {atom, _, self}, []}, undefined, MbScope, TInfo, Error) ->
   % Non mailbox-annotated self expression. Mailbox interface name can be
@@ -545,7 +548,6 @@ annotate_expr({call, Anno, Operator = {atom, _, Name}, Exprs}, MbTypeAnno, MbSco
   % inferred from the called function definition.
   Sig = {Name, length(Exprs)},
 
-  ?TRACE("++++++++++++++ About to look for mb usage annotation"),
   {Anno0, Error0} =
     case maps:get(Sig, MbDefsCtx, undefined) of
       X = {Modality, _, MbName} ->
@@ -566,7 +568,7 @@ annotate_expr({call, Anno, Operator = {atom, _, Name}, Exprs}, MbTypeAnno, MbSco
         % Non mailbox-annotated function call.
         {Anno, Error}
     end,
-  {Exprs0, Error1} = annotate_expr_seq2(Exprs, MbScope, TInfo, Error0),
+  {Exprs0, Error1} = annotate_expr_seq(Exprs, MbScope, TInfo, Error0),
   Expr0 = erl_syntax:revert(
     erl_syntax:set_pos(erl_syntax:application(Operator, Exprs0), Anno0)
   ),
@@ -576,7 +578,7 @@ annotate_expr(_Expr = {call, Anno, Operator, Exprs}, {AnnoName, MbName}, MbScope
   % Implicit function call where the function name an expression. Function call
   % must be annotated since it cannot be inferred from the called function
   % definition.
-  {Exprs0, Error0} = annotate_expr_seq2(Exprs, MbScope, TInfo, Error),
+  {Exprs0, Error0} = annotate_expr_seq(Exprs, MbScope, TInfo, Error),
   Anno0 = set_modality(AnnoName, set_interface(MbName, Anno)),
   Expr0 = erl_syntax:revert(
     erl_syntax:set_pos(erl_syntax:application(Operator, Exprs0), Anno0)
@@ -585,7 +587,7 @@ annotate_expr(_Expr = {call, Anno, Operator, Exprs}, {AnnoName, MbName}, MbScope
 
 annotate_expr(_Expr = {'if', Anno, Clauses}, undefined, MbScope, TInfo, Error) ->
   % Non-annotated if expression.
-  {Clauses0, Error0} = annotate_clauses2(Clauses, MbScope, TInfo, Error),
+  {Clauses0, Error0} = annotate_clauses(Clauses, MbScope, TInfo, Error),
   Expr0 = erl_syntax:revert(
     erl_syntax:set_pos(erl_syntax:if_expr(Clauses0), Anno)
   ),
@@ -607,11 +609,10 @@ annotate_expr(_Expr = {match, Anno, Pat, Expr}, MbTypeAnno, MbScope, TInfo, Erro
   ),
   {Expr1, Error0};
 
-% Receive without timeout.
 annotate_expr({'receive', Anno, Clauses}, {state, Regex}, MbScope, TInfo, Error) ->
-  % Mailbox-annotated receive expression. Mailbox name can be inferred from
-  % enclosing mailbox scope.
-  {Clauses0, Error0} = annotate_clauses2(Clauses, MbScope, TInfo, Error),
+  % Mailbox-annotated blocking receive expression. Mailbox name can be inferred
+  % from enclosing mailbox scope.
+  {Clauses0, Error0} = annotate_clauses(Clauses, MbScope, TInfo, Error),
   Anno0 = set_state(Regex, set_interface(MbScope, Anno)),
   Expr0 = erl_syntax:revert(
     erl_syntax:set_pos(erl_syntax:receive_expr(Clauses0), Anno0)
@@ -619,11 +620,10 @@ annotate_expr({'receive', Anno, Clauses}, {state, Regex}, MbScope, TInfo, Error)
   {Expr0, Error0};
 
 annotate_expr(Expr = {'receive', Anno, Clauses}, undefined, MbScope, TInfo, Error) ->
-  % Non-annotated receive expression.
-  % ERR: Expected mailbox assertion annotation.
+  % Non-annotated blocking receive expression.
   Receive = erl_syntax:set_pos(erl_syntax:receive_expr([]), Anno),
   Error0 = ?pushError(?E_RECEIVE_ANNO, Receive, Error),
-  {_, Error1} = annotate_clauses2(Clauses, MbScope, TInfo, Error0),
+  {_, Error1} = annotate_clauses(Clauses, MbScope, TInfo, Error0),
 
   {Expr, Error1};
 
@@ -676,23 +676,6 @@ annotate_expr(Expr, _, _, _, Error) ->
 %%TEST AGAIN WITH DIFF
 %%COMMIT AND SWITCH TO TRANSLATION
 
-
-%%is_anno_expr({tuple, _, [{atom, _, AnnoName}, {atom, _, MbName}]}) ->
-%%  {true, AnnoName, MbName};
-%%is_anno_expr({tuple, _, [{atom, _, AnnoName}, {string, _, Regex}]}) ->
-%%  {true, AnnoName, Regex};
-%%is_anno_expr(_) ->
-%%  false.
-
-%%any() ->
-%%  erl_syntax:revert(erl_syntax:type_application(erl_syntax:atom(any), [])).
-%%
-%%none() ->
-%%  erl_syntax:revert(erl_syntax:type_application(erl_syntax:atom(none), [])).
-
-
-
-
 %%% ----------------------------------------------------------------------------
 %%% Annotations.
 %%% ----------------------------------------------------------------------------
@@ -721,8 +704,6 @@ set_modality(Modality, Anno) when Modality =:= 'new'; Modality =:= 'use' ->
 set_state(State, Anno) when is_list(State) ->
   set_anno_val(Anno, ?MA_STATE, State).
 
-
-
 set_anno_val(Anno, Item, Value) ->
   Anno0 =
     case Anno of
@@ -736,7 +717,6 @@ set_anno_val(Anno, Item, Value) ->
         erlang:error(badarg, [Anno, Item, Value])
     end,
   lists:keystore(Item, 1, Anno0, {Item, Value}).
-
 
 get_anno_val(Anno, Item, Default) ->
   case Anno of
