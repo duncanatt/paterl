@@ -36,7 +36,7 @@ set_pos/2
 -export([table/1]).
 
 %%% Public types.
--export_type([types/0, specs/0, mb_defs/0, mailbox/0, mb_names/0]).
+-export_type([types/0, specs/0, mb_defs/0, mailbox/0, mb_names/0, t_info/0]).
 
 -compile(export_all).
 
