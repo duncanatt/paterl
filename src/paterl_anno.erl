@@ -672,10 +672,6 @@ annotate_expr(Expr, _, _, _, Error) ->
   {Expr, ?pushError(?E_BAD_ANNO_BEFORE, Expr, Error)}.
 
 
-%%DECORATE WITH TYPESPECS
-%%TEST AGAIN WITH DIFF
-%%COMMIT AND SWITCH TO TRANSLATION
-
 %%% ----------------------------------------------------------------------------
 %%% Annotations.
 %%% ----------------------------------------------------------------------------
