@@ -241,7 +241,10 @@ annotate_function({function, Anno, Name, Arity, Clauses},
         {Clauses1, Anno1, Error1};
       undefined ->
         % Non-annotated function.
-        {Clauses, Anno, Error}
+        {Clauses1, Error1} = annotate_clauses(Clauses, Types, undefined, TInfo, Error),
+%%        {Clauses, Anno, Error}
+%%        Anno1 = set_modality(Modality, set_interface(MbName, Anno)),
+        {Clauses1, Anno, Error1}
     end,
 
   Form0 = map_anno(fun(_) -> Anno0 end, erl_syntax:revert(erl_syntax:function(erl_syntax:atom(Name), Clauses0))),
@@ -284,10 +287,12 @@ annotate_clause(Clause = {clause, Anno, PatSeq, GuardSeq = [], Body},
   {Body0, Error0} = annotate_expr_seq(Body, MbScope, TInfo, Error),
 
   ?TRACE(">>>>>>>>> Errors: ~p", [Error0]),
-  Anno0 = set_interface(MbScope, set_type(RetType, Anno)),
+  % If MbScope is undefined, the function is not mailbox-annotated.
+  Anno0 = set_type(RetType, Anno),
+  Anno1 = if MbScope =:= undefined -> Anno0; true -> set_interface(MbScope, Anno0) end,
 
   Clause0 = erl_syntax:revert(
-    erl_syntax:set_pos(erl_syntax:clause(AnnPatSeq, GuardSeq, Body0), Anno0)
+    erl_syntax:set_pos(erl_syntax:clause(AnnPatSeq, GuardSeq, Body0), Anno1)
   ),
   {Clause0, Error0};
 
