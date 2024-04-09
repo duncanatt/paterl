@@ -93,18 +93,28 @@ translate_type_seq([Type | TypeSeq]) ->
 %%% ----------------------------------------------------------------------------
 
 %% @private Translates receive/case and if clauses.
+%%translate_clauses(Clauses, MbCtx) ->
+%%  ?TRACE("(~s) Translating open clauses.", [MbCtx]),
+%%  {X, Y} =
+%%  lists:foldl(
+%%    fun(Clause, {Clauses0, MbCtx0}) ->
+%%      {Clause1, MbCtx1} = translate_clause(Clause, MbCtx0),
+%%      {[Clause1 | Clauses0], MbCtx1}
+%%    end,
+%%    {[], MbCtx}, Clauses
+%%  ),
+%%  ?TRACE("(~s) Translated clauses: ~p", [Y, X]),
+%%  {lists:reverse(X), Y}.
 translate_clauses(Clauses, MbCtx) ->
-  ?TRACE("(~s) Translating open clauses.", [MbCtx]),
-  {X, Y} =
-  lists:foldl(
-    fun(Clause, {Clauses0, MbCtx0}) ->
-      {Clause1, MbCtx1} = translate_clause(Clause, MbCtx0),
-      {[Clause1 | Clauses0], MbCtx1}
-    end,
-    {[], MbCtx}, Clauses
-  ),
-  ?TRACE("(~s) Translated clauses: ~p", [Y, X]),
-  {lists:reverse(X), Y}.
+  {Clauses0, MbCtx0} =
+    lists:foldl(
+      fun(Clause, {Clauses0, MbCtx0}) ->
+        {Clause1, MbCtx1} = translate_clause(Clause, MbCtx0),
+        {[Clause1 | Clauses0], MbCtx1}
+      end,
+      {[], MbCtx}, Clauses
+    ),
+  {lists:reverse(Clauses0), MbCtx0}.
 
 %%Case: {clause,ANNO,[Rep(P)],[],Rep(B)}.
 %%Function: {clause,ANNO,Rep(Ps),[],Rep(B)}
@@ -137,31 +147,36 @@ translate_clause(_Clause = {clause, Anno, _PatSeq = [], GuardSeq = [_], Body}, M
 
 translate_expr_seq(ExprSeq, MbCtx) ->
   ?TRACE("(~s) Translating open expression sequence.", [MbCtx]),
+  % TODO: Expressions should be reversed and this is a bug that can be fixed with reverse.
+  {ExprSeq0, MbCtx0} =
   lists:foldl(
     fun(Expr, {ExprSeq0, MbCtx0}) ->
       {Expr1, MbCtx1} = translate_expr(Expr, MbCtx0),
       {[Expr1 | ExprSeq0], MbCtx1}
     end,
     {[], MbCtx}, ExprSeq
-  ).
+  ),
+  {string:join(lists:reverse(ExprSeq0), ?SEP_NL), MbCtx0}.
 
 %% @private Translates values and expressions.
-translate_expr({call, Anno, Fun = {atom, _, Name}, MFArgs}, MbCtx) ->
+translate_expr({call, _, Self = {atom, _, self}, _MFArgs = []}, MbCtx) ->
+  % Self.
+  {"(x, x)", MbCtx};
+%%  HERE: Start populating self and the other functions!
+translate_expr({call, Anno, Fun = {atom, _, Name}, MFArggs}, MbCtx) ->
   % Explicit function call and explicit mailbox-annotated function call.
   % TODO: Need to translate arguments.
   % TODO: We need to use a tuple and let.
-  {["TODO: function call"], MbCtx};
+  {["TODO: open function call"], MbCtx};
 translate_expr({match, Anno, Pat, Expr}, MbCtx) ->
   % Match.
-  {["let ", translate_pat(Pat), " = ", translate_expr(Expr), "in\n"], MbCtx};
+  {Expr0, MbCtx0} = translate_expr(Expr, MbCtx),
+  {["let ", translate_pat(Pat), " = ", Expr0, "in\n"], MbCtx0};
 translate_expr({'if', _, Clauses = [_, _]}, MbCtx) ->
   % If else.
-  {[Clause0, Clause1], MbCtx0} = translate_clauses(Clauses, "mb99"),
+  {[Clause0, Clause1], MbCtx0} = translate_clauses(Clauses, MbCtx),
   ?TRACE("Translated clauses: ~p and ~p", [Clause0, Clause1]),
   {["if ", Clause0, "else ", Clause1], MbCtx0};
-translate_expr({call, Anno, Self = {atom, _, self}, []}, MbCtx) ->
-  % Self.
-  {"(x, x)", MbCtx};
 translate_expr({'receive', Anno, Clauses}, MbCtx) ->
   % Receive.
   State = paterl_anno:state(Anno),
@@ -210,11 +225,14 @@ translate_expr({tuple, _, [_Tag = {atom, _, Name} | Payload]}) ->
 %%  Args = string:join(translate_expr_seq(Payload), ", "),
   Args = translate_expr_seq(Payload),
   [Msg, "(", Args, ")"];
-translate_expr({call, Anno, Fun = {atom, _, Name}, MFArgs}) ->
+translate_expr({call, _, Fun = {atom, _, spawn}, MFArgs}) ->
+  % Spawn.
+  ["TODO: spawn"];
+translate_expr({call, _, Fun = {atom, _, Name}, MFArgs}) ->
   % Explicit function call and explicit mailbox-annotated function call.
   % TODO: Need to translate arguments.
   % TODO: We need to use a tuple and let.
-  ["TODO: function call"];
+  ["TODO: Closed function call "];
 translate_expr({match, Anno, Pat, Expr}) ->
   % Match.
   ["let ", translate_pat(Pat), " = ", translate_expr(Expr), "in\n"];
@@ -231,9 +249,6 @@ translate_expr({'if', _, Clauses = [_, _]}) ->
   % If else.
   [Clause0, Clause1] = translate_clauses(Clauses),
   ["if ", Clause0, "else ", Clause1];
-translate_expr({call, _, Operator = {atom, _, spawn}}) ->
-  % Spawn.
-  ["TODO: spawn"];
 translate_expr(Other) ->
   ?ERROR("Cannot translate: ~p", [Other]).
 
@@ -242,38 +257,6 @@ translate_clauses(Clauses) ->
   [translate_clause(Clause) || Clause <- Clauses].
 
 %% @private Translates closed function and if clauses.
-%%translate_clause(_Clause = {clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
-%%  % Unguarded function clause.
-%%  ?TRACE("Translating function clause: ~p", [_Clause]),
-%%
-%%  % TODO: I need to case split on the type to generate the return type.
-%%
-%%  RetType = erl_to_pat_type(paterl_anno:type(Anno)),
-%%  Args =
-%%    case paterl_anno:interface(Anno) of
-%%      undefined ->
-%%        % Non mailbox-annotated function.
-%%        translate_pat_seq(PatSeq);
-%%      Interface ->
-%%
-%%
-%%        % Mailbox-annotated function that requires the mailbox variable to be
-%%        % injected.
-%%        % TODO: The return type must be a pair now.
-%%        MbCtx = new_mb(),
-%%        MbVar = erl_syntax:variable(MbCtx),
-%%        Anno0 = paterl_anno:set_type(Interface, erl_syntax:get_pos(MbVar)),
-%%        MbVar0 = erl_syntax:revert(erl_syntax:set_pos(MbVar, Anno0)),
-%%        translate_pat_seq([MbVar0 | PatSeq])
-%%    end,
-%%
-%%  Args0 = string:join(Args, ", "),
-%%  ?TRACE("About to translate body!"),
-%%%%  Body0 = string:join(translate_expr_seq(Body), "\n"),
-%%  Body0 = string:join(translate_expr_seq(Body, MbCtx), "\n"),
-%%
-%%  ["(", Args0, "): ", RetType, " {\n", Body0, "\n}\n"];
-
 translate_clause(_Clause = {clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
   % Unguarded function clause.
   Params = translate_pat_seq(PatSeq),
@@ -294,18 +277,14 @@ translate_clause(_Clause = {clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
       % New mailbox.
       MbCtx = new_mb(),
       {Body0, MbCtx0} = translate_expr_seq(Body, MbCtx),
-      ?TRACE("Body is: ~p", [lists:flatten(Body0)]),
+%%      ?TRACE("Body is: ~p", [lists:flatten(Body0)]),
 
 
       [$(, Params, $), $:, $\s, $(, RetType, $\s, $*, $\s, Interface0, $), $\s, ${, $\n, Body0, $\n, $}, $\n]
   end;
 
-
-
-
-
 translate_clause({clause, _, _PatSeq = [], GuardSeq = [_], Body}) ->
-  % Unguarded if clause.
+  % Guarded if clause.
   Body0 = translate_expr_seq(Body),
   case translate_guard_seq(GuardSeq) of
     [["true"]] ->
