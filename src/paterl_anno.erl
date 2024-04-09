@@ -10,7 +10,6 @@
 -feature(maybe_expr, enable).
 -author("duncan").
 
-
 %%% Includes.
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("syntax_tools/include/merl.hrl").
@@ -18,6 +17,8 @@
 -include("errors.hrl").
 -include("paterl.hrl").
 
+%% API
+-export([annotate/2]).
 
 -compile(export_all).
 
@@ -263,13 +264,13 @@ annotate_clauses([Clause | Clauses], [Type | Types], MbScope, TInfo, Error) ->
 -spec annotate_clause(erl_syntax:syntaxTree(), erl_syntax:syntaxTree(), atom(), paterl_types:t_info(), errors:error()) ->
   {erl_syntax:syntaxTree(), errors:error()}.
 annotate_clause(Clause = {clause, Anno, PatSeq, GuardSeq = [], Body},
-    Type = {type, _, 'fun', [{type, _, product, TypeSeq}, RetType]}, MbScope, TInfo, Error)
+    _ArgType = {type, _, 'fun', [{type, _, product, TypeSeq}, _RetType = {type, _, RetType, []}]}, MbScope, TInfo, Error)
   when is_list(PatSeq), is_list(TypeSeq), length(PatSeq) == length(TypeSeq),
   is_list(Body) ->
   ?TRACE("Unguarded function clause: ~p", [Clause]),
 
   ?TRACE("Arg types: ~p", [TypeSeq]),
-  ?TRACE("Ret type: ~p", [RetType]),
+%%  ?TRACE("Ret type: ~p", [RetType]),
 
   ?TRACE("Function pats: ~p", [PatSeq]),
   ?TRACE("Function body: ~p", [Body]),
@@ -283,15 +284,18 @@ annotate_clause(Clause = {clause, Anno, PatSeq, GuardSeq = [], Body},
   {Body0, Error0} = annotate_expr_seq(Body, MbScope, TInfo, Error),
 
   ?TRACE(">>>>>>>>> Errors: ~p", [Error0]),
+  Anno0 = set_interface(MbScope, set_type(RetType, Anno)),
+
   Clause0 = erl_syntax:revert(
-    erl_syntax:set_pos(erl_syntax:clause(AnnPatSeq, GuardSeq, Body0), Anno)
+    erl_syntax:set_pos(erl_syntax:clause(AnnPatSeq, GuardSeq, Body0), Anno0)
   ),
   {Clause0, Error0};
 
 %% The following spec-annotated clauses are not annotated:
 %% 1. Function clause with guard
-annotate_clause(Clause, _, _, _, Error) ->
+annotate_clause(Clause, _ArgType, _MbScope, _TInfo, Error) ->
   ?TRACE("Guarded function clause: ~p", [Clause]),
+  ?TRACE("_ArgType: ~p", [_ArgType]),
   {Clause, Error}.
 
 %% @private Annotates a non-function clause list.
@@ -427,12 +431,14 @@ annotate_expr_seq([Match = {match, _, _Pat, _Expr} | ExprSeq], MbScope, TInfo, E
 
 annotate_expr_seq([_MbAnno = {tuple, _, [{atom, _, Name}, {_, _, Value}]}, Expr | ExprSeq], MbScope, TInfo, Error) ->
   % Mailbox-annotated expression.
+  ?TRACE("--------------------> Annotated Mailbox expression = ~p", [_MbAnno]),
   {Expr1, Error0} = annotate_expr(Expr, {Name, Value}, MbScope, TInfo, Error),
   {ExprSeq1, Error1} = annotate_expr_seq(ExprSeq, MbScope, TInfo, Error0),
   {[Expr1 | ExprSeq1], Error1};
 
 annotate_expr_seq([Expr | ExprSeq], MbScope, TInfo, Error) ->
   % Non mailbox-annotated expression.
+  ?TRACE("--------------------> Non Annotated Mailbox expression = ~p", [Expr]),
 
   % The commented below are tests to see whether it is more clean to return
   % "{ok, [Expr]} and {error, [], []" depending on whether the annotation is
@@ -688,7 +694,7 @@ modality(Anno) ->
 state(Anno) ->
   get_anno_val(Anno, ?MA_STATE, undefined).
 
-set_type(Type, Anno) when is_atom(Type) ->
+set_type(Type, Anno) ->
   set_anno_val(Anno, ?MA_TYPE, Type).
 
 set_interface(Interface, Anno) when is_atom(Interface) ->

@@ -51,7 +51,10 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
                   io:format("~n~n~nAnnotated forms:~n~p~n", [Annotated]),
 
                   io:format("~n~n~nCompiler output:~n", []),
-                  compile:forms(Annotated);
+                  compile:forms(Annotated),
+
+                  Pat = paterl_trans:translate(Annotated),
+                  io:format("~n~n~nOutput Pat:~n~n~n~s~n", [Pat]);
                 #error{errors = Errors2} ->
                   io:format("Errors found: ~p", [Errors2]),
                   % File contains mailbox annotation errors.
