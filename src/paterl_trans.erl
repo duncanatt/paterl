@@ -20,20 +20,33 @@
 -export([]).
 -compile(export_all).
 
+%%% ----------------------------------------------------------------------------
+%%% Macro and record definitions.
+%%% ----------------------------------------------------------------------------
+
+-define(MB_IDX_START, 0).
+
+-define(SEP_PAT, [$,, $\s]).
+
+-define(SEP_NL, [$\n]).
+
 -spec translate(erl_syntax:forms()) -> list().
 translate(Forms) ->
   translate_forms(Forms).
 
 
-%%% ----------------------------------------------------------------------------
-%%% Translation on open terms.
-%%% ----------------------------------------------------------------------------
 
 
 translate_forms([]) ->
   ["\n"];
 translate_forms([Form | Forms]) ->
   [translate_form(Form) | translate_forms(Forms)].
+
+%%% ----------------------------------------------------------------------------
+%%% Translation on open terms.
+%%% ----------------------------------------------------------------------------
+
+
 
 translate_form({attribute, Anno, module, Name}) ->
   ["# Translated from ", atom_to_list(Name), ".erl\n"];
@@ -75,56 +88,223 @@ translate_type_seq([Type | TypeSeq]) ->
   [translate_type(Type) | translate_type_seq(TypeSeq)].
 
 
-%% @private Translates function clauses.
-translate_clauses([]) ->
-  [];
-translate_clauses([Clause | Clauses]) ->
-  [translate_clause(Clause) | translate_clauses(Clauses)].
-
-%% @private Translates a function clause.
-translate_clause(_Clause = {clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
-  % Unguarded function clause.
-  ?TRACE("Translating function clause: ~p", [_Clause]),
-
-  RetType = erl_to_pat_type(paterl_anno:type(Anno)),
-  Args =
-    case paterl_anno:interface(Anno) of
-      undefined ->
-        % Non mailbox-annotated function.
-        translate_pat_seq(PatSeq);
-      Interface ->
-        % Mailbox-annotated function that requires the mailbox variable to be
-        % injected.
-        MbVar = erl_syntax:variable(mb0),
-        Anno0 = paterl_anno:set_type(Interface, erl_syntax:get_pos(MbVar)),
-        MbVar0 = erl_syntax:revert(erl_syntax:set_pos(MbVar, Anno0)),
-        translate_pat_seq([MbVar0 | PatSeq])
-    end,
-
-  Args0 = string:join(Args, ", "),
-  Body0 = string:join(translate_expr_seq(Body), "\n"),
-
-  ["(", Args0, "): ", RetType, " {\n", Body0, "\n}\n"].
+%%% ----------------------------------------------------------------------------
+%%% Translation on open terms.
+%%% ----------------------------------------------------------------------------
 
 %% @private Translates receive/case and if clauses.
-translate_clauses([], _) ->
-  [];
-translate_clauses([Clause | Clauses], VarId) ->
-  [translate_clause(Clause, VarId) | translate_clauses(Clauses, VarId)].
+translate_clauses(Clauses, MbCtx) ->
+  ?TRACE("(~s) Translating open clauses.", [MbCtx]),
+  {X, Y} =
+  lists:foldl(
+    fun(Clause, {Clauses0, MbCtx0}) ->
+      {Clause1, MbCtx1} = translate_clause(Clause, MbCtx0),
+      {[Clause1 | Clauses0], MbCtx1}
+    end,
+    {[], MbCtx}, Clauses
+  ),
+  ?TRACE("(~s) Translated clauses: ~p", [Y, X]),
+  {lists:reverse(X), Y}.
 
 %%Case: {clause,ANNO,[Rep(P)],[],Rep(B)}.
 %%Function: {clause,ANNO,Rep(Ps),[],Rep(B)}
 %%If: {clause,ANNO,[],Rep(Gs),Rep(B)}
 
 %% @private Translates a receive/case and if clause.
-translate_clause(_Clause = {clause, Anno, PatSeq = [_], _GuardSeq = [], Body}, VarId) ->
+translate_clause(_Clause = {clause, Anno, PatSeq = [_], _GuardSeq = [], Body}, MbCtx) ->
   ?TRACE("Translating receive clause: ~p", [_Clause]),
   % Unguarded receive/case clause.
   PatSeq0 = translate_pat_seq(PatSeq),
 %%  PatSeq0 = "xxxx",
-  ["receive ", PatSeq0, " from mb" ];
+  {["receive ", PatSeq0, " from mb"], MbCtx};
 
-translate_clause({clause, Anno, _PatSeq = [], GuardSeq = [_], Body}, VarId) ->
+translate_clause(_Clause = {clause, Anno, _PatSeq = [], GuardSeq = [_], Body}, MbCtx) ->
+  % Unguarded if clause.
+  ?TRACE("(~p) About to translate if clause: ~p", [MbCtx, _Clause]),
+  {Body0, MbCtx0} = translate_expr_seq(Body, MbCtx),
+  ?TRACE("(~p) Translated body of if clause: ~p", [MbCtx0, Body0]),
+  If =
+    case translate_guard_seq(GuardSeq) of
+      [["true"]] ->
+        % Else.
+        ["{\n", Body0, "\n}"];
+      GuardSeq0 ->
+        % If.
+        ["(", GuardSeq0, ") {\n", Body0, "\n}\n"]
+    end,
+  {If, MbCtx0}.
+
+
+translate_expr_seq(ExprSeq, MbCtx) ->
+  ?TRACE("(~s) Translating open expression sequence.", [MbCtx]),
+  lists:foldl(
+    fun(Expr, {ExprSeq0, MbCtx0}) ->
+      {Expr1, MbCtx1} = translate_expr(Expr, MbCtx0),
+      {[Expr1 | ExprSeq0], MbCtx1}
+    end,
+    {[], MbCtx}, ExprSeq
+  ).
+
+%% @private Translates values and expressions.
+translate_expr({call, Anno, Fun = {atom, _, Name}, MFArgs}, MbCtx) ->
+  % Explicit function call and explicit mailbox-annotated function call.
+  % TODO: Need to translate arguments.
+  % TODO: We need to use a tuple and let.
+  {["TODO: function call"], MbCtx};
+translate_expr({match, Anno, Pat, Expr}, MbCtx) ->
+  % Match.
+  {["let ", translate_pat(Pat), " = ", translate_expr(Expr), "in\n"], MbCtx};
+translate_expr({'if', _, Clauses = [_, _]}, MbCtx) ->
+  % If else.
+  {[Clause0, Clause1], MbCtx0} = translate_clauses(Clauses, "mb99"),
+  ?TRACE("Translated clauses: ~p and ~p", [Clause0, Clause1]),
+  {["if ", Clause0, "else ", Clause1], MbCtx0};
+translate_expr({call, Anno, Self = {atom, _, self}, []}, MbCtx) ->
+  % Self.
+  {"(x, x)", MbCtx};
+translate_expr({'receive', Anno, Clauses}, MbCtx) ->
+  % Receive.
+  State = paterl_anno:state(Anno),
+  {Clauses0, MbCtx0} = translate_clauses(Clauses, "mb999"),
+  % TODO: Logic to determine when to free.
+
+  {["guard mb_: ", State, " {\n", Clauses0, "\n}\n"], MbCtx0};
+translate_expr(Expr, MbCtx) ->
+  % Literal.
+  % Variable.
+  % Unguarded function call to closed expression.
+  % Binary operator.
+  % Unary operator.
+  % Spawn.
+  {translate_expr(Expr), MbCtx}.
+
+
+%%% ----------------------------------------------------------------------------
+%%% Translation on closed terms.
+%%% ----------------------------------------------------------------------------
+
+%% @private Translates value and expression sequences.
+translate_expr_seq(ExprSeq) ->
+  ?TRACE("Have to traslate expr seq: ~p", [ExprSeq]),
+  Trans = [translate_expr(Expr) || Expr <- ExprSeq],
+  ?TRACE("Translated expr_seq: ~p", [Trans]),
+  io:format("TRANSLATED: ~s", [(Trans)]),
+%%  string:join([translate_expr(Expr) || Expr <- ExprSeq], ?SEP_NL).
+  string:join(Trans, ?SEP_NL).
+
+%% @private Translates values and expressions.
+translate_expr(Lit)
+  when
+% Literal.
+  element(1, Lit) =:= integer;
+  element(1, Lit) =:= float;
+  element(1, Lit) =:= string;
+  element(1, Lit) =:= atom ->
+  translate_lit(Lit);
+translate_expr({var, _, Name}) ->
+  % Variable.
+  string:lowercase(atom_to_list(Name));
+translate_expr({tuple, _, [_Tag = {atom, _, Name} | Payload]}) ->
+  % Message.
+  Msg = string:titlecase(atom_to_list(Name)),
+%%  Args = string:join(translate_expr_seq(Payload), ", "),
+  Args = translate_expr_seq(Payload),
+  [Msg, "(", Args, ")"];
+translate_expr({call, Anno, Fun = {atom, _, Name}, MFArgs}) ->
+  % Explicit function call and explicit mailbox-annotated function call.
+  % TODO: Need to translate arguments.
+  % TODO: We need to use a tuple and let.
+  ["TODO: function call"];
+translate_expr({match, Anno, Pat, Expr}) ->
+  % Match.
+  ["let ", translate_pat(Pat), " = ", translate_expr(Expr), "in\n"];
+translate_expr({op, Anno, Op, Expr0, Expr1}) ->
+  % Binary operator.
+  Expr2 = translate_expr(Expr0),
+  Expr3 = translate_expr(Expr1),
+  [Expr2, " ", atom_to_list(Op), " ", Expr3];
+translate_expr({op, _, Op, Expr}) ->
+  % Unary operator.
+  Expr0 = translate_expr(Expr),
+  [atom_to_list(Op), Expr0];
+translate_expr({'if', _, Clauses = [_, _]}) ->
+  % If else.
+  [Clause0, Clause1] = translate_clauses(Clauses),
+  ["if ", Clause0, "else ", Clause1];
+translate_expr({call, _, Operator = {atom, _, spawn}}) ->
+  % Spawn.
+  ["TODO: spawn"];
+translate_expr(Other) ->
+  ?ERROR("Cannot translate: ~p", [Other]).
+
+%% @private Translates closed functions and if clauses.
+translate_clauses(Clauses) ->
+  [translate_clause(Clause) || Clause <- Clauses].
+
+%% @private Translates closed function and if clauses.
+%%translate_clause(_Clause = {clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
+%%  % Unguarded function clause.
+%%  ?TRACE("Translating function clause: ~p", [_Clause]),
+%%
+%%  % TODO: I need to case split on the type to generate the return type.
+%%
+%%  RetType = erl_to_pat_type(paterl_anno:type(Anno)),
+%%  Args =
+%%    case paterl_anno:interface(Anno) of
+%%      undefined ->
+%%        % Non mailbox-annotated function.
+%%        translate_pat_seq(PatSeq);
+%%      Interface ->
+%%
+%%
+%%        % Mailbox-annotated function that requires the mailbox variable to be
+%%        % injected.
+%%        % TODO: The return type must be a pair now.
+%%        MbCtx = new_mb(),
+%%        MbVar = erl_syntax:variable(MbCtx),
+%%        Anno0 = paterl_anno:set_type(Interface, erl_syntax:get_pos(MbVar)),
+%%        MbVar0 = erl_syntax:revert(erl_syntax:set_pos(MbVar, Anno0)),
+%%        translate_pat_seq([MbVar0 | PatSeq])
+%%    end,
+%%
+%%  Args0 = string:join(Args, ", "),
+%%  ?TRACE("About to translate body!"),
+%%%%  Body0 = string:join(translate_expr_seq(Body), "\n"),
+%%  Body0 = string:join(translate_expr_seq(Body, MbCtx), "\n"),
+%%
+%%  ["(", Args0, "): ", RetType, " {\n", Body0, "\n}\n"];
+
+translate_clause(_Clause = {clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
+  % Unguarded function clause.
+  Params = translate_pat_seq(PatSeq),
+  RetType = erl_to_pat_type(paterl_anno:type(Anno)),
+  case paterl_anno:interface(Anno) of
+    undefined ->
+      % Non mailbox-annotated function.
+      ?TRACE("Translating unguarded NON mailbox-annotated function clause: ~p", [_Clause]),
+
+      Body0 = translate_expr_seq(Body),
+      [$(, Params, $), $:, $\s, RetType, $\s, ${, $\n, Body0, $\n, $}, $\n];
+    Interface ->
+      % Mailbox-annotated function.
+      ?TRACE("Translating unguarded mailbox-annotated function clause: ~p", [_Clause]),
+
+      Interface0 = erl_to_pat_type(Interface),
+
+      % New mailbox.
+      MbCtx = new_mb(),
+      {Body0, MbCtx0} = translate_expr_seq(Body, MbCtx),
+      ?TRACE("Body is: ~p", [lists:flatten(Body0)]),
+
+
+      [$(, Params, $), $:, $\s, $(, RetType, $\s, $*, $\s, Interface0, $), $\s, ${, $\n, Body0, $\n, $}, $\n]
+  end;
+
+
+
+
+
+translate_clause({clause, _, _PatSeq = [], GuardSeq = [_], Body}) ->
   % Unguarded if clause.
   Body0 = translate_expr_seq(Body),
   case translate_guard_seq(GuardSeq) of
@@ -136,61 +316,26 @@ translate_clause({clause, Anno, _PatSeq = [], GuardSeq = [_], Body}, VarId) ->
       ["(", GuardSeq0, ") {\n", Body0, "\n}\n"]
   end.
 
+%% @private Translates a guard sequence.
+translate_guard_seq(GuardSeq) ->
+  [translate_guard(Guard) || Guard <- GuardSeq].
 
+%% @private Translates a guard, which is a sequence of guard tests.
+translate_guard(GuardTests) ->
+  [translate_guard_test(GuardTest) || GuardTest <- GuardTests].
 
-
-
-
-
-translate_pat_seq([]) ->
-  [];
-translate_pat_seq([Pat | PatSeq]) ->
-  [translate_pat(Pat) | translate_pat_seq(PatSeq)].
-
-translate_pat({var, Anno, Name}) ->
-  Type = erl_to_pat_type(paterl_anno:type(Anno)),
-  [atom_to_list(Name), ": ", Type];
-translate_pat({Type = integer, _, Value}) ->
-  [integer_to_list(Value), ": ", erl_to_pat_type(Type)];
-translate_pat({Type = float, _, Value}) ->
-  [float_to_list(Value), ": ", erl_to_pat_type(Type)];
-translate_pat({Type = string, _, Value}) ->
-  [atom_to_list(Value), ": ", erl_to_pat_type(Type)];
-translate_pat({tuple, _, [_Tag = {atom, _, Name} | Payload]}) ->
-  % Message.
-%%  HERE: BUILDING THE RECV AND GUARD
-  Msg = string:titlecase(atom_to_list(Name)),
-  Args = string:join(translate_expr_seq(Payload), ", "),
-  [Msg, "(", Args, ")"].
-
-translate_guard_seq([]) ->
-  [];
-translate_guard_seq([Guard | GuardSeq]) ->
-  % A guard is a sequence of guard tests.
-  [translate_guard(Guard) | translate_guard_seq(GuardSeq)].
-
-translate_guard([]) ->
-  [];
-translate_guard([GuardTest | GuardTests]) ->
-  [translate_guard_test(GuardTest) | translate_guard(GuardTests)].
-
-
-translate_guard_test({integer, _, Value}) ->
-  % Integer literal.
-  integer_to_list(Value);
-translate_guard_test({float, _, Value}) ->
-  % Float literal.
-  float_to_list(Value);
-translate_guard_test({string, _, Value}) ->
-  % String literal.
-  Value;
-translate_guard_test({atom, _, Value}) ->
-  % Atom literal.
-  atom_to_list(Value);
+%% @private Translates a guard test.
+translate_guard_test(Lit)
+  when
+  element(1, Lit) =:= integer;
+  element(1, Lit) =:= float;
+  element(1, Lit) =:= string;
+  element(1, Lit) =:= atom ->
+  translate_lit(Lit);
 translate_guard_test({call, _, {atom, _, Name}, GuardTests}) ->
   % Function call.
   GuardTests0 = string:join(translate_guard(GuardTests), ","),
-  [atom_to_list(Name), "(", GuardTests0 , ")"];
+  [atom_to_list(Name), "(", GuardTests0, ")"];
 translate_guard_test({op, _, Op, GuardTest0, GuardTest1}) ->
   % Binary operator.
   GuardTest2 = translate_guard_test(GuardTest0),
@@ -205,86 +350,59 @@ translate_guard_test({var, _, Name}) ->
   string:lowercase(atom_to_list(Name)).
 
 
+%% @private Translates pattern sequences.
+translate_pat_seq(PatSeq) ->
+  string:join([translate_pat(Pat) || Pat <- PatSeq], ?SEP_PAT).
 
-
-
-
-translate_expr_seq([]) ->
-  [];
-translate_expr_seq([Expr | ExprSeq]) ->
-  [translate_expr(Expr) | translate_expr_seq(ExprSeq)].
-
-
-translate_expr({call, Anno, Operator = {atom, _, spawn}}) ->
-  % Spawn.
-  ["TODO: spawn"];
-translate_expr({call, Anno, Fun = {atom, _, Name}, MFArgs}) ->
-  % Explicit function call
-  ["TODO: function call"];
-translate_expr({call, Anno, Self = {atom, _, self}, []}) ->
-  % Self.
-  "(x, x)";
-translate_expr({'if', Anno, Clauses = [_, _]}) ->
-  % If else.
-  [Clause0, Clause1] = translate_clauses(Clauses, -1),
-  ["if ", Clause0, "else ", Clause1];
-translate_expr({match, Anno, Pat, Expr}) ->
-  % Match.
-  ["let ", translate_pat(Pat), " = ", translate_expr(Expr), "in\n"];
-translate_expr({'receive', Anno, Clauses}) ->
-  % Receive.
-  State = paterl_anno:state(Anno),
-  Clauses0 = translate_clauses(Clauses, -1),
-  % TODO: Logic to determine when to free.
-
-  ["guard mb_: ", State, " {\n", Clauses0, "\n}\n"];
-translate_expr({tuple, Anno, [_Tag = {atom, _, Name} | Payload]}) ->
-  % Message.
+%% @private Translates patterns.
+translate_pat(Lit)
+  when
+  element(1, Lit) =:= integer;
+  element(1, Lit) =:= float;
+  element(1, Lit) =:= string;
+  element(1, Lit) =:= atom ->
+  translate_lit(Lit);
+translate_pat({var, _, Name}) ->
+%%  Type = erl_to_pat_type(paterl_anno:type(Anno)),
+%%  [atom_to_list(Name), ": ", Type];
+  atom_to_list(Name);
+translate_pat({tuple, _, [_Tag = {atom, _, Name} | Payload]}) ->
+  % Message pattern.
   Msg = string:titlecase(atom_to_list(Name)),
-  Args = string:join(translate_expr_seq(Payload), ", "),
-  [Msg, "(", Args, ")"];
-translate_expr({op, Anno, Op, Expr0, Expr1}) ->
-  % Binary operator.
-  Expr2 = translate_expr(Expr0),
-  Expr3 = translate_expr(Expr1),
-  [Expr2, " ", atom_to_list(Op), " ", Expr3];
-translate_expr({op, Anno, Op, Expr}) ->
-  % Unary operator.
-  Expr0 = translate_expr(Expr),
-  [atom_to_list(Op), Expr0];
-translate_expr({var, _, Name}) ->
-  % Variable.
-  string:lowercase(atom_to_list(Name));
-translate_expr({integer, _, Value}) ->
-  % Integer literal.
+  Args = translate_pat_seq(Payload),
+  [Msg, "(", Args, ")"].
+
+translate_params() ->
+  ok. %TODO: Or have a translate_types and then combine with zipwith.
+
+translate_lit({Type = integer, _, Value}) ->
+%%  [integer_to_list(Value), ": ", erl_to_pat_type(Type)];
   integer_to_list(Value);
-translate_expr({float, _, Value}) ->
-  % Float literal.
+translate_lit({Type = float, _, Value}) ->
+%%  [float_to_list(Value), ": ", erl_to_pat_type(Type)];
   float_to_list(Value);
-translate_expr({string, _, Value}) ->
-  % String literal.
-  Value;
-translate_expr({atom, _, Value}) ->
-  % Atom literal.
+translate_lit({Type = string, _, Value}) ->
+%%  [atom_to_list(Value), ": ", erl_to_pat_type(Type)];
+  atom_to_list(Value);
+translate_lit({Type = atom, _, Value}) ->
   atom_to_list(Value).
-
-
-%%% ----------------------------------------------------------------------------
-%%% Translation on closed terms.
-%%% ----------------------------------------------------------------------------
-
-
 
 
 %%% ----------------------------------------------------------------------------
 %%% Helpers.
 %%% ----------------------------------------------------------------------------
 
-make_mb(MbId) ->
-  "mb" + integer_to_list(MbId).
+%%make_mb(MbId) ->
+%%  "mb" + integer_to_list(MbId).
+
+%%new_mb1(MbId) ->
+%%  {"mb" ++ integer_to_list(MbId), MbId + 1}.
 
 new_mb() ->
-  {1, make_mb(0)}.
+  "mb" ++ integer_to_list(?MB_IDX_START).
+
+new_mb([$m, $b | IdStr]) ->
+  "mb" ++ integer_to_list(list_to_integer(IdStr) + 1).
 
 erl_to_pat_type(integer) ->
   "Int";
