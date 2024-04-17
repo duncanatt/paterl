@@ -51,7 +51,7 @@
 .
 
 -type future_mb() ::
-{put, integer()} |
+{put, integer(), integer()} |
 %%{get, user_mb()} |
 pid() |
 get().
@@ -70,12 +70,12 @@ get().
 %%-type main() :: ok.
 
 %% Mailbox-function associations.
--future_mb([{new, future/0}, {use, [resolved_future/12]}]).
--future_mb({new, future/0}).
--future_mb({new, future/0}).
--future_mb(#{use => future/0}).
--user_mb([{new, user/1}]).
--main_mb([{new, main/0}]).
+%%-future_mb([{new, future/0}, {use, [resolved_future/12]}]).
+%%-future_mb({new, future/0}).
+%%-future_mb({new, future/0}).
+%%-future_mb(#{use => future/0}).
+%%-user_mb([{new, user/1}]).
+%%-main_mb([{new, main/0}]).
 
 
 %%% API.
@@ -89,15 +89,17 @@ get().
 %% @new future()
 -spec
 future() ->
-  no_return()
-  | duncan.
+  no_return().
+%%  | duncan.
 -type main_mb() :: pid().
 future() ->
   %% @mb future()
   %% @assert put.get*
   ?mb_assert_regex("put.get*"),
-  receive {put, Value} ->
+  receive
+    {put, Value} ->
     %% @use future() (@use is derived from the interface of the resolved_future function)
+%%    ?mb_use(future_mb),
     ?mb_use(future_mb),
     resolved_future(Value, 42)
   end.
@@ -120,7 +122,7 @@ resolved_future(Value, 42) ->
   %% @mb future()
   %% @assert get*
   ?mb_assert_regex("get*"),
-  ok,
+%%  ok,
   receive
     {get, UserPid} ->
       UserPid ! {reply, Value},
@@ -168,14 +170,27 @@ user(FuturePid) ->
 %% @new user()
 -spec main() -> any().
 main() ->
-  if a == b -> hello; true -> goodbye end,
 
+%%  ?mb_assert_regex("figgy"),
+%%  1 + 1,
   FuturePid =
     %% @new future()
+%%    ?mb_use(future_mb),
     ?mb_new(future_mb),
     spawn(?MODULE, future, []),
   FuturePid ! {put, 5},
 
+%%  ?mb_assert_regex("figgy"),
+
+  if a == b -> hello; true ->
+    GetX =
+      %% @new user
+    ?mb_new(user_mb),
+    user(FuturePid),
+    goodbye
+  end,
+
+%%  ?mb_assert_regex("duncan"),
   Get1 =
     %% @new user
     ?mb_new(user_mb),
@@ -183,16 +198,24 @@ main() ->
   format("A: ~p~n", [Get1]),
   Get2 =
     %% @new user
+%%    ?mb_use(user_mb),
     ?mb_new(user_mb),
     user(FuturePid),
-  format("B: ~p~n", [Get2]).
+%%  ?mb_use(user_mb),
+  format("B: ~p~n", [Get2]),
+  a_non_annotated_fun("duncan", 1, 2.0, hello).%,
+%%  ?mb_use(user_mb),
+%%  ?mb_use(dun),
+%%  Dun = ?mb_new(xxx), test.
+%%  Dun = test.
 
 -type
 user_mb() :: {reply, integer()}
 %%| pid()
 .
 
--spec a_non_annotated_fun() -> ok.
-a_non_annotated_fun() ->
-  ok.
-%%unused() -> ok.
+-spec a_non_annotated_fun(string(), integer(), float(), atom()) -> any().
+a_non_annotated_fun(Var, 1, 2.0, hello) ->
+  if 5 == 2 -> five_is_two; true -> five_is_not_two, "but two is not", 5 end,
+  a_non_annotated_fun(Var, 1, 2.0, hello).
+
