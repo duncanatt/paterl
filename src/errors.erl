@@ -41,25 +41,30 @@
 
 -type error() :: #error{}.
 
+% This is how the internal structure of the EPP works. When it has no errors, it returns [],
+% otherwise it returns [{file,list of errors}].
+% I modelled the error display functions on the strange way EPP uses them to
+% make everything consistent.
+-type location() ::
+  [{Filename :: file:filename(), errors() | warnings()}] |
+  {Filename :: file:filename(), errors() | warnings()}.
+
+
 %%% ----------------------------------------------------------------------------
 %%% Public API.
 %%% ----------------------------------------------------------------------------
 
-% I modelled the error display functions on the strange way EPP uses them to
-% make everything consistent.
--spec show_errors([{file:filename(), errors()}]) -> any().
-show_errors([]) ->
+%%-spec show_errors([{file:filename(), errors()}]) -> any().
+-spec show_errors(location()) -> any().
+show_errors([]) -> %TODO: Test whether this case is taken.
   ok;
-% This is how the internal structure of the EPP works. When it has no errors, it returns [],
-% otherwise it returns [{file,list of errors}].
 show_errors([Error = {_, Errors}]) when is_list(Errors) ->
   show_faults(?S_ERROR, Error);
 show_errors(Error = {_, Errors}) when is_list(Errors) ->
   show_faults(?S_ERROR, Error).
 
--spec show_warnings([{file:filename(), warnings()}]) -> any().
-show_warnings([]) -> % This is how the internal structure of the EPP works. When it has no errors, it returns [],
-% otherwise it returns [{file,list of errors}].
+-spec show_warnings(location()) -> any().
+show_warnings([]) -> %TODO: Test whether this case is taken.
   ok;
 show_warnings([Warning = {_, Warnings}]) when is_list(Warnings) ->
   show_faults(?S_WARNING, Warning);
@@ -79,9 +84,9 @@ push_error(Mod, {Code, Node}, Error = #error{errors = Errors}) ->
 %%  [{erl_syntax:get_pos(ErrNode), ?MODULE, {Class, ErrNode}} | Errors]
 %%    {erl_syntax:get_pos(Data), ?MODULE, {Code, Data}}
 %%    Error#error{errors = [{Code, Data} | Errors]}.
-    Error#error{errors = [
-      {erl_syntax:get_pos(Node), Mod, {Code, Node}} | Errors
-    ]}.
+  Error#error{errors = [
+    {erl_syntax:get_pos(Node), Mod, {Code, Node}} | Errors
+  ]}.
 
 push_warning(Mod, {Code, Node}, Error = #error{warnings = Warnings}) ->
   Error#error{warnings = [

@@ -31,18 +31,18 @@
 %%-define(free(MbName), {mb_state, free, "shouldbefilledautomatically?", MbName}).
 
 %%-define(mb_assert(Mailbox, Regex), {'@state', Mailbox, Regex}).
--define(mb_assert(Mailbox, Regex), {'@state', Mailbox, Regex}).
--define(mb_assert_regex(Regex), {'@state', Regex}).
+-define(mb_assert(Mailbox, Regex), {'state', Mailbox, Regex}).
+-define(mb_assert_regex(Regex), {'state', Regex}).
 
--define(mb_type(Mailbox), {'@type', Mailbox}).
+-define(mb_type(Mailbox), {'type', Mailbox}).
 
--define(mb_new(Mailbox), {'@new', Mailbox}).
+-define(mb_new(Mailbox), {'new', Mailbox}).
 
--define(mb_use(Mailbox), {'@use', Mailbox}).
+-define(mb_use(Mailbox), {'use', Mailbox}).
 
--define(mb_new_x(Mailbox, Expr), {'@new', Mailbox, Ret = Expr}, Ret).
+-define(mb_new_x(Mailbox, Expr), {'new', Mailbox, Ret = Expr}, Ret).
 
--define(mb_use_x(Mailbox, Expr), {'@use', Mailbox, Ret = Expr}, Ret).
+-define(mb_use_x(Mailbox, Expr), {'use', Mailbox, Ret = Expr}, Ret).
 
 
 -record(t_info, {
