@@ -28,7 +28,7 @@
 -new({future_mb, [future/0]}).
 %%-use({future_mb, [future/0]}).
 
--use({future_mb, [resolved_future/2]}).
+-use({future_mb, [resolved_future/3]}).
 
 -new({user_mb, [user/1]}).
 
@@ -101,7 +101,7 @@ future() ->
     %% @use future() (@use is derived from the interface of the resolved_future function)
 %%    ?mb_use(future_mb),
     ?mb_use(future_mb),
-    resolved_future(Value, 42)
+    resolved_future(Value, 42, hello)
   end.
 
 %% def resolvedFuture(self: Future?, value: Int): Unit {
@@ -117,8 +117,8 @@ future() ->
 %% @spec resolved_future(integer()) -> none()
 %% @use future()
 %%-use future.
--spec resolved_future(integer(), integer()) -> none().
-resolved_future(Value, 42) ->
+-spec resolved_future(integer(), integer(), any()) -> none().
+resolved_future(Value, 42, State) ->
   %% @mb future()
   %% @assert get*
   ?mb_assert_regex("get*"),
@@ -128,7 +128,7 @@ resolved_future(Value, 42) ->
       UserPid ! {reply, Value},
       %% @use future()
       ?mb_use(future_mb),
-      resolved_future(Value, 42)
+      resolved_future(Value, 42, State)
   end.
 
 %% def user(future: Future!): Int {
