@@ -116,6 +116,8 @@ translate_clauses(Clauses, MbCtx) ->
     ),
   {lists:reverse(Clauses0), MbCtx0}.
 
+%%HERE: I have a translation draft. Next, check that mb contexts align well together.
+
 %% @private Translates a receive/case and if clause.
 translate_clause(_Clause = {clause, Anno, PatSeq = [_], _GuardSeq = [], Body}, MbCtx) ->
   ?TRACE("Translating receive clause: ~p", [_Clause]),
