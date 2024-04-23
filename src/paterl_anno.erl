@@ -402,10 +402,10 @@ annotate_expr_seq([_MbAnno = {tuple, Anno, [Name = {atom, _, _}, Arg = {_, _, _}
   Macro = erl_syntax:set_pos(erl_syntax:macro(Name, [Arg]), Anno),
   {[], ?pushError(?E_EXPECTED_EXPR, Macro, Error)};
 
-annotate_expr_seq(Expr = [{match, _, Pat, _MbAnno = {tuple, Anno, [Name = {atom, _, _}, Arg = {_, _, _}]}}], MbScope, TInfo, Error) ->
-  % Mailbox-annotation as match RHS, which is not followed by another expression.
-  Macro = erl_syntax:set_pos(erl_syntax:macro(Name, [Arg]), Anno),
-  {[], ?pushError(?E_EXPECTED_EXPR, Macro, Error)};
+%%annotate_expr_seq(Expr = [{match, _, Pat, _MbAnno = {tuple, Anno, [Name = {atom, _, _}, Arg = {_, _, _}]}}], MbScope, TInfo, Error) ->
+%%  % Mailbox-annotation as match RHS, which is not followed by another expression.
+%%  Macro = erl_syntax:set_pos(erl_syntax:macro(Name, [Arg]), Anno),
+%%  {[], ?pushError(?E_EXPECTED_EXPR, Macro, Error)};
 
 annotate_expr_seq([_MbAnno = {tuple, _, [{atom, _, _}, {_, _, _}]}, MbAnno = {tuple, Anno, [Name = {atom, _, _}, Arg = {_, _, _}]} | ExprSeq], MbScope, TInfo, Error) ->
   % Two successive mailbox annotations.
@@ -414,19 +414,19 @@ annotate_expr_seq([_MbAnno = {tuple, _, [{atom, _, _}, {_, _, _}]}, MbAnno = {tu
   {_, Error1} = annotate_expr_seq(ExprSeq, MbScope, TInfo, Error0),
   {[], Error1};
 
-annotate_expr_seq([{match, Anno, Pat, _MbAnno = {tuple, _, [{atom, _, Name}, {_, _, Value}]}}, Expr | ExprSeq], MbScope, TInfo, Error) ->
-  % RHS of match expression is a mailbox-annotation expression. Use mailbox-
-  % annotation name and value to annotate the AST node of the next expression in
-  % the expression list. At this point, the next expression must exist. Replace
-  % the mailbox-annotation in RHS of match with the AST of the newly annotated
-  % (next) expression.
-  Match0 = erl_syntax:revert(
-    erl_syntax:set_pos(erl_syntax:match_expr(Pat, Expr), Anno)
-  ),
-
-  {Expr1, Error0} = annotate_expr(Match0, {Name, Value}, MbScope, TInfo, Error),
-  {ExprSeq1, Error1} = annotate_expr_seq(ExprSeq, MbScope, TInfo, Error0),
-  {[Expr1 | ExprSeq1], Error1};
+%%annotate_expr_seq([{match, Anno, Pat, _MbAnno = {tuple, _, [{atom, _, Name}, {_, _, Value}]}}, Expr | ExprSeq], MbScope, TInfo, Error) ->
+%%  % RHS of match expression is a mailbox-annotation expression. Use mailbox-
+%%  % annotation name and value to annotate the AST node of the next expression in
+%%  % the expression list. At this point, the next expression must exist. Replace
+%%  % the mailbox-annotation in RHS of match with the AST of the newly annotated
+%%  % (next) expression.
+%%  Match0 = erl_syntax:revert(
+%%    erl_syntax:set_pos(erl_syntax:match_expr(Pat, Expr), Anno)
+%%  ),
+%%
+%%  {Expr1, Error0} = annotate_expr(Match0, {Name, Value}, MbScope, TInfo, Error),
+%%  {ExprSeq1, Error1} = annotate_expr_seq(ExprSeq, MbScope, TInfo, Error0),
+%%  {[Expr1 | ExprSeq1], Error1};
 
 annotate_expr_seq([Match = {match, _, _Pat, _Expr} | ExprSeq], MbScope, TInfo, Error) ->
   % RHS of match expression is a non mailbox-annotated expression.

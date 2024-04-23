@@ -66,11 +66,10 @@ user(Future) ->
 
 -spec main() -> any().
 main() ->
-  Future =
-    ?mb_new(future_mb),
-    spawn(?MODULE, future_fun, []),
-  T4 = Future ! {put, 5},
-  T5 = format("Got ~p.~n", [user(Future)]).
+  ?mb_new(future_mb),
+  Future_mb = spawn(?MODULE, future, []),
+  T4 = Future_mb ! {put, 5},
+  T5 = format("Got ~p.~n", [user(Future_mb)]).
 
 
 
