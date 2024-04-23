@@ -48,9 +48,9 @@ translate_forms([Form | Forms]) ->
 
 
 
-translate_form({attribute, Anno, module, Name}) ->
+translate_form({attribute, _, module, Name}) ->
   ["# Translated from ", atom_to_list(Name), ".erl\n"];
-translate_form({attribute, Anno, interface, {Name, Type, _Vars = []}}) ->
+translate_form({attribute, _, interface, {Name, Type, _Vars = []}}) ->
   Type0 = translate_type(Type),
   ["interface ", string:titlecase(atom_to_list(Name)), " {\n", Type0, "\n}\n\n"];
 

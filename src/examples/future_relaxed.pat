@@ -11,9 +11,9 @@
 # -type future() :: pid() | put() | get().
 # -type user() :: pid() | reply().
 
-interface Future { Put(Int), Get(User!) }
-interface User { Reply(Int) }
-interface Main { }
+interface Future_mb { Put(Int), Get(User_mb!) }
+interface User_mb { Reply(Int) }
+interface Main_mb { }
 
 # -spec future_fun() -> no_return().
 # future_fun() ->
@@ -22,7 +22,7 @@ interface Main { }
 #     {put, X} ->
 #       resolved_future(X)
 #   end.
-def future_fun(mb0: Future?): (Unit * Future?) {
+def future(mb0: Future_mb?): (Unit * Future_mb?) {
   guard mb0: Put.*Get {
     receive Put(x) from mb1 ->
       resolved_future(mb1, x)
@@ -37,7 +37,7 @@ def future_fun(mb0: Future?): (Unit * Future?) {
 #       User ! {reply, X},
 #       resolved_future(X)
 #   end.
-def resolved_future(mb2: Future?, x:Int): (Unit * Future?) {
+def resolved_future(mb2: Future_mb?, x:Int): (Unit * Future_mb?) {
   guard mb2: *Get {
     empty(mb2) -> ((), mb2)
     receive Get(user) from mb3 ->
@@ -59,7 +59,7 @@ def resolved_future(mb2: Future?, x:Int): (Unit * Future?) {
 #       ?free,
 #       X
 #   end.
-def user(mb5: User?, future: Future!): (Int * User?) {
+def user(mb5: User_mb?, future: Future_mb!): (Int * User_mb?) {
   let (self, mb6) =
     (mb5, mb5)
   in
@@ -69,7 +69,7 @@ def user(mb5: User?, future: Future!): (Int * User?) {
       t1;
       guard mb7: Reply {
         receive Reply(x) from mb8 ->
-          (x, mb8) # Condition that if the expression list is one element long, this would be a shortcut instead of using lets.
+          (x, mb8)
       }
 }
 
@@ -81,14 +81,14 @@ def user(mb5: User?, future: Future!): (Int * User?) {
 #   TECHNICALLY, THIS IS THE SAME MAIN MAILBOX SHARED BETWEEN TWO USER() FUNCTIONS.
 #   format("Got ~p.~n", [user(Future)]),
 #   format("Got ~p.~n", [user(Future)]).
-def main(mb9: Main?): (Unit * Main?) {
+def main(mb9: Main_mb?): (Unit * Main_mb?) {
 
   let (future_mb, mb10) =
       (let mb11 =
-        new [Future]
+        new [Future_mb]
       in
         let t2 =
-          spawn { let (t3, mb12) = future_fun(mb11) in t3; free(mb12) }
+          spawn { let (t3, mb12) = future(mb11) in t3; free(mb12) }
         in
           t2;
           (mb11, mb9))
@@ -100,7 +100,7 @@ def main(mb9: Main?): (Unit * Main?) {
 
       let (a, mb13) =
         (let mb14 =
-          new [User]
+          new [User_mb]
         in
           let (x, mb15) =
             user(mb14, future_mb)
@@ -113,9 +113,10 @@ def main(mb9: Main?): (Unit * Main?) {
         (print(intToString(a)), mb13)
 }
 
+# Might have to be automagically inserted.
 def main0(): Unit {
   let main_x =
-    new [Main]
+    new [Main_mb]
   in
     let (tX, main_y) =
       main(main_x)
