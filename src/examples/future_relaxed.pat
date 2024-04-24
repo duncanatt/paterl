@@ -10,75 +10,104 @@ def future(mb0: Future_mb?): (Unit * Future_mb?) {
   }
 }
 
-def resolved_future(mb2: Future_mb?, x:Int): (Unit * Future_mb?) {
-  guard mb2: *Get {
-    empty(mb2) -> ((), mb2)
-    receive Get(user) from mb3 ->
-      let (t0, mb4) =
-        (user ! Reply(x), mb3)
+def resolved_future(mb0: Future_mb?, x: Int): (Unit * Future_mb?) {
+  guard mb0: *Get {
+    empty(mb1) -> ((), mb1)
+    receive Get(user) from mb1 ->
+      let (t0, mb2) =
+        (user ! Reply(x), mb1)
       in
         t0;
-        resolved_future(mb4, x)
+        resolved_future(mb2, x)
   }
 }
 
-def user(mb5: User_mb?, future: Future_mb!): (Int * User_mb?) {
-  let (self, mb6) =
-    (mb5, mb5)
+def user(mb0: User_mb?, future: Future_mb!): (Int * User_mb?) {
+  let (self, mb1) =
+    (mb0, mb0)
   in
-    let (t1, mb7) =
-      (future ! Get(self), mb6)
+    let (t0, mb2) =
+      (future ! Get(self), mb1)
     in
-      t1;
-      guard mb7: Reply {
-        receive Reply(x) from mb8 ->
-          (x, mb8)
+      t0;
+      guard mb2: Reply {
+        receive Reply(x) from mb3 ->
+          (x, mb3)
+          #((), mb3)
       }
 }
 
-def main(mb9: Main_mb?): (Unit * Main_mb?) {
-
-  let (future_mb, mb10) =
-      (let mb11 =
+def main(mb0: Main_mb?): (Unit * Main_mb?) {
+  let (future_mb, mb3) =
+      (let mb1 =
         new [Future_mb]
       in
-        let t2 =
-          spawn { let (t3, mb12) = future(mb11) in t3; free(mb12) }
+        let y =
+          spawn { let (x, mb2) = future(mb1) in free(mb2); x }
         in
-          t2;
-          (mb11, mb9))
+          mb1, mb0)
   in
-    let (t4, mb12) =
-      (future_mb ! Put(5), mb10)
+    let (t0, mb4) =
+      (future_mb ! Put(5), mb3)
     in
-      t4;
+      t0;
 
-      let (a, mb13) =
-        (let mb14 =
+      let (a, mb5) =
+        (let mb6 =
           new [User_mb]
         in
-          let (x, mb15) =
-            user(mb14, future_mb)
+          let (x, mb7) =
+            user(mb6, future_mb)
           in
             let y =
-              free(mb15)
+              free(mb7)
             in
-              (x, mb12))
+              x, mb4)
       in
-        (print(intToString(a)), mb13)
+        (print(intToString(a)), mb5)
 }
 
 # Might have to be automagically inserted.
 def main0(): Unit {
-  let main_x =
+  let mb0 =
     new [Main_mb]
   in
-    let (tX, main_y) =
-      main(main_x)
+    let (x, mb1) =
+      main(mb0)
     in
-      let tY =
-        free(main_y)
+      let y =
+        free(mb1)
       in
-        tX
+        x
 }
 
+def no_mb_fun(): Int {
+  let (x, t0) =
+    (5, ())
+  in
+    t0;
+    let (y, t1) =
+      (10, ())
+    in
+      t1;
+      x + y
+}
+
+def let_problem(x: String): (Int * String) {
+  (let y = 10 in y, x) # Works.
+  #(let x = 10 in x, x) # Fails.
+}
+
+def let_test(): Unit {
+  let x =
+    spawn { () } # Works.
+    #spawn { 1 } # Fails. Is the expression in spawn expected to return ()?
+    #spawn { (1, 1) } # Fails for the same reason.
+  in
+    #x
+    ()
+}
+
+def linearity_test(): Unit {
+  let x = 5 in ()
+}

@@ -54,8 +54,9 @@ translate_form({attribute, _, interface, {Name, Type, _Vars = []}}) ->
   Type0 = translate_type(Type),
   ["interface ", string:titlecase(atom_to_list(Name)), " {\n", Type0, "\n}\n\n"];
 
-translate_form({function, Anno, Name, Arity, Clauses = [_]}) ->
+translate_form({function, _, Name, Arity, Clauses = [_]}) ->
   % Function with one clause.
+  ?TRACE("Translating function ~s/~b.", [Name, Arity]),
   Clauses0 = translate_clauses(Clauses),
   ["def ", atom_to_list(Name), Clauses0, "\n"];
 translate_form(_) ->
@@ -93,18 +94,6 @@ translate_type_seq([Type | TypeSeq]) ->
 %%% ----------------------------------------------------------------------------
 
 %% @private Translates receive/case and if clauses.
-%%translate_clauses(Clauses, MbCtx) ->
-%%  ?TRACE("(~s) Translating open clauses.", [MbCtx]),
-%%  {X, Y} =
-%%  lists:foldl(
-%%    fun(Clause, {Clauses0, MbCtx0}) ->
-%%      {Clause1, MbCtx1} = translate_clause(Clause, MbCtx0),
-%%      {[Clause1 | Clauses0], MbCtx1}
-%%    end,
-%%    {[], MbCtx}, Clauses
-%%  ),
-%%  ?TRACE("(~s) Translated clauses: ~p", [Y, X]),
-%%  {lists:reverse(X), Y}.
 translate_clauses(Clauses, MbCtx) ->
   {Clauses0, MbCtx0} =
     lists:foldl(
@@ -116,19 +105,16 @@ translate_clauses(Clauses, MbCtx) ->
     ),
   {lists:reverse(Clauses0), MbCtx0}.
 
-%%HERE: I have a translation draft. Next, check that mb contexts align well together.
-
 %% @private Translates a receive/case and if clause.
 translate_clause(_Clause = {clause, Anno, PatSeq = [_], _GuardSeq = [], Body}, MbCtx) ->
-  ?TRACE("Translating receive clause: ~p", [_Clause]),
-  % Unguarded receive/case clause.
-%%  MbCtx0 = new_mb(MbCtx),
-  MbCtx0 = new_mb(),
+  % Unguarded receive or case clause.
+  MbCtx0 = new_mb(MbCtx),
+
 
   PatSeq0 = translate_pat_seq(PatSeq),
   {Body0, MbCtx1} = translate_body(Body, MbCtx0),
   Expr1 = io_lib:format("receive ~s from ~s ->~n~s", [
-    PatSeq0, MbCtx1, Body0
+    PatSeq0, MbCtx0, Body0
   ]),
 
   {Expr1, MbCtx1};
@@ -172,14 +158,83 @@ translate_expr_seq(ExprSeq, MbCtx) ->
     ),
   {lists:reverse(ExprSeq0), MbCtx0}.
 
+hack_it(Expr = {call, Anno, Spawn = {atom, _, spawn}, _MFArgs = [_, Fun, Args]}, MbCtx) ->
+  % Spawn.
+  Interface = string:titlecase(atom_to_list(paterl_anno:interface(Anno))),
+
+  Args0 = erl_syntax:list_elements(Args),
+  Expr0 = erl_syntax:revert(
+    erl_syntax:set_pos(
+      erl_syntax:application(Fun, Args0), paterl_anno:set_modality(use, Anno))
+  ),
+
+  MbCtx0 = new_mb(MbCtx),
+  MbCtx1 = new_mb(MbCtx0),
+
+  {Expr1, _} = translate_expr(Expr0, MbCtx0),
+
+  Expr2 =
+    lists:flatten(
+      io_lib:format("spawn { let (x, ~s) = ~s in free(~s); x }", [
+        MbCtx1, Expr1, MbCtx1
+      ])
+    ),
+  Expr3 = io_lib:format("let ~s =~nnew[~s]~nin~nlet y =~n~s~nin~n~s", [
+    MbCtx0, Interface, Expr2, MbCtx0
+  ]),
+  Expr4 = io_lib:format("(~s, ~s)", [Expr3, MbCtx]),
+  {Expr4, MbCtx1};
+hack_it({call, Anno, Fun = {atom, _, Name}, Args}, MbCtx) ->
+  % Explicit internal function call and explicit internal mailbox-annotated
+  % function call.
+  case paterl_anno:modality(Anno) of
+    undefined ->
+      % Call to closed function call outside mailbox context.
+      Args0 = translate_args(Args),
+      ?TRACE("Translated function arguments: ~p", [lists:flatten(Args0)]),
+      io_lib:format("ERROR!(~s(~s), ~s)", [Name, Args0, MbCtx]);
+    new ->
+      % Only the new interface modality is expected at this point.
+      Interface = string:titlecase(atom_to_list(paterl_anno:interface(Anno))),
+
+      Expr0 = erl_syntax:revert(
+        erl_syntax:set_pos(
+          erl_syntax:application(Fun, Args), paterl_anno:set_modality(use, Anno))
+      ),
+
+      MbCtx0 = new_mb(MbCtx),
+      MbCtx1 = new_mb(MbCtx0),
+      MbCtx2 = new_mb(MbCtx1),
+
+      {Expr1, MbCtx1} = translate_expr(Expr0, MbCtx1),
+
+      Expr2 =
+        lists:flatten(
+          io_lib:format("let (x, ~s) =~n~s~nin~nlet y =~nfree(~s)~nin~nx", [
+            MbCtx2, Expr1, MbCtx2
+          ])
+        ),
+
+      Expr3 = io_lib:format("let ~s =~nnew[~s]~nin~n~s", [
+        MbCtx1, Interface, Expr2
+      ]),
+      Expr4 = io_lib:format("(~s, ~s)", [Expr3, MbCtx]),
+      {Expr4, MbCtx2}
+  end.
+
+
+
+
 %% @private Translates values and expressions.
 translate_expr({call, _, Self = {atom, _, self}, _MFArgs = []}, MbCtx) ->
   % Self.
   Expr0 = io_lib:format("(~s, ~s)", [MbCtx, MbCtx]),
-%%  MbCtx0 = new_mb(MbCtx),
-  MbCtx0 = new_mb(),
-  {Expr0, MbCtx0};
-%%  HERE: Start populating self and the other functions!
+  {Expr0, MbCtx};
+
+% TODO: This is currently a hack until I discuss with Simon the let expression scoping in when as a tuple element issue.
+translate_expr(Expr = {call, Anno, Spawn = {atom, _, spawn}, _MFArgs = [_, Fun, Args]}, MbCtx) ->
+  % Spawn.
+  hack_it(Expr, MbCtx);
 
 translate_expr(Expr = {call, Anno, Fun = {atom, _, Name}, Args}, MbCtx) ->
   % Explicit internal function call and explicit internal mailbox-annotated
@@ -191,13 +246,18 @@ translate_expr(Expr = {call, Anno, Fun = {atom, _, Name}, Args}, MbCtx) ->
         io:format("-------------------------------------------------------> We are translating function in context but it is closed", []),
         % Call to closed function call outside mailbox context.
         io_lib:format("(~s, ~s)", [translate_expr(Expr), MbCtx]);
+
       Interface ->
         % Call to an open function call inside mailbox context.
         case paterl_anno:modality(Anno) of
           new ->
             io:format("-------------------------------------------------------> We are translating a NEW function in context", []),
             % Inject new mailbox.
-            io_lib:format("(~s, ~s)", [translate_expr(Expr), MbCtx]);
+%%            io_lib:format("(~s, ~s)££", [translate_expr(Expr), MbCtx]); % Re-enable this line and delete the one below once fixed.
+            % TODO: This is a hack until the issue is fixed from Pat's end.
+            {Expr2, _} = hack_it(Expr, MbCtx),
+            Expr2;
+
           use ->
             io:format("-------------------------------------------------------> We are translating a USE function in context ~p", [Expr]),
             % Thread through existing mailbox.
@@ -207,17 +267,31 @@ translate_expr(Expr = {call, Anno, Fun = {atom, _, Name}, Args}, MbCtx) ->
             ])
         end
     end,
-  {Expr1, new_mb()};
+  {Expr1, MbCtx};
+
+
+
 translate_expr({match, _, Pat, Expr}, MbCtx) ->
   % Match.
+%%  {Expr0, MbCtx0} = translate_expr(Expr, MbCtx),
+%%
+%%  MbCtx1 = new_mb(MbCtx0),
+%%
+%%  Expr1 = io_lib:format("let (~s, ~s) =~n~s~nin", [
+%%    translate_pat(Pat), MbCtx1, Expr0
+%%  ]),
+%%  {Expr1, MbCtx1};
+
   {Expr0, MbCtx0} = translate_expr(Expr, MbCtx),
 
+  MbCtx1 = new_mb(MbCtx0),
+
   Expr1 = io_lib:format("let (~s, ~s) =~n~s~nin", [
-    translate_pat(Pat), MbCtx0, Expr0
+  translate_pat(Pat), MbCtx1, Expr0
   ]),
-%%  MbCtx1 = new_mb(MbCtx0),
-  MbCtx1 = new_mb(),
   {Expr1, MbCtx1};
+
+
 translate_expr({'if', _, Clauses = [_, _]}, MbCtx) ->
   % If else.
   {[Clause0, Clause1], MbCtx0} = translate_clauses(Clauses, MbCtx),
@@ -226,36 +300,30 @@ translate_expr({'if', _, Clauses = [_, _]}, MbCtx) ->
   Expr1 = io_lib:format("if ~selse ~s", [
     Clause0, Clause1
   ]),
-%%  MbCtx1 = new_mb(MbCtx0),
-  MbCtx1 = new_mb(),
+  MbCtx1 = new_mb(MbCtx0),
+%%  MbCtx1 = new_mb(),
 
 %%  {["if ", Clause0, "else ", Clause1], MbCtx0};
   {Expr1, MbCtx1};
 translate_expr({'receive', Anno, Clauses}, MbCtx) ->
   % Receive.
   State = paterl_anno:state(Anno),
+
   {Clauses0, MbCtx0} = translate_clauses(Clauses, MbCtx),
 
-
-  % TODO: Logic to determine when to free.
-
-  Expr0 = io_lib:format("guard ~s: ~s {~n~s~n}~n", [
-    MbCtx0, State, Clauses0
-  ]),
-
-  Expr1 =
+  Clauses1 =
     case is_mb_empty(State) of
       true ->
-        Expr0 ++ lists:flatten(
-          io_lib:format("empty(~s)->~n((), ~s)", [MbCtx0, MbCtx0])
-        );
+        MbCtx1 = new_mb(MbCtx),
+          [io_lib:format("empty(~s) -> ((), ~s)~n", [MbCtx1, MbCtx1]) | Clauses0];
       false ->
-        Expr0
+        Clauses0
     end,
 
-%%  MbCtx1 = new_mb(MbCtx0),
-  MbCtx1 = new_mb(),
-  {Expr1, MbCtx1};
+  Expr0 = io_lib:format("guard ~s: ~s {~n~s~n}", [
+    MbCtx, State, Clauses1
+  ]),
+  {Expr0, MbCtx0};
 translate_expr(Expr, MbCtx) ->
   % Literal.
   % Variable.
@@ -277,43 +345,56 @@ translate_clauses(Clauses) ->
 
 %% @private Translates closed function and if clauses.
 translate_clause(_Clause = {clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
-  % Unguarded function clause.
+  % Mailbox-annotated or non mailbox-annotated unguarded function clause.
 
-  % New mailbox.
-  MbCtx0 = new_mb(),
-%%  Params = translate_pat_seq(PatSeq),
-
-%%  Params = translate_params([PatSeq]),
-
-
-  MbPat = erl_syntax:revert(
-    erl_syntax:set_pos(
-      erl_syntax:atom(MbCtx0),
-      paterl_anno:set_type(paterl_anno:interface(Anno), Anno)
-    )),
-
-  Params = translate_params([MbPat | PatSeq]),
+  % Translate function return type.
   RetType = erl_to_pat_type(paterl_anno:type(Anno)),
+
+  % Determine whether function is mailbox-annotated or non mailbox-annotated.
   case paterl_anno:interface(Anno) of
     undefined ->
       % Non mailbox-annotated function.
-      ?TRACE("Translating unguarded NON mailbox-annotated function clause: ~p", [_Clause]),
+      ?TRACE("Translating NON mailbox-annotated guarded function clause */~b.",
+        [length(PatSeq)]
+      ),
 
+      % Translate function parameters and body.
+      Params = translate_params(PatSeq),
       Body0 = translate_body(Body),
-      io_lib:format("(~s): ~s {~n~s~n}~n", [Params, RetType, Body0]);
+
+      io_lib:format("(~s): ~s {~n~s~n}~n",
+        [Params, RetType, Body0]
+      );
     Interface ->
       % Mailbox-annotated function.
-      ?TRACE("Translating unguarded mailbox-annotated function clause: ~p", [_Clause]),
+      ?TRACE("Translating mailbox-annotated guarded function clause */~b.",
+        [length(PatSeq)]
+      ),
 
-      Interface0 = erl_to_pat_type(Interface),
+      % Create mailbox that is injected as the first parameter of the mailbox-
+      % annotated function.
+%%      reset_mb(),
+      MbCtx = new_mb(),
+      MbPat = erl_syntax:revert(
+        erl_syntax:set_pos(
+          erl_syntax:atom(MbCtx),
+          paterl_anno:set_type(paterl_anno:interface(Anno), Anno)
+        )),
 
-      {Body0, _} = translate_body(Body, MbCtx0),
-      io_lib:format("(~s): (~s * ~s) {~n~s~n}~n", [Params, RetType, Interface0, Body0])
+      % Translate function parameters and body.
+      Params = translate_params([MbPat | PatSeq]),
+      {Body0, _} = translate_body(Body, MbCtx),
+
+      io_lib:format("(~s): (~s * ~s) {~n~s~n}~n",
+        [Params, RetType, erl_to_pat_type(Interface), Body0]
+      )
   end;
 
 translate_clause({clause, _, _PatSeq = [], GuardSeq = [_], Body}) ->
   % Guarded if clause.
   Body0 = translate_body(Body),
+
+  % Determine whether clause is the default catch-all true clause.
   case translate_guard_seq(GuardSeq) of
     [["true"]] ->
       % Default Erlang if guard equates to else branch in Pat.
@@ -330,22 +411,16 @@ translate_args(ExprSeq) ->
 
 %% @private Translates value and expression sequences.
 translate_expr_seq(ExprSeq) ->
-  ?TRACE("Have to traslate expr seq: ~p", [ExprSeq]),
-  Trans = [translate_expr(Expr) || Expr <- ExprSeq],
-  ?TRACE("Translated expr_seq: ~p", [Trans]),
-  io:format("TRANSLATED: ~s", [(Trans)]),
-%%  string:join([translate_expr(Expr) || Expr <- ExprSeq], ?SEP_NL).
-%%  string:join(Trans, ?SEP_NL).
-  Trans.
+  [translate_expr(Expr) || Expr <- ExprSeq].
 
 %% @private Translates values and expressions.
 translate_expr(Lit)
   when
-% Literal.
   element(1, Lit) =:= integer;
   element(1, Lit) =:= float;
   element(1, Lit) =:= string;
   element(1, Lit) =:= atom ->
+  % Literal.
   translate_lit(Lit);
 translate_expr({var, _, Name}) ->
   % Variable.
@@ -355,26 +430,9 @@ translate_expr({tuple, _, [_Tag = {atom, _, Name} | Payload]}) ->
   Msg = string:titlecase(atom_to_list(Name)),
   Args = translate_args(Payload),
   io_lib:format("~s(~s)", [Msg, Args]);
-
-
-%%translate_expr(Expr = {call, _, {atom, _, spawn}, }) ->
 translate_expr(Expr = {call, Anno, Spawn = {atom, _, spawn}, _MFArgs = [_, Fun, Args]}) ->
   % Spawn.
   Interface = string:titlecase(atom_to_list(paterl_anno:interface(Anno))),
-
-
-  % TODO: Need to translate arguments.
-  % TODO: We need to use a tuple and let.
-
-%%  let Y =~n
-%%    new[Interface]~n
-%%  in~n
-%%    let y =
-%%      spawn { let (x, YPrime) = TransFunCall_Mb in free(YPrime); x}
-%%    in Y
-
-
-%%  TODO: I need to build an expression that is equal to Fun(Args).
 
 
   Args0 = erl_syntax:list_elements(Args),
@@ -383,15 +441,8 @@ translate_expr(Expr = {call, Anno, Spawn = {atom, _, spawn}, _MFArgs = [_, Fun, 
       erl_syntax:application(Fun, Args0), paterl_anno:set_modality(use, Anno))
   ),
 
-
-
-%%  Anno0 = paterl_anno:set_modality(use, Anno),
-%%  Expr0 = paterl_anno:map_anno(fun(_) -> Anno0 end, Expr),
-
-%%  io:format("=====================================> FunApplication: ~p~n", [Expr0]),
-
   MbCtx0 = new_mb(),
-  MbCtx1 = new_mb(),
+  MbCtx1 = new_mb(MbCtx0),
 
   {Expr1, _} = translate_expr(Expr0, MbCtx0),
 
@@ -404,8 +455,6 @@ translate_expr(Expr = {call, Anno, Spawn = {atom, _, spawn}, _MFArgs = [_, Fun, 
   io_lib:format("let ~s =~nnew[~s]~nin~nlet y =~n~s~nin ~s", [
     MbCtx0, Interface, Expr2, MbCtx0
   ]);
-
-%%  ["TODO: spawn"];
 translate_expr({call, _, {atom, _, format}, Args}) ->
   Args0 = translate_args(Args),
   io_lib:format("print(~s)", [Args0]);
@@ -429,7 +478,7 @@ translate_expr({call, Anno, Fun = {atom, _, Name}, Args}) ->
       Interface = string:titlecase(atom_to_list(paterl_anno:interface(Anno))),
 
       MbCtx0 = new_mb(),
-      MbCtx1 = new_mb(),
+      MbCtx1 = new_mb(MbCtx0),
 
       Expr0 = erl_syntax:revert(
         erl_syntax:set_pos(
@@ -438,16 +487,25 @@ translate_expr({call, Anno, Fun = {atom, _, Name}, Args}) ->
 
       {Expr1, _} = translate_expr(Expr0, MbCtx0),
 
-      io_lib:format("let ~s =
-              new[~s]
-            in
-              let (x, ~s) =
-                ~s
-              in
-                let y = free(~s) in x",
-        [MbCtx0, Interface, MbCtx1, Expr1, MbCtx1])
-  end;
+      Expr2 =
+        lists:flatten(
+          io_lib:format("let (x, ~s) = ~s in~nlet y =~nfree(~s)~nin~nx", [
+            MbCtx1, Expr1, MbCtx1
+          ])
+        ),
+      io_lib:format("let ~s =~nnew[~s]~nin~n~s", [
+        MbCtx0, Interface, Expr2
+      ])
 
+%%      io_lib:format("let ~s =
+%%              ~nnew[~s]
+%%            ~nin
+%%              ~nlet (x, ~s) =
+%%                ~n~s
+%%              ~nin
+%%                ~nlet y = free(~s) in x",
+%%        [MbCtx0, Interface, MbCtx1, Expr1, MbCtx1])
+  end;
 
 
 %%  Args = translate_args(MFArgs),
@@ -570,28 +628,34 @@ translate_lit({atom, _, Value}) ->
 %%new_mb1(MbId) ->
 %%  {"mb" ++ integer_to_list(MbId), MbId + 1}.
 
-%%new_mb() ->
-%%  "mb" ++ integer_to_list(?MB_IDX_START).
-%%
-%%new_mb([$m, $b | IdStr]) ->
-%%  "mb" ++ integer_to_list(list_to_integer(IdStr) + 1).
-
 new_mb() ->
-  "mb" ++
-  integer_to_list(
-    case get(mb) of
-      undefined ->
-        put(mb, 0),
-        0;
-      Mb ->
-        put(mb, Mb + 1),
-        Mb
-    end
-  ).
+  "mb" ++ integer_to_list(?MB_IDX_START).
+
+new_mb([$m, $b | IdStr]) ->
+  "mb" ++ integer_to_list(list_to_integer(IdStr) + 1).
+
+%%reset_mb() ->
+%%  put(mb, 0).
+%%
+%%new_mb() ->
+%%  "mb" ++ integer_to_list(put(mb, get(mb) + 1)).
+
+%%new_mb() ->
+%%  "mb" ++
+%%  integer_to_list(
+%%    case get(mb) of
+%%      undefined ->
+%%        put(mb, 1),
+%%        0;
+%%      Mb ->
+%%        put(mb, Mb + 1),
+%%        Mb
+%%    end
+%%  ).
 
 %% @private Checks whether a mailbox can become potentially empty.
 is_mb_empty(Regex) ->
-  case re:run(Regex, "^1|\\*.*|1.*|.*1$") of
+  case re:run(Regex, "^(\\*.*|1.*|.*1)$") of
     {match, _} ->
       true;
     _ ->
@@ -622,3 +686,16 @@ erl_to_pat_type(Mb) when is_atom(Mb) ->
 erl_to_pat_type(_) ->
   "Unknown".
 
+%% Pending.
+% 0. Fix bug in let where it generates an empty 'in' expression when it's the last thing in the sequence. NOT A BUG.
+% 1. Upper case message tags in regular expressions.
+% 2. Regular expression parser to simplify things.
+% 3. Add pass before annotations that converts expression sequences to assignments.
+% 4. Maybe ask Simon to support the _?
+% 5. Add a lightweight check that excludes the unsupported Erlang expressions to bring the input as the syntax we have on paper.
+% 6. Insert variable use in let expressions when we have unit () variables. This happens in when we let bind expressions
+%    that return unit. There are three cases: send, function calls that return unit, 'if' condition maybe. We can have a function is_unit()?
+% 7. Have a module that provides a PAT API to create functions out of translated expressions: this enables us to encapsulate
+%    the string mess (pat_syntax).
+% 8. Then have another module that provides an API that does the translation? Maybe or maybe not because then we would not
+%    be able to leverage pattern matching (it becomes similar to when we are using erl_syntax.)

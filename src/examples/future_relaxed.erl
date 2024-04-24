@@ -51,27 +51,33 @@ resolved_future(X) ->
   receive
     {get, User} ->
       T0 = User ! {reply, X},
+%%      TX = 5,
       resolved_future(X)
   end.
 
 -spec user(future_mb()) -> integer().
 user(Future) ->
   Self = self(),
-  T2 = Future ! {get, Self},
+  T0 = Future ! {get, Self},
   ?mb_assert_regex("reply"),
   receive
     {reply, X} ->
-      T3 = X
+      X
   end.
 
 -spec main() -> any().
 main() ->
   ?mb_new(future_mb),
   Future_mb = spawn(?MODULE, future, []),
-  T4 = Future_mb ! {put, 5},
-  T5 = format("Got ~p.~n", [user(Future_mb)]).
+  T0 = Future_mb ! {put, 5},
+  A = user(Future_mb),
+  format("Got ~p.~n", [A]).
 
 
+-spec a_non_annotated_fun(string(), integer(), float(), atom()) -> any().
+a_non_annotated_fun(Var, 1, 2.0, hello) ->
+  if 5 == 2 -> five_is_two; true -> five_is_not_two, "but two is not", 5 end,
+  a_non_annotated_fun(Var, 1, 2.0, hello).
 
 
 
