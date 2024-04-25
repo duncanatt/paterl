@@ -69,6 +69,7 @@ translate_form(_) ->
   [].
 
 
+%HERE: Refactor these type functions to use the function to_pat_type and pass the thrid element of the tuple to it.
 translate_type({type, _, pid, _Vars = []}) ->
   % PID type is not translated.
   "";
@@ -85,7 +86,7 @@ translate_type({type, _, none, _Vars = []}) ->
 translate_type({atom, _, _}) ->
   "Unit";
 translate_type({user_type, _, Name, _Vars = []}) ->
-  string:titlecase(atom_to_list(Name));
+  string:titlecase(atom_to_list(Name)) ++ "!";
 translate_type({type, _, tuple, [{atom, _, Name} | TypeSeq]}) ->
   % Message signature type.
   Msg = string:join(translate_type_seq(TypeSeq), ","),
@@ -389,9 +390,11 @@ translate_clause(_Clause = {clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
       % annotated function.
 %%      reset_mb(),
       MbCtx = new_mb(),
-%%      MbType = io_lib:format("~s?",
-%%        [erl_to_pat_type(paterl_anno:interface(Anno))]
-%%      ),
+      MbType = io_lib:format("~s?",
+        [string:titlecase(atom_to_list(paterl_anno:interface(Anno)))]
+      ),
+
+
 
 %%      MbType = make_recv_type(Interface),
 %%      MbPat = erl_syntax:revert(
@@ -400,20 +403,26 @@ translate_clause(_Clause = {clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
 %%          paterl_anno:set_type(Interface, Anno)
 %%        )),
 
-      MbType = erl_syntax:revert(erl_syntax:user_type_application(erl_syntax:atom(Interface), [])),
-      MbPat = erl_syntax:revert(
-        erl_syntax:set_pos(
-          erl_syntax:variable(MbCtx),
-          paterl_anno:set_read(paterl_anno:read(Anno), paterl_anno:set_type(MbType, Anno))
-        )),
+%%      MbType = erl_syntax:revert(erl_syntax:user_type_application(erl_syntax:atom(Interface), [])),
+%%      MbPat = erl_syntax:revert(
+%%        erl_syntax:set_pos(
+%%          erl_syntax:variable(MbCtx),
+%%          paterl_anno:set_read(paterl_anno:read(Anno), paterl_anno:set_type(MbType, Anno))
+%%        )),
 
+      Params =
+      case PatSeq of
+        [] ->
+          io_lib:format("~s: ~s", [MbCtx, MbType]);
+        PatSeq ->
+          io_lib:format("~s: ~s, ~s", [MbCtx, MbType, translate_params(PatSeq)])
+      end,
 
 %%      MbParam = translate_params([MbPat]),
 
-%%      MbParam = lists:flatten(io_lib:format("~s: ~s", [MbCtx, MbType])),
 
       % Translate function parameters and body.
-      Params = translate_params([MbPat | PatSeq]),
+%%      Params = io_lib:format("~s", [translate_params(PatSeq)]),
 
 %%      Params = "",
 
@@ -421,17 +430,15 @@ translate_clause(_Clause = {clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
 %%      ?TRACE(">>> MbParam flattened: ~p", [lists:flatten(MbParam)]),
 %%      ?TRACE(">>> Params: ~p", [translate_params(PatSeq)]),
 %%      ?TRACE(">>> Params flattened: ~p", [lists:flatten(translate_params(PatSeq))]),
-%%      ?TRACE(">>> Flattened: ~p", [[MbParam | lists:flatten(translate_params(PatSeq))]]),
+%%      ?TRACE(">>> Flattened: ~p", [[MbParam | Params]]),
 
-%%      Params = string:join(
-%%        [MbParam, lists:flatten(translate_params(PatSeq))], ?SEP_PAT
-%%      ),
+%%      Params0 = string:join([MbParam, Params], ?SEP_PAT),
 
       {Body0, _} = translate_body(Body, MbCtx),
 
-      io_lib:format("(~s): (~s * ~s?) {~n~s~n}~n",
+      io_lib:format("(~s): (~s * ~s) {~n~s~n}~n",
 %%        [Params, RetType, Interface, Body0]
-        [Params, RetType, translate_type(MbType), Body0]
+        [Params, RetType, MbType, Body0]
       )
   end;
 
@@ -611,35 +618,19 @@ translate_guard_test({op, _, Op, GuardTest}) ->
   [atom_to_list(Op), GuardTest0].
 
 translate_params(PatSeq) ->
-%%  Translate = fun(Pat) ->
-%%    Anno = element(2, Pat),
-%%    Type = erl_to_pat_type(paterl_anno:type(Anno)),
-%%    Type0 =
-%%      case paterl_anno:capability(Anno) of
-%%        undefined ->
-%%          Type;
-%%        read ->
-%%          erl_to_pat_type(Type) ++ "?";
-%%        write ->
-%%          erl_to_pat_type(Type) ++ "!"
-%%      end,
-%%%%    Type = erl_to_pat_type(paterl_anno:type(element(2, Pat))),
-%%    io_lib:format("~s: ~s", [translate_pat(Pat), Type])
-%%              end,
-%%  string:join([Translate(Pat) || Pat <- PatSeq], ?SEP_PAT).
-
   Translate =
     fun(Pat) ->
       Anno = element(2, Pat),
       Type = paterl_anno:type(Anno),
-      ?TRACE("±Type is: ~p", [Type]),
-      Capability =
-        case paterl_anno:read(Anno) of
-          true -> "?";
-          false -> "!"
-        end,
+%%      ?TRACE("±Type is: ~p", [Type]),
+%%      Capability =
+%%        case paterl_anno:read(Anno) of
+%%          true -> "?";
+%%          false -> "!"
+%%        end,
 
-      io_lib:format("~s: ~s~s", [translate_pat(Pat), translate_type(Type), Capability])
+%%      io_lib:format("~s: ~s~s", [translate_pat(Pat), translate_type(Type), Capability])
+      io_lib:format("~s: ~s", [translate_pat(Pat), translate_type(Type)])
     end,
   string:join([Translate(Pat) || Pat <- PatSeq], ?SEP_PAT).
 
