@@ -32,6 +32,11 @@
 
 -spec translate(erl_syntax:forms()) -> list().
 translate(Forms) ->
+
+  %TODO: Append a special form that is the main0 function which I should build with erl_syntax.
+
+
+
   translate_forms(Forms).
 
 
@@ -170,20 +175,34 @@ hack_it(Expr = {call, Anno, Spawn = {atom, _, spawn}, _MFArgs = [_, Fun, Args]},
 
   MbCtx0 = new_mb(MbCtx),
   MbCtx1 = new_mb(MbCtx0),
+  MbCtx2 = new_mb(MbCtx1),
 
-  {Expr1, _} = translate_expr(Expr0, MbCtx0),
+%%  {Expr1, _} = translate_expr(Expr0, MbCtx0),
+%%
+%%  Expr2 =
+%%    lists:flatten(
+%%      io_lib:format("spawn { let (x, ~s) = ~s in free(~s); x }", [
+%%        MbCtx1, Expr1, MbCtx1
+%%      ])
+%%    ),
+%%  Expr3 = io_lib:format("let ~s =~nnew[~s]~nin~nlet y =~n~s~nin~n~s", [
+%%    MbCtx0, Interface, Expr2, MbCtx0
+%%  ]),
+%%  Expr4 = io_lib:format("(~s, ~s)", [Expr3, MbCtx]),
+%%  {Expr4, MbCtx1};
+  {Expr1, MbCtx1} = translate_expr(Expr0, MbCtx1),
 
   Expr2 =
     lists:flatten(
       io_lib:format("spawn { let (x, ~s) = ~s in free(~s); x }", [
-        MbCtx1, Expr1, MbCtx1
+        MbCtx2, Expr1, MbCtx2
       ])
     ),
   Expr3 = io_lib:format("let ~s =~nnew[~s]~nin~nlet y =~n~s~nin~n~s", [
-    MbCtx0, Interface, Expr2, MbCtx0
+    MbCtx1, Interface, Expr2, MbCtx1
   ]),
   Expr4 = io_lib:format("(~s, ~s)", [Expr3, MbCtx]),
-  {Expr4, MbCtx1};
+  {Expr4, MbCtx};
 hack_it({call, Anno, Fun = {atom, _, Name}, Args}, MbCtx) ->
   % Explicit internal function call and explicit internal mailbox-annotated
   % function call.
@@ -489,7 +508,7 @@ translate_expr({call, Anno, Fun = {atom, _, Name}, Args}) ->
 
       Expr2 =
         lists:flatten(
-          io_lib:format("let (x, ~s) = ~s in~nlet y =~nfree(~s)~nin~nx", [
+          io_lib:format("let (x, ~s) =~n~s~nin~nlet y =~nfree(~s)~nin~nx", [
             MbCtx1, Expr1, MbCtx1
           ])
         ),

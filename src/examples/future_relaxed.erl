@@ -39,7 +39,7 @@
 
 -spec future() -> no_return().
 future() ->
-  ?mb_assert_regex("put.*get"),
+  ?mb_assert_regex("Put.*Get"),
   receive
     {put, X} ->
       resolved_future(X)
@@ -47,7 +47,7 @@ future() ->
 
 -spec resolved_future(integer()) -> no_return().
 resolved_future(X) ->
-  ?mb_assert_regex("*get"),
+  ?mb_assert_regex("*Get"),
   receive
     {get, User} ->
       T0 = User ! {reply, X},
@@ -59,7 +59,7 @@ resolved_future(X) ->
 user(Future) ->
   Self = self(),
   T0 = Future ! {get, Self},
-  ?mb_assert_regex("reply"),
+  ?mb_assert_regex("Reply"),
   receive
     {reply, X} ->
       X
@@ -71,13 +71,18 @@ main() ->
   Future_mb = spawn(?MODULE, future, []),
   T0 = Future_mb ! {put, 5},
   A = user(Future_mb),
-  format("Got ~p.~n", [A]).
+  T1 = format("~s", [A]),
+  if (1 == 1) -> T1; true -> T1 end.
+
+-spec main0() -> any().
+main0() ->
+  main().
 
 
--spec a_non_annotated_fun(string(), integer(), float(), atom()) -> any().
-a_non_annotated_fun(Var, 1, 2.0, hello) ->
-  if 5 == 2 -> five_is_two; true -> five_is_not_two, "but two is not", 5 end,
-  a_non_annotated_fun(Var, 1, 2.0, hello).
+%%-spec a_non_annotated_fun(string(), integer(), float(), atom()) -> any().
+%%a_non_annotated_fun(Var, 1, 2.0, hello) ->
+%%  if 5 == 2 -> five_is_two; true -> five_is_not_two, "but two is not", 5 end,
+%%  a_non_annotated_fun(Var, 1, 2.0, hello).
 
 
 

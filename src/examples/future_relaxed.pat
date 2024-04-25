@@ -38,33 +38,40 @@ def user(mb0: User_mb?, future: Future_mb!): (Int * User_mb?) {
 }
 
 def main(mb0: Main_mb?): (Unit * Main_mb?) {
-  let (future_mb, mb3) =
-      (let mb1 =
+  let (future_mb, mb1) =
+      (let mb2 =
         new [Future_mb]
       in
         let y =
-          spawn { let (x, mb2) = future(mb1) in free(mb2); x }
+          spawn { let (x, mb3) = future(mb2) in free(mb3); x }
         in
-          mb1, mb0)
+          mb2, mb0)
   in
-    let (t0, mb4) =
-      (future_mb ! Put(5), mb3)
+    let (t0, mb2) =
+      (future_mb ! Put(5), mb1)
     in
       t0;
-
-      let (a, mb5) =
-        (let mb6 =
+      let (a, mb3) =
+        (let mb4 =
           new [User_mb]
         in
-          let (x, mb7) =
-            user(mb6, future_mb)
+          let (x, mb5) =
+            user(mb4, future_mb)
           in
             let y =
-              free(mb7)
+              free(mb5)
             in
-              x, mb4)
+              x, mb2)
       in
-        (print(intToString(a)), mb5)
+        let (t1, mb4) =
+          (print(intToString(a)), mb3)
+        in
+          if (1 == 1) {
+            (t1, mb4)
+          }
+          else {
+            (t1, mb4)
+          }
 }
 
 # Might have to be automagically inserted.
