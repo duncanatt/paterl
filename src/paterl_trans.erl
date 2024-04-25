@@ -76,8 +76,21 @@ translate_type({type, _, integer, _Vars = []}) ->
   "Int";
 translate_type({type, _, string, _Vars = []}) ->
   "String";
-translate_type({user_type, _, Name, _Vars = []}) ->
-  [string:titlecase(atom_to_list(Name)), "!"];
+translate_type({user_type, Anno, Name, _Vars = []}) ->
+%%  ?TRACE("±Anno is: ~p~n", [Anno]),
+%%  ?TRACE("±Name is: ~p~n", [Name]),
+%%  string:titlecase(
+%%    case paterl_anno:capability(Anno) of
+%%      read ->
+%%        atom_to_list(Name) ++ "?";
+%%      write ->
+%%        atom_to_list(Name) ++ "!";
+%%      undefined ->
+%%        atom_to_list(Name) ++ "!WOOP"
+%%    end
+%%  );
+%%  [string:titlecase(atom_to_list(Name)), "!±"];
+  string:titlecase(atom_to_list(Name));
 translate_type({type, _, tuple, [{atom, _, Name} | TypeSeq]}) ->
   % Message signature type.
   Msg = string:join(translate_type_seq(TypeSeq), ","),
@@ -177,19 +190,6 @@ hack_it(Expr = {call, Anno, Spawn = {atom, _, spawn}, _MFArgs = [_, Fun, Args]},
   MbCtx1 = new_mb(MbCtx0),
   MbCtx2 = new_mb(MbCtx1),
 
-%%  {Expr1, _} = translate_expr(Expr0, MbCtx0),
-%%
-%%  Expr2 =
-%%    lists:flatten(
-%%      io_lib:format("spawn { let (x, ~s) = ~s in free(~s); x }", [
-%%        MbCtx1, Expr1, MbCtx1
-%%      ])
-%%    ),
-%%  Expr3 = io_lib:format("let ~s =~nnew[~s]~nin~nlet y =~n~s~nin~n~s", [
-%%    MbCtx0, Interface, Expr2, MbCtx0
-%%  ]),
-%%  Expr4 = io_lib:format("(~s, ~s)", [Expr3, MbCtx]),
-%%  {Expr4, MbCtx1};
   {Expr1, MbCtx1} = translate_expr(Expr0, MbCtx1),
 
   Expr2 =
@@ -242,16 +242,14 @@ hack_it({call, Anno, Fun = {atom, _, Name}, Args}, MbCtx) ->
   end.
 
 
-
-
 %% @private Translates values and expressions.
-translate_expr({call, _, Self = {atom, _, self}, _MFArgs = []}, MbCtx) ->
+translate_expr({call, _, {atom, _, self}, _MFArgs = []}, MbCtx) ->
   % Self.
   Expr0 = io_lib:format("(~s, ~s)", [MbCtx, MbCtx]),
   {Expr0, MbCtx};
 
 % TODO: This is currently a hack until I discuss with Simon the let expression scoping in when as a tuple element issue.
-translate_expr(Expr = {call, Anno, Spawn = {atom, _, spawn}, _MFArgs = [_, Fun, Args]}, MbCtx) ->
+translate_expr(Expr = {call, _, {atom, _, spawn}, _MFArgs = [_Mod, _Fun, _Args]}, MbCtx) ->
   % Spawn.
   hack_it(Expr, MbCtx);
 
@@ -306,7 +304,7 @@ translate_expr({match, _, Pat, Expr}, MbCtx) ->
   MbCtx1 = new_mb(MbCtx0),
 
   Expr1 = io_lib:format("let (~s, ~s) =~n~s~nin", [
-  translate_pat(Pat), MbCtx1, Expr0
+    translate_pat(Pat), MbCtx1, Expr0
   ]),
   {Expr1, MbCtx1};
 
@@ -334,7 +332,7 @@ translate_expr({'receive', Anno, Clauses}, MbCtx) ->
     case is_mb_empty(State) of
       true ->
         MbCtx1 = new_mb(MbCtx),
-          [io_lib:format("empty(~s) -> ((), ~s)~n", [MbCtx1, MbCtx1]) | Clauses0];
+        [io_lib:format("empty(~s) -> ((), ~s)~n", [MbCtx1, MbCtx1]) | Clauses0];
       false ->
         Clauses0
     end,
@@ -367,6 +365,7 @@ translate_clause(_Clause = {clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
   % Mailbox-annotated or non mailbox-annotated unguarded function clause.
 
   % Translate function return type.
+%%  RetType = erl_to_pat_type(paterl_anno:type(Anno)),
   RetType = erl_to_pat_type(paterl_anno:type(Anno)),
 
   % Determine whether function is mailbox-annotated or non mailbox-annotated.
@@ -394,18 +393,49 @@ translate_clause(_Clause = {clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
       % annotated function.
 %%      reset_mb(),
       MbCtx = new_mb(),
+%%      MbType = io_lib:format("~s?",
+%%        [erl_to_pat_type(paterl_anno:interface(Anno))]
+%%      ),
+
+%%      MbType = make_recv_type(Interface),
+%%      MbPat = erl_syntax:revert(
+%%        erl_syntax:set_pos(
+%%          erl_syntax:variable(MbCtx),
+%%          paterl_anno:set_type(Interface, Anno)
+%%        )),
+
+      MbType = erl_syntax:revert(erl_syntax:user_type_application(erl_syntax:atom(Interface), [])),
       MbPat = erl_syntax:revert(
         erl_syntax:set_pos(
-          erl_syntax:atom(MbCtx),
-          paterl_anno:set_type(paterl_anno:interface(Anno), Anno)
+          erl_syntax:variable(MbCtx),
+          paterl_anno:set_read(paterl_anno:read(Anno), paterl_anno:set_type(MbType, Anno))
         )),
+
+
+%%      MbParam = translate_params([MbPat]),
+
+%%      MbParam = lists:flatten(io_lib:format("~s: ~s", [MbCtx, MbType])),
 
       % Translate function parameters and body.
       Params = translate_params([MbPat | PatSeq]),
+
+%%      Params = "",
+
+%%      ?TRACE(">>> MbParam: ~p", [MbParam]),
+%%      ?TRACE(">>> MbParam flattened: ~p", [lists:flatten(MbParam)]),
+%%      ?TRACE(">>> Params: ~p", [translate_params(PatSeq)]),
+%%      ?TRACE(">>> Params flattened: ~p", [lists:flatten(translate_params(PatSeq))]),
+%%      ?TRACE(">>> Flattened: ~p", [[MbParam | lists:flatten(translate_params(PatSeq))]]),
+
+%%      Params = string:join(
+%%        [MbParam, lists:flatten(translate_params(PatSeq))], ?SEP_PAT
+%%      ),
+
       {Body0, _} = translate_body(Body, MbCtx),
 
-      io_lib:format("(~s): (~s * ~s) {~n~s~n}~n",
-        [Params, RetType, erl_to_pat_type(Interface), Body0]
+      io_lib:format("(~s): (~s * ~s?) {~n~s~n}~n",
+%%        [Params, RetType, Interface, Body0]
+        [Params, RetType, translate_type(MbType), Body0]
       )
   end;
 
@@ -515,21 +545,9 @@ translate_expr({call, Anno, Fun = {atom, _, Name}, Args}) ->
       io_lib:format("let ~s =~nnew[~s]~nin~n~s", [
         MbCtx0, Interface, Expr2
       ])
-
-%%      io_lib:format("let ~s =
-%%              ~nnew[~s]
-%%            ~nin
-%%              ~nlet (x, ~s) =
-%%                ~n~s
-%%              ~nin
-%%                ~nlet y = free(~s) in x",
-%%        [MbCtx0, Interface, MbCtx1, Expr1, MbCtx1])
   end;
 
-
-%%  Args = translate_args(MFArgs),
-%%  io_lib:format("~s(~s)", [Name, Args]);
-translate_expr({match, Anno, Pat, Expr}) ->
+translate_expr({match, _, Pat, Expr}) ->
   % Match.
   io_lib:format("let ~s = ~s~nin~n", [translate_pat(Pat), translate_expr(Expr)]);
 translate_expr({op, Anno, Op, Expr0, Expr1}) ->
@@ -572,11 +590,11 @@ translate_guard(GuardTests) ->
 %% @private Translates a guard test.
 translate_guard_test(Lit)
   when
-% Literal.
   element(1, Lit) =:= integer;
   element(1, Lit) =:= float;
   element(1, Lit) =:= string;
   element(1, Lit) =:= atom ->
+  % Literal.
   translate_lit(Lit);
 translate_guard_test({var, _, Name}) ->
   % Variable.
@@ -597,12 +615,61 @@ translate_guard_test({op, _, Op, GuardTest}) ->
   [atom_to_list(Op), GuardTest0].
 
 translate_params(PatSeq) ->
-  Translate = fun(Pat) ->
-    Type = erl_to_pat_type(paterl_anno:type(element(2, Pat))),
-    io_lib:format("~s: ~s", [translate_pat(Pat), Type])
-              end,
+%%  Translate = fun(Pat) ->
+%%    Anno = element(2, Pat),
+%%    Type = erl_to_pat_type(paterl_anno:type(Anno)),
+%%    Type0 =
+%%      case paterl_anno:capability(Anno) of
+%%        undefined ->
+%%          Type;
+%%        read ->
+%%          erl_to_pat_type(Type) ++ "?";
+%%        write ->
+%%          erl_to_pat_type(Type) ++ "!"
+%%      end,
+%%%%    Type = erl_to_pat_type(paterl_anno:type(element(2, Pat))),
+%%    io_lib:format("~s: ~s", [translate_pat(Pat), Type])
+%%              end,
+%%  string:join([Translate(Pat) || Pat <- PatSeq], ?SEP_PAT).
+
+  Translate =
+    fun(Pat) ->
+      Anno = element(2, Pat),
+      Type = paterl_anno:type(Anno),
+      ?TRACE("±Type is: ~p", [Type]),
+      Capability =
+        case paterl_anno:read(Anno) of
+          true -> "?";
+          false -> "!"
+        end,
+
+      io_lib:format("~s: ~s~s", [translate_pat(Pat), translate_type(Type), Capability])
+    end,
   string:join([Translate(Pat) || Pat <- PatSeq], ?SEP_PAT).
 
+%%translate_param(Pat) ->
+%%  Anno = element(2, Pat),
+%%  Type = erl_to_pat_type(paterl_anno:type(Anno)),
+%%  Capability =
+%%    case paterl_anno:capability(Anno) of
+%%      read ->
+%%        erl_to_pat_type(Type) ++ "?";
+%%      write ->
+%%        erl_to_pat_type(Type) ++ "!"
+%%    end,
+%%  io_lib:format("~s: ~s", [translate_pat(Pat), translate_type(Type)]).
+
+%%translate_type(Pat) ->
+%%  Anno = element(2, Pat),
+%%  Type = erl_to_pat_type(paterl_anno:type(Anno)),
+%%  case paterl_anno:capability(Anno) of
+%%    undefined ->
+%%      Type;
+%%    read ->
+%%      erl_to_pat_type(Type) ++ "?";
+%%    write ->
+%%      erl_to_pat_type(Type) ++ "!"
+%%  end.
 
 %% @private Translates pattern sequences.
 translate_pat_seq(PatSeq) ->
@@ -680,11 +747,13 @@ is_mb_empty(Regex) ->
     _ ->
       false
   end.
-%%HERE! I need to integrate this with the translation of guard above.
 
-
+% TODO: Requires a regular expression parser.
 simplify([]) ->
   ok.
+
+%%synthesize_type(ok) ->
+%%  ok;
 
 erl_to_pat_type(integer) ->
   "Int";
@@ -701,9 +770,16 @@ erl_to_pat_type(ok) ->
 erl_to_pat_type(any) ->
   "Unit";
 erl_to_pat_type(Mb) when is_atom(Mb) ->
-  string:titlecase(atom_to_list(Mb)) ++ "?";
+%%  atom_to_list(make_send_type(Mb));
+  string:titlecase(atom_to_list(Mb));
 erl_to_pat_type(_) ->
   "Unknown".
+
+%%make_send_type(Mb) when is_atom(Mb) ->
+%%  list_to_atom(string:titlecase(atom_to_list(Mb)) ++ "!").
+%%
+%%make_recv_type(Mb) when is_atom(Mb) ->
+%%  list_to_atom(string:titlecase(atom_to_list(Mb)) ++ "?").
 
 %% Pending.
 % 0. Fix bug in let where it generates an empty 'in' expression when it's the last thing in the sequence. NOT A BUG.

@@ -34,6 +34,9 @@
 %% Mailbox annotation interface.
 -define(MA_INTERFACE, interface).
 
+%% Mailbox annotation capability.
+-define(MA_READ, read).
+
 %% Mailbox annotation interface usage modality.
 -define(MA_MODALITY, modality).
 
@@ -237,7 +240,7 @@ annotate_function({function, Anno, Name, Arity, Clauses},
         % Mailbox annotated function.
         ?TRACE("Annotating function '~p/~p' with mailbox scope '~p'", [Name, Arity, MbName]),
         {Clauses1, Error1} = annotate_clauses(Clauses, Types, MbName, TInfo, Error),
-        Anno1 = set_modality(Modality, set_interface(MbName, Anno)),
+        Anno1 = set_modality(Modality, set_read(true, set_interface(MbName, Anno))),
         {Clauses1, Anno1, Error1};
       undefined ->
         % Non-annotated function.
@@ -288,8 +291,13 @@ annotate_clause(Clause = {clause, Anno, PatSeq, GuardSeq = [], Body},
 
   ?TRACE(">>>>>>>>> Errors: ~p", [Error0]),
   % If MbScope is undefined, the function is not mailbox-annotated.
-  Anno0 = set_type(RetType, Anno),
-  Anno1 = if MbScope =:= undefined -> Anno0; true -> set_interface(MbScope, Anno0) end,
+%%  Anno0 = set_type(RetType, Anno),
+  Anno0 = set_type(_RetType, Anno),
+  Anno1 =
+    if
+      MbScope =:= undefined -> Anno0;
+      true -> set_read(true, set_interface(MbScope, Anno0))
+    end,
 
   Clause0 = erl_syntax:revert(
     erl_syntax:set_pos(erl_syntax:clause(AnnPatSeq, GuardSeq, Body0), Anno1)
@@ -357,10 +365,11 @@ annotate_pat_seq(PatSeq, TypeSeq, MbScope, TInfo)
   when is_list(PatSeq), is_list(TypeSeq), length(PatSeq) == length(TypeSeq) ->
   lists:zipwith(fun(Pat, Type) -> annotate_pat(Pat, Type, MbScope, TInfo) end, PatSeq, TypeSeq).
 
-annotate_pat(Pat, {Qualifier, _, Type, _}, _MbScope, _TInfo)
+annotate_pat(Pat, _Type = {Qualifier, _, Type, _}, _MbScope, _TInfo)
   when Qualifier == type; Qualifier == user_type ->
 %%  ?TRACE("Annotating function pattern '~p' with type '~p'", [Pat, Type]),
-  map_anno(fun(Anno) -> set_type(Type, Anno) end, Pat).
+%%  map_anno(fun(Anno) -> set_type(Type, Anno) end, Pat).
+  map_anno(fun(Anno) -> set_type(_Type, Anno) end, Pat).
 %% HERE tyring to get rid of map_anno. I don't think it can be done at this
 %% stage.
 
@@ -693,6 +702,9 @@ type(Anno) ->
 interface(Anno) ->
   get_anno_val(Anno, ?MA_INTERFACE, undefined).
 
+read(Anno) ->
+  get_anno_val(Anno, ?MA_READ, false).
+
 modality(Anno) ->
   get_anno_val(Anno, ?MA_MODALITY, undefined).
 
@@ -704,6 +716,9 @@ set_type(Type, Anno) ->
 
 set_interface(Interface, Anno) when is_atom(Interface) ->
   set_anno_val(Anno, ?MA_INTERFACE, Interface).
+
+set_read(Read, Anno) when is_boolean(Read) ->
+  set_anno_val(Anno, ?MA_READ, Read).
 
 set_modality(Modality, Anno) when Modality =:= 'new'; Modality =:= 'use' ->
   set_anno_val(Anno, ?MA_MODALITY, Modality).
