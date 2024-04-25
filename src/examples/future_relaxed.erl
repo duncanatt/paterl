@@ -28,7 +28,7 @@
 -new({main_mb, [main/0]}).
 
 %% Message types.
--type put() :: {put, integer()}.
+-type put() :: {put, integer(), integer()}.
 -type get() :: {get, user_mb()}.
 -type reply() :: {reply, integer()}.
 
@@ -74,7 +74,7 @@ main() ->
   T1 = format("~s", [A]),
   if (1 == 1) -> T1; true -> T1 end.
 
--spec main0() -> any().
+-spec main0() -> hello.
 main0() ->
   main().
 

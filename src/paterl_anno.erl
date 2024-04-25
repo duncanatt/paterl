@@ -244,6 +244,7 @@ annotate_function({function, Anno, Name, Arity, Clauses},
         {Clauses1, Anno1, Error1};
       undefined ->
         % Non-annotated function.
+        ?TRACE("Annotating function '~p/~p'", [Name, Arity]),
         {Clauses1, Error1} = annotate_clauses(Clauses, Types, undefined, TInfo, Error),
 %%        {Clauses, Anno, Error}
 %%        Anno1 = set_modality(Modality, set_interface(MbName, Anno)),
@@ -270,7 +271,8 @@ annotate_clauses([Clause | Clauses], [Type | Types], MbScope, TInfo, Error) ->
 -spec annotate_clause(erl_syntax:syntaxTree(), erl_syntax:syntaxTree(), atom(), paterl_types:t_info(), errors:error()) ->
   {erl_syntax:syntaxTree(), errors:error()}.
 annotate_clause(Clause = {clause, Anno, PatSeq, GuardSeq = [], Body},
-    _ArgType = {type, _, 'fun', [{type, _, product, TypeSeq}, _RetType = {type, _, RetType, []}]}, MbScope, TInfo, Error)
+%%    _ArgType = {type, _, 'fun', [{type, _, product, TypeSeq}, _RetType = {_, _, RetType, []}]}, MbScope, TInfo, Error)
+    _ArgType = {type, _, 'fun', [{type, _, product, TypeSeq}, RetType]}, MbScope, TInfo, Error)
   when is_list(PatSeq), is_list(TypeSeq), length(PatSeq) == length(TypeSeq),
   is_list(Body) ->
   ?TRACE("Unguarded function clause: ~p", [Clause]),
@@ -292,7 +294,7 @@ annotate_clause(Clause = {clause, Anno, PatSeq, GuardSeq = [], Body},
   ?TRACE(">>>>>>>>> Errors: ~p", [Error0]),
   % If MbScope is undefined, the function is not mailbox-annotated.
 %%  Anno0 = set_type(RetType, Anno),
-  Anno0 = set_type(_RetType, Anno),
+  Anno0 = set_type(RetType, Anno),
   Anno1 =
     if
       MbScope =:= undefined -> Anno0;

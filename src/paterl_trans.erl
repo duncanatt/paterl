@@ -76,20 +76,15 @@ translate_type({type, _, integer, _Vars = []}) ->
   "Int";
 translate_type({type, _, string, _Vars = []}) ->
   "String";
-translate_type({user_type, Anno, Name, _Vars = []}) ->
-%%  ?TRACE("±Anno is: ~p~n", [Anno]),
-%%  ?TRACE("±Name is: ~p~n", [Name]),
-%%  string:titlecase(
-%%    case paterl_anno:capability(Anno) of
-%%      read ->
-%%        atom_to_list(Name) ++ "?";
-%%      write ->
-%%        atom_to_list(Name) ++ "!";
-%%      undefined ->
-%%        atom_to_list(Name) ++ "!WOOP"
-%%    end
-%%  );
-%%  [string:titlecase(atom_to_list(Name)), "!±"];
+translate_type({type, _, no_return, _Vars = []}) ->
+  "Unit";
+translate_type({type, _, any, _Vars = []}) ->
+  "Unit";
+translate_type({type, _, none, _Vars = []}) ->
+  "Unit";
+translate_type({atom, _, _}) ->
+  "Unit";
+translate_type({user_type, _, Name, _Vars = []}) ->
   string:titlecase(atom_to_list(Name));
 translate_type({type, _, tuple, [{atom, _, Name} | TypeSeq]}) ->
   % Message signature type.
@@ -366,7 +361,8 @@ translate_clause(_Clause = {clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
 
   % Translate function return type.
 %%  RetType = erl_to_pat_type(paterl_anno:type(Anno)),
-  RetType = erl_to_pat_type(paterl_anno:type(Anno)),
+%%  RetType = erl_to_pat_type(paterl_anno:type(Anno)),
+  RetType = translate_type(paterl_anno:type(Anno)),
 
   % Determine whether function is mailbox-annotated or non mailbox-annotated.
   case paterl_anno:interface(Anno) of
@@ -755,25 +751,25 @@ simplify([]) ->
 %%synthesize_type(ok) ->
 %%  ok;
 
-erl_to_pat_type(integer) ->
-  "Int";
-erl_to_pat_type(float) ->
-  "Float";
-erl_to_pat_type(string) ->
-  "String";
-erl_to_pat_type(none) ->
-  "Unit";
-erl_to_pat_type(no_return) ->
-  "Unit";
-erl_to_pat_type(ok) ->
-  "Unit";
-erl_to_pat_type(any) ->
-  "Unit";
-erl_to_pat_type(Mb) when is_atom(Mb) ->
-%%  atom_to_list(make_send_type(Mb));
-  string:titlecase(atom_to_list(Mb));
-erl_to_pat_type(_) ->
-  "Unknown".
+%%erl_to_pat_type(integer) ->
+%%  "Int";
+%%erl_to_pat_type(float) ->
+%%  "Float";
+%%erl_to_pat_type(string) ->
+%%  "String";
+%%erl_to_pat_type(none) ->
+%%  "Unit";
+%%erl_to_pat_type(no_return) ->
+%%  "Unit";
+%%erl_to_pat_type(ok) ->
+%%  "Unit";
+%%erl_to_pat_type(any) ->
+%%  "Unit";
+%%erl_to_pat_type(Mb) when is_atom(Mb) ->
+%%%%  atom_to_list(make_send_type(Mb));
+%%  string:titlecase(atom_to_list(Mb));
+%%erl_to_pat_type(_) ->
+%%  "Unknown".
 
 %%make_send_type(Mb) when is_atom(Mb) ->
 %%  list_to_atom(string:titlecase(atom_to_list(Mb)) ++ "!").
