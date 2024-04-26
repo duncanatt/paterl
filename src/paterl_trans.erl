@@ -30,28 +30,58 @@
 
 -define(SEP_NL, [$\n]).
 
+-define(T_INTEGER, "Int").
+
+-define(T_FLOAT, "Float").
+
+-define(T_STRING, "String").
+
+-define(T_UNIT, "Unit").
+
+-define(C_WRITE, "!").
+
+-define(C_READ, "?").
+
 -spec translate(erl_syntax:forms()) -> list().
 translate(Forms) ->
 
-  %TODO: Append a special form that is the main0 function which I should build with erl_syntax.
+  Type = erl_syntax:revert(
+    erl_syntax:type_application(erl_syntax:atom(any), [])
+  ),
+
+  Call =
+    erl_syntax:set_pos(
+      erl_syntax:application(erl_syntax:atom(main), []),
+      paterl_anno:set_modality(new, paterl_anno:set_interface(main_mb, erl_anno:new(0)))
+  ),
+
+  Clause =
+    erl_syntax:revert(
+      erl_syntax:set_pos(
+        erl_syntax:clause([], [Call]),
+        paterl_anno:set_type(Type, erl_anno:new(0))
+
+      )),
+
+  Fun = erl_syntax:revert(
+    erl_syntax:set_pos(
+      erl_syntax:function(erl_syntax:atom('main\''), [Clause]),
+      paterl_anno:set_type(Type, erl_anno:new(0))
+    )),
+
+  translate_forms(Forms ++ [Fun]).
 
 
-
-  translate_forms(Forms).
-
-
-
-
-translate_forms([]) ->
-  ["\n"];
-translate_forms([Form | Forms]) ->
-  [translate_form(Form) | translate_forms(Forms)].
+translate_forms(Forms) ->
+  [translate_form(Form) || Form <- Forms].
+%%translate_forms([]) ->
+%%  [];
+%%translate_forms([Form | Forms]) ->
+%%  [translate_form(Form) | translate_forms(Forms)].
 
 %%% ----------------------------------------------------------------------------
 %%% Translation on open terms.
 %%% ----------------------------------------------------------------------------
-
-
 
 translate_form({attribute, _, module, Name}) ->
   ["# Translated from ", atom_to_list(Name), ".erl\n"];
@@ -66,41 +96,52 @@ translate_form({function, _, Name, Arity, Clauses = [_]}) ->
   ["def ", atom_to_list(Name), Clauses0, "\n"];
 translate_form(_) ->
   % Other module attributes without Pat equivalent.
-  [].
+  ["Unknown"].
 
-
-%HERE: Refactor these type functions to use the function to_pat_type and pass the thrid element of the tuple to it.
+%% HERE: Insert the main function.
+%%HERE: Refactor these type functions to use the function to_pat_type and pass the thrid element of the tuple to it.
+%%HERE: Refactor the paterl_anno module to remove the capability annotation.
 translate_type({type, _, pid, _Vars = []}) ->
-  % PID type is not translated.
+  % Erlang PID type is not translated. This handles the case where the a mailbox
+  % interface type is just a PID.
   "";
 translate_type({type, _, integer, _Vars = []}) ->
-  "Int";
+  % Integer type.
+  ?T_INTEGER;
+translate_type({type, _, float, _Vars = []}) ->
+  % Float type.
+  ?T_FLOAT;
 translate_type({type, _, string, _Vars = []}) ->
-  "String";
-translate_type({type, _, no_return, _Vars = []}) ->
-  "Unit";
-translate_type({type, _, any, _Vars = []}) ->
-  "Unit";
-translate_type({type, _, none, _Vars = []}) ->
-  "Unit";
-translate_type({atom, _, _}) ->
-  "Unit";
+  % String type.
+  ?T_STRING;
+translate_type({type, _, Name, _Vars = []})
+  when Name =:= no_return; Name =:= any; Name =:= none ->
+  % Unit type.
+  ?T_UNIT;
+translate_type({atom, _, ok}) ->
+  % Atom ok translated as unit type.
+  ?T_UNIT;
 translate_type({user_type, _, Name, _Vars = []}) ->
-  string:titlecase(atom_to_list(Name)) ++ "!";
+  % Mailbox type. Mailbox types default to the write capability.
+  make_msg_tag(Name) ++ ?C_WRITE;
 translate_type({type, _, tuple, [{atom, _, Name} | TypeSeq]}) ->
   % Message signature type.
-  Msg = string:join(translate_type_seq(TypeSeq), ","),
-  ["\t", string:titlecase(atom_to_list(Name)), "(", Msg, ")"];
+  Params = string:join(translate_type_seq(TypeSeq), ?SEP_PAT),
+  io_lib:format("~s(~s)", [Name, Params]);
 translate_type({type, _, union, TypeSeq}) when is_list(TypeSeq) ->
   % Union of message types
-  string:join(translate_type_seq(TypeSeq), ",\n").
+  string:join(translate_type_seq(TypeSeq), ?SEP_PAT).
 
 translate_type_seq([]) ->
   [];
 translate_type_seq([{type, _, pid, _Vars = []} | TypeSeq]) ->
+  % Erlang PIDs are not translated and eaten.
   translate_type_seq(TypeSeq);
 translate_type_seq([Type | TypeSeq]) ->
   [translate_type(Type) | translate_type_seq(TypeSeq)].
+
+make_msg_tag(Tag) when is_atom(Tag) ->
+  string:titlecase(atom_to_list(Tag)).
 
 
 %%% ----------------------------------------------------------------------------
@@ -395,7 +436,6 @@ translate_clause(_Clause = {clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
       ),
 
 
-
 %%      MbType = make_recv_type(Interface),
 %%      MbPat = erl_syntax:revert(
 %%        erl_syntax:set_pos(
@@ -411,12 +451,12 @@ translate_clause(_Clause = {clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
 %%        )),
 
       Params =
-      case PatSeq of
-        [] ->
-          io_lib:format("~s: ~s", [MbCtx, MbType]);
-        PatSeq ->
-          io_lib:format("~s: ~s, ~s", [MbCtx, MbType, translate_params(PatSeq)])
-      end,
+        case PatSeq of
+          [] ->
+            io_lib:format("~s: ~s", [MbCtx, MbType]);
+          PatSeq ->
+            io_lib:format("~s: ~s, ~s", [MbCtx, MbType, translate_params(PatSeq)])
+        end,
 
 %%      MbParam = translate_params([MbPat]),
 
