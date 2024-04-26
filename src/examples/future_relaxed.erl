@@ -74,9 +74,9 @@ main() ->
   T1 = format("~s", [A]),
   if (1 == 1) -> T1; true -> T1 end.
 
--spec main0() -> hello.
-main0() ->
-  main().
+%%-spec main0() -> ok.
+%%main0() ->
+%%  main().
 
 
 %%-spec a_non_annotated_fun(string(), integer(), float(), atom()) -> any().
@@ -85,8 +85,8 @@ main0() ->
 %%  a_non_annotated_fun(Var, 1, 2.0, hello).
 
 
-
-
+%%-spec main1() -> any().
+%%main1() -> main().
 
 
 

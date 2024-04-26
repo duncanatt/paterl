@@ -75,7 +75,7 @@ def main(mb0: Main_mb?): (Unit * Main_mb?) {
 }
 
 # Might have to be automagically inserted.
-def main0(): Unit {
+def main'(): Unit {
   let mb0 =
     new [Main_mb]
   in
