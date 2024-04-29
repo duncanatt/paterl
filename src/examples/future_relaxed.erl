@@ -28,7 +28,7 @@
 -new({main_mb, [main/0]}).
 
 %% Message types.
--type put() :: {put, integer(), integer()}.
+-type put() :: {put, integer()}.
 -type get() :: {get, user_mb()}.
 -type reply() :: {reply, integer()}.
 
