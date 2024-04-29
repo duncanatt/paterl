@@ -240,7 +240,8 @@ annotate_function({function, Anno, Name, Arity, Clauses},
         % Mailbox annotated function.
         ?TRACE("Annotating function '~p/~p' with mailbox scope '~p'", [Name, Arity, MbName]),
         {Clauses1, Error1} = annotate_clauses(Clauses, Types, MbName, TInfo, Error),
-        Anno1 = set_modality(Modality, set_read(true, set_interface(MbName, Anno))),
+%%        Anno1 = set_modality(Modality, set_read(true, set_interface(MbName, Anno))),
+        Anno1 = set_modality(Modality, set_interface(MbName, Anno)),
         {Clauses1, Anno1, Error1};
       undefined ->
         % Non-annotated function.
@@ -298,7 +299,8 @@ annotate_clause(Clause = {clause, Anno, PatSeq, GuardSeq = [], Body},
   Anno1 =
     if
       MbScope =:= undefined -> Anno0;
-      true -> set_read(true, set_interface(MbScope, Anno0))
+%%      true -> set_read(true, set_interface(MbScope, Anno0))
+      true -> set_interface(MbScope, Anno0)
     end,
 
   Clause0 = erl_syntax:revert(
@@ -704,8 +706,8 @@ type(Anno) ->
 interface(Anno) ->
   get_anno_val(Anno, ?MA_INTERFACE, undefined).
 
-read(Anno) ->
-  get_anno_val(Anno, ?MA_READ, false).
+%%read(Anno) ->
+%%  get_anno_val(Anno, ?MA_READ, false).
 
 modality(Anno) ->
   get_anno_val(Anno, ?MA_MODALITY, undefined).
@@ -719,8 +721,8 @@ set_type(Type, Anno) ->
 set_interface(Interface, Anno) when is_atom(Interface) ->
   set_anno_val(Anno, ?MA_INTERFACE, Interface).
 
-set_read(Read, Anno) when is_boolean(Read) ->
-  set_anno_val(Anno, ?MA_READ, Read).
+%%set_read(Read, Anno) when is_boolean(Read) ->
+%%  set_anno_val(Anno, ?MA_READ, Read).
 
 set_modality(Modality, Anno) when Modality =:= 'new'; Modality =:= 'use' ->
   set_anno_val(Anno, ?MA_MODALITY, Modality).
