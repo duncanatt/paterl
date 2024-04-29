@@ -33,7 +33,6 @@ def user(mb0: User_mb?, future: Future_mb!): (Int * User_mb?) {
       guard mb2: Reply {
         receive Reply(x) from mb3 ->
           (x, mb3)
-          #((), mb3)
       }
 }
 
@@ -100,10 +99,7 @@ def no_mb_fun(): Int {
       x + y
 }
 
-def let_problem(x: String): (Int * String) {
-  (let y = 10 in y, x) # Works.
-  #(let x = 10 in x, x) # Fails.
-}
+
 
 def let_test(): Unit {
   let x =

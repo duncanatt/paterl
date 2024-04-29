@@ -23,7 +23,7 @@
 %% Mailbox interface-function associations.
 
 -new({future_mb, [future/0]}).
--use({future_mb, [resolved_future/2]}).
+-use({future_mb, [resolved_future/1]}).
 -new({user_mb, [user/1]}).
 -new({main_mb, [main/0]}).
 
@@ -42,17 +42,17 @@ future() ->
   ?mb_assert_regex("Put.*Get"),
   receive
     {put, X} ->
-      resolved_future(X, 20)
+      resolved_future(X)
   end.
 
--spec resolved_future(integer(), integer()) -> no_return().
-resolved_future(X, 20) ->
+-spec resolved_future(integer()) -> no_return().
+resolved_future(X) ->
   ?mb_assert_regex("*Get"),
   receive
     {get, User} ->
       T0 = User ! {reply, X},
 %%      TX = 5,
-      resolved_future(X, 20)
+      resolved_future(X)
   end.
 
 -spec user(future_mb()) -> integer().

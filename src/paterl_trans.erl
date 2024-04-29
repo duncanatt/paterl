@@ -84,23 +84,21 @@ translate_forms(Forms) ->
 %%% ----------------------------------------------------------------------------
 
 translate_form({attribute, _, module, Name}) ->
-  ["# Translated from ", atom_to_list(Name), ".erl\n"];
+  io_lib:format("# Translated from ~s.erl~n", [Name]);
 translate_form({attribute, _, interface, {Name, Type, _Vars = []}}) ->
   Type0 = translate_type(Type),
-  ["interface ", string:titlecase(atom_to_list(Name)), " {\n", Type0, "\n}\n\n"];
+  io_lib:format("interface ~s { ~s }~n~n", [make_type_name(Name), Type0]);
 
 translate_form({function, _, Name, Arity, Clauses = [_]}) ->
   % Function with one clause.
   ?TRACE("Translating function ~s/~b.", [Name, Arity]),
   Clauses0 = translate_clauses(Clauses),
-  ["def ", atom_to_list(Name), Clauses0, "\n"];
+  io_lib:format("def ~s ~s~n", [make_fun_name(Name), Clauses0]);
 translate_form(_) ->
-  % Other module attributes without Pat equivalent.
-  ["Unknown"].
+  % Other Erlang module attributes without Pat equivalent.
+  "".
 
-%% HERE: Insert the main function.
-%%HERE: Refactor these type functions to use the function to_pat_type and pass the thrid element of the tuple to it.
-%%HERE: Refactor the paterl_anno module to remove the capability annotation.
+%%TODO: Refactor the paterl_anno module to remove the capability annotation.
 translate_type({type, _, pid, _Vars = []}) ->
   % Erlang PID type is not translated. This handles the case where the a mailbox
   % interface type is just a PID.
@@ -123,11 +121,11 @@ translate_type({atom, _, ok}) ->
   ?T_UNIT;
 translate_type({user_type, _, Name, _Vars = []}) ->
   % Mailbox type. Mailbox types default to the write capability.
-  make_msg_tag(Name) ++ ?C_WRITE;
+  make_type_name(Name) ++ ?C_WRITE;
 translate_type({type, _, tuple, [{atom, _, Name} | TypeSeq]}) ->
   % Message signature type.
   Params = string:join(translate_type_seq(TypeSeq), ?SEP_PAT),
-  io_lib:format("~s(~s)", [Name, Params]);
+  io_lib:format("~s(~s)", [make_type_name(Name), Params]);
 translate_type({type, _, union, TypeSeq}) when is_list(TypeSeq) ->
   % Union of message types
   string:join(translate_type_seq(TypeSeq), ?SEP_PAT).
@@ -140,8 +138,11 @@ translate_type_seq([{type, _, pid, _Vars = []} | TypeSeq]) ->
 translate_type_seq([Type | TypeSeq]) ->
   [translate_type(Type) | translate_type_seq(TypeSeq)].
 
-make_msg_tag(Tag) when is_atom(Tag) ->
-  string:titlecase(atom_to_list(Tag)).
+make_type_name(Type) when is_atom(Type) ->
+  string:titlecase(atom_to_list(Type)).
+
+make_fun_name(Fun) when is_atom(Fun) ->
+  atom_to_list(Fun).
 
 
 %%% ----------------------------------------------------------------------------
@@ -164,7 +165,6 @@ translate_clauses(Clauses, MbCtx) ->
 translate_clause(_Clause = {clause, Anno, PatSeq = [_], _GuardSeq = [], Body}, MbCtx) ->
   % Unguarded receive or case clause.
   MbCtx0 = new_mb(MbCtx),
-
 
   PatSeq0 = translate_pat_seq(PatSeq),
   {Body0, MbCtx1} = translate_body(Body, MbCtx0),
@@ -215,7 +215,8 @@ translate_expr_seq(ExprSeq, MbCtx) ->
 
 hack_it(Expr = {call, Anno, Spawn = {atom, _, spawn}, _MFArgs = [_, Fun, Args]}, MbCtx) ->
   % Spawn.
-  Interface = string:titlecase(atom_to_list(paterl_anno:interface(Anno))),
+%%  Interface = string:titlecase(atom_to_list(paterl_anno:interface(Anno))),
+  Interface = make_type_name(paterl_anno:interface(Anno)),
 
   Args0 = erl_syntax:list_elements(Args),
   Expr0 = erl_syntax:revert(
@@ -251,7 +252,8 @@ hack_it({call, Anno, Fun = {atom, _, Name}, Args}, MbCtx) ->
       io_lib:format("ERROR!(~s(~s), ~s)", [Name, Args0, MbCtx]);
     new ->
       % Only the new interface modality is expected at this point.
-      Interface = string:titlecase(atom_to_list(paterl_anno:interface(Anno))),
+%%      Interface = string:titlecase(atom_to_list(paterl_anno:interface(Anno))),
+      Interface = make_type_name(paterl_anno:interface(Anno)),
 
       Expr0 = erl_syntax:revert(
         erl_syntax:set_pos(
@@ -432,7 +434,8 @@ translate_clause(_Clause = {clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
 %%      reset_mb(),
       MbCtx = new_mb(),
       MbType = io_lib:format("~s?",
-        [string:titlecase(atom_to_list(paterl_anno:interface(Anno)))]
+%%        [string:titlecase(atom_to_list(paterl_anno:interface(Anno)))]
+        [make_type_name(paterl_anno:interface(Anno))]
       ),
 
 
@@ -519,13 +522,13 @@ translate_expr({var, _, Name}) ->
   string:lowercase(atom_to_list(Name));
 translate_expr({tuple, _, [_Tag = {atom, _, Name} | Payload]}) ->
   % Message.
-  Msg = string:titlecase(atom_to_list(Name)),
+  Tag = make_type_name(Name),
   Args = translate_args(Payload),
-  io_lib:format("~s(~s)", [Msg, Args]);
+  io_lib:format("~s(~s)", [Tag, Args]);
 translate_expr(Expr = {call, Anno, Spawn = {atom, _, spawn}, _MFArgs = [_, Fun, Args]}) ->
   % Spawn.
-  Interface = string:titlecase(atom_to_list(paterl_anno:interface(Anno))),
-
+%%  Interface = string:titlecase(atom_to_list(paterl_anno:interface(Anno))),
+  Interface = make_type_name(paterl_anno:interface(Anno)),
 
   Args0 = erl_syntax:list_elements(Args),
   Expr0 = erl_syntax:revert(
@@ -549,15 +552,10 @@ translate_expr(Expr = {call, Anno, Spawn = {atom, _, spawn}, _MFArgs = [_, Fun, 
   ]);
 translate_expr({call, _, {atom, _, format}, Args}) ->
   Args0 = translate_args(Args),
-  io_lib:format("print(~s)", [Args0]);
-%%  "format!";
+  io_lib:format("SHOULD_BE_REMOVED_EVENTUALLY_print(~s)", [Args0]);
 translate_expr({call, Anno, Fun = {atom, _, Name}, Args}) ->
   % Explicit internal function call and explicit internal mailbox-annotated
   % function call.
-  % TODO: Need to translate arguments.
-  % TODO: We need to use a tuple and let.
-
-%%  ?TRACE("====> Found interface ~p~n", []),
 
   case paterl_anno:modality(Anno) of
     undefined ->
@@ -567,7 +565,8 @@ translate_expr({call, Anno, Fun = {atom, _, Name}, Args}) ->
       io_lib:format("~s(~s)", [Name, Args0]);
     new ->
       % Only the new interface modality is expected at this point.
-      Interface = string:titlecase(atom_to_list(paterl_anno:interface(Anno))),
+%%      Interface = string:titlecase(atom_to_list(paterl_anno:interface(Anno))),
+      Interface = make_type_name(paterl_anno:interface(Anno)),
 
       MbCtx0 = new_mb(),
       MbCtx1 = new_mb(MbCtx0),
@@ -606,14 +605,6 @@ translate_expr({'if', _, Clauses = [_, _]}) ->
   % If else.
   [Clause0, Clause1] = translate_clauses(Clauses),
   io_lib:format("if ~selse ~s", [Clause0, Clause1]);
-%%translate_expr({cons, _, Expr0, Expr1}) ->
-%%  % TODO: Check these list things again because I'm not sure.
-%%  % TODO: Have a function, translate_print, that translate each literal value
-%%  % TODO: by wrapping it up in integerToStr, floatToStr, etc.
-%%  [translate_expr(Expr0) | translate_expr(Expr1)];
-%%translate_expr({nil, _}) ->
-%%  % TODO: Check these list things again because I'm not sure.
-%%  "NIL";
 translate_expr(Other) ->
   ?ERROR("Cannot translate: ~p", [Other]), "error".
 
@@ -674,30 +665,6 @@ translate_params(PatSeq) ->
     end,
   string:join([Translate(Pat) || Pat <- PatSeq], ?SEP_PAT).
 
-%%translate_param(Pat) ->
-%%  Anno = element(2, Pat),
-%%  Type = erl_to_pat_type(paterl_anno:type(Anno)),
-%%  Capability =
-%%    case paterl_anno:capability(Anno) of
-%%      read ->
-%%        erl_to_pat_type(Type) ++ "?";
-%%      write ->
-%%        erl_to_pat_type(Type) ++ "!"
-%%    end,
-%%  io_lib:format("~s: ~s", [translate_pat(Pat), translate_type(Type)]).
-
-%%translate_type(Pat) ->
-%%  Anno = element(2, Pat),
-%%  Type = erl_to_pat_type(paterl_anno:type(Anno)),
-%%  case paterl_anno:capability(Anno) of
-%%    undefined ->
-%%      Type;
-%%    read ->
-%%      erl_to_pat_type(Type) ++ "?";
-%%    write ->
-%%      erl_to_pat_type(Type) ++ "!"
-%%  end.
-
 %% @private Translates pattern sequences.
 translate_pat_seq(PatSeq) ->
   string:join([translate_pat(Pat) || Pat <- PatSeq], ?SEP_PAT).
@@ -705,20 +672,20 @@ translate_pat_seq(PatSeq) ->
 %% @private Translates patterns.
 translate_pat(Lit)
   when
-% Literal.
   element(1, Lit) =:= integer;
   element(1, Lit) =:= float;
   element(1, Lit) =:= string;
   element(1, Lit) =:= atom ->
+  % Literal.
   translate_lit(Lit);
 translate_pat({var, _, Name}) ->
   % Variable.
   string:lowercase(atom_to_list(Name));
 translate_pat({tuple, _, [_Tag = {atom, _, Name} | Payload]}) ->
   % Message.
-  Msg = string:titlecase(atom_to_list(Name)),
+  Tag = make_type_name(Name),
   Args = translate_pat_seq(Payload),
-  io_lib:format("~s(~s)", [Msg, Args]).
+  io_lib:format("~s(~s)", [Tag, Args]).
 
 %% @private Translates literals.
 translate_lit({integer, _, Value}) ->
@@ -779,34 +746,7 @@ is_mb_empty(Regex) ->
 simplify([]) ->
   ok.
 
-%%synthesize_type(ok) ->
-%%  ok;
 
-%%erl_to_pat_type(integer) ->
-%%  "Int";
-%%erl_to_pat_type(float) ->
-%%  "Float";
-%%erl_to_pat_type(string) ->
-%%  "String";
-%%erl_to_pat_type(none) ->
-%%  "Unit";
-%%erl_to_pat_type(no_return) ->
-%%  "Unit";
-%%erl_to_pat_type(ok) ->
-%%  "Unit";
-%%erl_to_pat_type(any) ->
-%%  "Unit";
-%%erl_to_pat_type(Mb) when is_atom(Mb) ->
-%%%%  atom_to_list(make_send_type(Mb));
-%%  string:titlecase(atom_to_list(Mb));
-%%erl_to_pat_type(_) ->
-%%  "Unknown".
-
-%%make_send_type(Mb) when is_atom(Mb) ->
-%%  list_to_atom(string:titlecase(atom_to_list(Mb)) ++ "!").
-%%
-%%make_recv_type(Mb) when is_atom(Mb) ->
-%%  list_to_atom(string:titlecase(atom_to_list(Mb)) ++ "?").
 
 %% Pending.
 % 0. Fix bug in let where it generates an empty 'in' expression when it's the last thing in the sequence. NOT A BUG.
