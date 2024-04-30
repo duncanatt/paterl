@@ -53,7 +53,7 @@ translate(Forms) ->
     erl_syntax:set_pos(
       erl_syntax:application(erl_syntax:atom(main), []),
       paterl_anno:set_modality(new, paterl_anno:set_interface(main_mb, erl_anno:new(0)))
-  ),
+    ),
 
   Clause =
     erl_syntax:revert(
@@ -74,10 +74,6 @@ translate(Forms) ->
 
 translate_forms(Forms) ->
   [translate_form(Form) || Form <- Forms].
-%%translate_forms([]) ->
-%%  [];
-%%translate_forms([Form | Forms]) ->
-%%  [translate_form(Form) | translate_forms(Forms)].
 
 %%% ----------------------------------------------------------------------------
 %%% Translation on open terms.
@@ -550,9 +546,9 @@ translate_expr(Expr = {call, Anno, Spawn = {atom, _, spawn}, _MFArgs = [_, Fun, 
   io_lib:format("let ~s =~nnew[~s]~nin~nlet y =~n~s~nin ~s", [
     MbCtx0, Interface, Expr2, MbCtx0
   ]);
-translate_expr({call, _, {atom, _, format}, Args}) ->
-  Args0 = translate_args(Args),
-  io_lib:format("SHOULD_BE_REMOVED_EVENTUALLY_print(~s)", [Args0]);
+translate_expr({call, _, {atom, _, format}, _}) ->
+  % Format calls.
+  "()";
 translate_expr({call, Anno, Fun = {atom, _, Name}, Args}) ->
   % Explicit internal function call and explicit internal mailbox-annotated
   % function call.
@@ -591,7 +587,7 @@ translate_expr({call, Anno, Fun = {atom, _, Name}, Args}) ->
 
 translate_expr({match, _, Pat, Expr}) ->
   % Match.
-  io_lib:format("let ~s = ~s~nin~n", [translate_pat(Pat), translate_expr(Expr)]);
+  io_lib:format("let ~s =~n~s~nin", [translate_pat(Pat), translate_expr(Expr)]);
 translate_expr({op, Anno, Op, Expr0, Expr1}) ->
   % Binary operator.
   Expr2 = translate_expr(Expr0),
@@ -605,9 +601,19 @@ translate_expr({'if', _, Clauses = [_, _]}) ->
   % If else.
   [Clause0, Clause1] = translate_clauses(Clauses),
   io_lib:format("if ~selse ~s", [Clause0, Clause1]);
+%%translate_expr({cons, _, Expr, Rest}) ->
+%%  Expr0 = translate_format_arg(Expr),
+%%  case translate_expr(Rest) of
+%%    [] ->
+%%      % End of list.
+%%      Expr0;
+%%    Rest0 ->
+%%      Expr0 ++ Rest0
+%%  end;
+%%translate_expr({nil, _}) ->
+%%  "";
 translate_expr(Other) ->
-  ?ERROR("Cannot translate: ~p", [Other]), "error".
-
+  io_lib:format("<Cannot translate ~p>", [Other]).
 
 %%% ----------------------------------------------------------------------------
 %%% Translation on guards and patterns.
@@ -692,6 +698,7 @@ translate_lit({integer, _, Value}) ->
   integer_to_list(Value);
 translate_lit({float, _, Value}) ->
   float_to_list(Value);
+%%  io_lib:format("~.10f", [Value]);
 translate_lit({string, _, Value}) ->
   Value;
 translate_lit({atom, _, Value}) ->
@@ -745,7 +752,6 @@ is_mb_empty(Regex) ->
 % TODO: Requires a regular expression parser.
 simplify([]) ->
   ok.
-
 
 
 %% Pending.
