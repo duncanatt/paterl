@@ -34,16 +34,19 @@
 -define(E_PAT_NONE, e_pat_none).
 
 compile(File, Opts) when is_list(File), is_list(Opts) ->
-  io:format(color:green("[PARSE] Parsing file ~s.~n"), [File]),
+  io:fwrite(color:green("[PARSE] Parsing file ~s.~n"), [File]),
 
   case epp:parse_file(File, Opts) of
     {ok, Forms} ->
 
+      io:fwrite(color:green("[LINT] Linting file ~s.~n"), [File]),
       % File preprocessed.
       case erl_lint:module(Forms) of
         {ok, Warnings0} ->
           % File valid but possible warnings.
           errors:show_warnings(Warnings0),
+
+          io:fwrite(color:green("[TYPES] Extracting typespecs.")),
 
           % Get program types table.
           case paterl_types:table(Forms) of
