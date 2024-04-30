@@ -34,6 +34,8 @@
 -define(E_PAT_NONE, e_pat_none).
 
 compile(File, Opts) when is_list(File), is_list(Opts) ->
+  io:format(color:green("[PARSE] Parsing file ~s.~n"), [File]),
+
   case epp:parse_file(File, Opts) of
     {ok, Forms} ->
 
@@ -78,15 +80,9 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
                           % Generated Pat file type-checked successfully.
                           ok;
                         {_, Bytes} ->
-                          % Generated Pat file contains type errors.
-                          case re:split(lists:flatten(Bytes), "^\\[.*\\] (.*)$", [trim, {return, list}]) of
-                            [[]] ->
-                              % Pat error output empty.
-                              errors:show_error({?MODULE, ?E_PAT_NONE});
-                            [[] | Msg] ->
-                              % Defined Pat error.
-                              errors:show_error({?MODULE, {?E_PAT_MSG, Msg}})
-                          end
+                          % Generated Pat file contains errors.
+                          Msg = parse_error(Bytes),
+                          errors:show_error({?MODULE, {?E_PAT_MSG, Msg}})
                       end;
                     {error, Error} -> % Reason
                       errors:show_error({file, Error})
@@ -149,6 +145,22 @@ get_output(Port, Read) ->
         end,
       {Status, Read}
   end.
+
+parse_error(Msg) ->
+  {match, Msg0} = re:run(
+    Msg, "\\[.*\\]\s(?P<A>.+)", [{capture, ['A'], list}, dotall]
+  ),
+  sanitize(Msg0).
+
+sanitize(Msg) ->
+  re:replace(
+    re:replace(Msg, "[\r\n]", "", [global, {return, list}]),
+    "\s+",
+    " ",
+    [global, {return, list}]
+  ).
+
+
 
 %%% ----------------------------------------------------------------------------
 %%% Error handling and reporting.
