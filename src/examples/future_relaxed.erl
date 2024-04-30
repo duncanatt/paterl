@@ -79,10 +79,11 @@ main() ->
 %%  main().
 
 
-%%-spec a_non_annotated_fun(string(), integer(), float(), atom()) -> any().
-%%a_non_annotated_fun(Var, 1, 2.0, hello) ->
+%%-spec a_non_annotated_fun(string(), integer(), float()) -> any().
+%%a_non_annotated_fun(Var, 1, 2.0) ->
 %%  if 5 == 2 -> five_is_two; true -> five_is_not_two, "but two is not", 5 end,
-%%  a_non_annotated_fun(Var, 1, 2.0, hello).
+%%  T1 = format("Some text", []),
+%%  a_non_annotated_fun(Var, 1, 2.0).
 
 
 %%-spec main1() -> any().
