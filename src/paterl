@@ -1,0 +1,33 @@
+#!/usr/bin/env escript
+%%! -pa ebin
+-mode(compile).
+
+main(Args) ->
+  argparse:run(Args, cli(), #{progname => paterl}).
+
+cli() ->
+  #{
+    arguments => [
+      #{name => file,
+        type => string,
+        required => true
+      },
+      #{name => includes,
+        long => "-includes",
+        short => $I,
+        type => string,
+        default => "include",
+        action => append
+      },
+      #{name => verbose,
+        long => "-verbose",
+        short => $v,
+        type => {atom, [all, annotated, pat]} % annotated=annotated only, pat=pat code only, all=both
+      }
+    ],
+    handler =>
+    fun(Args = #{file := File, includes := Includes, verbose := Verbose}) ->
+      io:format("~p~n", [Args]),
+      paterl:compile(File, [{includes, Includes}])
+    end
+  }.
