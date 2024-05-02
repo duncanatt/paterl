@@ -34,21 +34,24 @@
 -define(E_PAT_NONE, e_pat_none).
 
 compile(File, Opts) when is_list(File), is_list(Opts) ->
-  io:fwrite(color:green("[PARSE] Parsing file ~s.~n"), [File]),
+  % Preprocess file.
+  io:fwrite(color:green("[EPP] Preprocessing file ~s.~n"), [File]),
+
+  io:fwrite(color:green("[SYNTAX] Sub-syntax checking.~n")),
 
   case epp:parse_file(File, Opts) of
     {ok, Forms} ->
-
-      io:fwrite(color:green("[LINT] Linting file ~s.~n"), [File]),
       % File preprocessed.
+      io:fwrite(color:green("[LINT] Linting.~n")),
+
       case erl_lint:module(Forms) of
         {ok, Warnings0} ->
           % File valid but possible warnings.
           errors:show_warnings(Warnings0),
 
-          io:fwrite(color:green("[TYPES] Extracting typespecs.")),
-
           % Get program types table.
+          io:fwrite(color:green("[TYPE] Extracting typespecs.~n")),
+
           case paterl_types:table(Forms) of
             {ok, TInfo = #t_info{types = Types, specs = Specs, mb_defs = MbDefs, mb_names = MbNames}, Warnings1} ->
               % Type table valid but possible warnings.
@@ -61,23 +64,28 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
               io:format("MbNames: ~p~n", [MbNames]),
               io:format("~s SIGS & TINFO ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
 
-              % Annotate forms TODO: Update comment.
+              % Annotate forms using type table.
+              io:fwrite(color:green("[ANNOTATE] Annotating Erlang forms.~n")),
               case paterl_anno:annotate(Forms, TInfo) of
 
                 {ok, Annotated} ->
+                  % Forms annotated.
+
                   io:format("~n~n~nOriginal forms:~n~p~n", [Forms]),
                   io:format("~n~n~nAnnotated forms:~n~p~n", [Annotated]),
 
-                  io:format("~n~n~nCompiler output:~n", []),
+                  io:fwrite(color:green("[COMPILE] Compiler sanity checks.~n")),
                   compile:forms(Annotated),
 
+                  io:fwrite(color:green("[TRANSLATE] Translating Erlang forms to Pat.~n")),
                   Pat = paterl_trans:translate(Annotated),
                   io:format("~n~n~nOutput Pat:~n~n~n~s~n", [Pat]),
 
-
                   PatFile = filename:rootname(File),
+                  io:fwrite(color:green("[WRITE] Writing temporary Pat file ~s.~n"), [PatFile]),
                   case file:write_file(PatFile, Pat) of
                     ok ->
+                      io:fwrite(color:green("[PAT] Pat'ting ~s.~n"), [PatFile]),
                       case exec(?EXEC ++ " " ++ PatFile) of
                         {0, _} ->
                           % Generated Pat file type-checked successfully.
