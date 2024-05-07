@@ -162,7 +162,7 @@ parse_error(Msg) ->
   {match, Msg0} = re:run(
     Msg, "\\[.*\\]\s(?P<A>.+)", [{capture, ['A'], list}, dotall]
   ),
-  sanitize(Msg0).
+  translate(sanitize(Msg0)).
 
 sanitize(Msg) ->
   re:replace(
@@ -172,6 +172,18 @@ sanitize(Msg) ->
     [global, {return, list}]
   ).
 
+translate(Msg) ->
+  case re:run(
+    Msg,
+    "^(?P<A>.*) is not included in (?P<B>.*)$", [{capture, ['A', 'B'], list}]) of
+    {match, [A, B]} ->
+      io_lib:format(
+        "Inferred message pattern '~s' is not included in user-asserted message pattern '~s'",
+        [A, B]
+      );
+    nomatch ->
+      Msg
+  end.
 
 
 %%% ----------------------------------------------------------------------------
