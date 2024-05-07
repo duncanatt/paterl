@@ -40,6 +40,7 @@
 -spec future() -> no_return().
 future() ->
   ?mb_assert_regex("Put.*Get"),
+%%  ?mb_assert_regex("Put"), % Uncomment for "missing Put"
   receive
     {put, X} ->
       resolved_future(X)
@@ -50,7 +51,7 @@ resolved_future(X) ->
   ?mb_assert_regex("*Get"),
   receive
     {get, User} ->
-      T0 = User ! {reply, X},
+      T0 = User ! {reply, X}, % Comment for "missing reply".
 %%      TX = 5,
       resolved_future(X)
   end.
@@ -59,7 +60,8 @@ resolved_future(X) ->
 user(Future) ->
   Self = self(),
   T0 = Future ! {get, Self},
-  ?mb_assert_regex("Reply"),
+%%  T0 = Future ! {get, Self}, % Uncomment for "extra Get".
+  ?mb_assert_regex("Reply"), % Add extra Reply and fix it with nested receive.
   receive
     {reply, X} ->
       X
@@ -69,7 +71,7 @@ user(Future) ->
 main() ->
   ?mb_new(future_mb),
   Future_mb = spawn(?MODULE, future, []),
-  T0 = Future_mb ! {put, 5},
+  T0 = Future_mb ! {put, 5}, % Comment out for "missing Put".
   A = user(Future_mb),
   T1 = format("~s", [A]),
   if (1 == 1) -> T1; true -> T1 end.
