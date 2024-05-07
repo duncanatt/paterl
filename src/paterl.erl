@@ -132,6 +132,7 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
 %% @private Executes specified command on shell and returns the status and
 %% command output.
 %%
+%% Adapted from: https://stackoverflow.com/questions/27028486/how-to-execute-system-command-in-erlang-and-get-results-using-oscmd-1
 %% Call is synchronous.
 -spec exec(string()) -> iolist().
 exec(Cmd) ->
