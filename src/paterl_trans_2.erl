@@ -257,7 +257,7 @@ hack_it(Expr = {call, Anno, Spawn = {atom, _, spawn}, _MFArgs = [_, Fun, Args]},
 
   Expr2 =
     lists:flatten(
-      io_lib:format("spawn { let (x, ~s) = ~s in free(~s); x }", [
+      io_lib:format("spawn {~nlet (x, ~s) = ~s in free(~s); x~n}", [
         MbCtx2, Expr1, MbCtx2
       ])
     ),
@@ -421,7 +421,7 @@ translate_expr({'receive', Anno, Clauses}, ExprSeq, MbCtx) ->
     case is_mb_empty(State) of
       true ->
         MbCtx1 = new_mb(MbCtx),
-        [io_lib:format("empty(~s) -> ((), ~s)~n", [MbCtx1, MbCtx1]) | Clauses0];
+        [io_lib:format("empty(~s) ->~n((), ~s)~n", [MbCtx1, MbCtx1]) | Clauses0];
       false ->
         Clauses0
     end,
@@ -460,23 +460,23 @@ translate_expr({'receive', Anno, Clauses}, ExprSeq, MbCtx) ->
 %%%%  {PatExpr2, [], MbCtx2};
 %%  {PatExpr2, [], MbCtx1};
 
-translate_expr(Expr, ExprSeq, MbCtx)
-  when element(1, Expr) =:= opdd ->
-  % Binary operator.
-  % Unary operator.
-  {PatExpr0, []} = translate_c_expr(Expr, []),
-  PatExpr1 = io_lib:format("(~s, ~s)", [PatExpr0, MbCtx]),
-
-  MbCtx1 = new_mb(MbCtx),
-  {PatExpr2, MbCtx2} = translate_body(ExprSeq, MbCtx1),
-%%  PatExpr2 = io_lib:format("(~s, ~s)", ["tx", MbCtx1]),
-
-  PatExpr3 = io_lib:format(
-    "let (~s, ~s) =~n~s~nin~n~s", ["tx", MbCtx1, PatExpr1, PatExpr2]
-  ),
-
-%%  {PatExpr1, ExprSeq, MbCtx};
-  {PatExpr3, [], MbCtx2};
+%%translate_expr(Expr, ExprSeq, MbCtx)
+%%  when element(1, Expr) =:= opdd ->
+%%  % Binary operator.
+%%  % Unary operator.
+%%  {PatExpr0, []} = translate_c_expr(Expr, []),
+%%  PatExpr1 = io_lib:format("(~s, ~s)", [PatExpr0, MbCtx]),
+%%
+%%  MbCtx1 = new_mb(MbCtx),
+%%  {PatExpr2, MbCtx2} = translate_body(ExprSeq, MbCtx1),
+%%%%  PatExpr2 = io_lib:format("(~s, ~s)", ["tx", MbCtx1]),
+%%
+%%  PatExpr3 = io_lib:format(
+%%    "let (~s, ~s) =~n~s~nin~n~s", ["tx", MbCtx1, PatExpr1, PatExpr2]
+%%  ),
+%%
+%%%%  {PatExpr1, ExprSeq, MbCtx};
+%%  {PatExpr3, [], MbCtx2};
 
 %%PatExpr2 = io_lib:format(
 %%"let (~s, ~s) =~n~s~nin~n~s", [translate_pat(Pat), MbCtx1, PatExpr0, PatExpr1]
@@ -668,7 +668,7 @@ translate_c_expr({call, Anno, {atom, _, spawn}, _MFArgs = [_, Fun, Args]}, ExprS
 
   PatExpr2 =
     lists:flatten(
-      io_lib:format("spawn { let (x, ~s) = ~s in free(~s); x }", [
+      io_lib:format("spawn {~nlet (x, ~s) = ~s in free(~s); x~n}", [
         MbCtx1, PatExpr1, MbCtx1
       ])
     ),
@@ -742,7 +742,7 @@ translate_c_expr({match, _, Pat, Expr}, ExprSeq) ->
     end,
 
   PatExpr2 = io_lib:format(
-    "(let ~s =~n~s~nin~n~s)", [LetPat, PatExpr0, Cont]
+    "let ~s =~n~s~nin~n~s", [LetPat, PatExpr0, Cont]
   ),
   {PatExpr2, []};
 translate_c_expr({op, Anno, Op, Expr0, Expr1}, ExprSeq) ->
