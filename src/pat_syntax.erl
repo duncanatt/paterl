@@ -242,9 +242,13 @@ indent(Lines) ->
 indent([], _) ->
   [];
 
-indent([Line = [$d, $e, $f | _] | Lines], Level) ->
-  io:format("Found def { (indent ~p).~n", [Level]),
-  [tabs(Level, Line) | indent(Lines, Level + 1)];
+indent([Line = [$i, $n, $t, $e, $r, $f, $a, $c, $e | _] | Lines], _) ->
+  io:format("Found interface { (indent ~p).~n", [0]),
+  [[10, Line] | indent(Lines, 1)];
+
+indent([Line = [$d, $e, $f | _] | Lines], _) ->
+  io:format("Found def { (indent ~p).~n", [0]),
+  [[10, Line] | indent(Lines, 1)];
 
 indent([Line = [$} | _] | Lines], Level) ->
   io:format("Found closing } (indent ~p).~n", [Level - 1]),
