@@ -39,6 +39,8 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
 
   io:fwrite(color:green("[SYNTAX] Sub-syntax checking.~n")),
 
+  % TODO: Add phase to desugar lets in functions. Confirm with Simon F.
+
   case epp:parse_file(File, Opts) of
     {ok, Forms} ->
       % File preprocessed.
@@ -78,8 +80,8 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
                   compile:forms(Annotated),
 
                   io:fwrite(color:green("[TRANSLATE] Translating Erlang forms to Pat.~n")),
-                  Pat = paterl_trans:translate(Annotated),
-                  io:format("~n~n~nOutput Pat:~n~n~n~s~n", [Pat]),
+                  Pat = paterl_trans_2:translate(Annotated),
+                  io:format("~n~n~nOutput Pat:~n~n~n~s~n", [number(Pat)]),
 
                   PatFile = filename:rootname(File),
                   io:fwrite(color:green("[WRITE] Writing temporary Pat file ~s.~n"), [PatFile]),
@@ -184,6 +186,10 @@ translate(Msg) ->
     nomatch ->
       Msg
   end.
+
+number(Data) ->
+  Lines = re:split(Data, "^", [{return, list}, multiline]),
+  lists:zipwith(fun(I, Line) -> [integer_to_list(I), ": " | Line] end, lists:seq(1, length(Lines)), Lines).
 
 
 %%% ----------------------------------------------------------------------------
