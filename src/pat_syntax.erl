@@ -38,19 +38,110 @@
 -define(C_READ, "?").
 
 %%% ----------------------------------------------------------------------------
-%%% Public API.
+%%% Functions.
 %%% ----------------------------------------------------------------------------
 
 %% Examples.
-%% pat_syntax:let_expr(pat_syntax:var(x), pat_syntax:literal(1.2), pat_syntax:unit()).
-let_expr(Binders, Expr, Body) ->
-  io_lib:format("let ~s =~n~s~nin~n~s", [Binders, Expr, Body]).
+%% pat_syntax:fun_def(myfun, [pat_syntax:fun_clause([pat_syntax:param(pat_syntax:var(x), pat_syntax:lit_type(integer))], pat_syntax:lit(5), pat_syntax:lit_type(integer))]).
+fun_def(Name, Clauses) when is_atom(Name), is_list(Clauses), length(Clauses) =:= 1 ->
+  io_lib:format("def ~s~s", [to_name(Name), seq_nl(Clauses)]).
+
+%% Params: pairs of name and type.
+%% Examples.
+%% pat_syntax:fun_clause([], pat_syntax:lit(5), pat_syntax:lit_type(integer)).
+%% pat_syntax:fun_clause([pat_syntax:param(pat_syntax:var(x), pat_syntax:lit_type(integer))], pat_syntax:lit(5), pat_syntax:lit_type(integer)).
+fun_clause(Params, Expr, RetType) when is_list(Params) ->
+  io_lib:format("(~s): ~s {~n~s~n}", [params(Params), RetType, Expr]).
+
+
+%%% ----------------------------------------------------------------------------
+%%% Types.
+%%% ----------------------------------------------------------------------------
+
+lit_type(Name) when Name =:= integer ->
+  ?T_INTEGER;
+lit_type(Name) when Name =:= float ->
+  ?T_FLOAT;
+lit_type(Name) when Name =:= string ->
+  ?T_STRING;
+lit_type(Name) when Name =:= atom ->
+  ?T_ATOM.
+
+mb_type(Name) when is_atom(Name) ->
+  to_type_name(Name).
+
+mb_type(Name, read) when is_atom(Name) ->
+  to_type_name(list_to_atom(atom_to_list(Name) ++ ?C_READ));
+mb_type(Name, write) when is_atom(Name) ->
+  to_type_name(list_to_atom(atom_to_list(Name) ++ ?C_WRITE)).
+
+%% Examples.
+%% pat_syntax:prod_type([pat_syntax:lit_type(integer), pat_syntax:mb_type(interface, read)]).
+prod_type(Types) when is_list(Types) ->
+  io_lib:format("(~s)", [string:join(Types, " * ")]).
+
+%% Examples.
+%% pat_syntax:msg_type(tag, [pat_syntax:lit_type(integer), pat_syntax:mb_type(interface, write)]).
+msg_type(Tag, Types) when is_atom(Tag), is_list(Types) ->
+  io_lib:format("~s(~s)", [to_type_name(Tag), seq_comma(Types)]).
+
+%% Examples.
+%% pat_syntax:iface_def(interface, [pat_syntax:msg_type(tag, [pat_syntax:lit_type(integer), pat_syntax:mb_type(interface, write)])]).
+iface_def(Name, MsgTypes) when is_atom(Name), is_list(MsgTypes) ->
+  io_lib:format("interface ~s {~n~s~n}", [to_type_name(Name), seq_nl(MsgTypes)]).
+
+%% Examples.
+%% pat_syntax:param(pat_syntax:var(value), pat_syntax:lit_type(integer)).
+param(Name, Type)  ->
+  {Name, Type}.
+
+
+%%% ----------------------------------------------------------------------------
+%%% Patterns.
+%%% ----------------------------------------------------------------------------
+
+%% Examples.
+%% pat_syntax:msg(tag, [pat_syntax:var(x)])
+msg_pat(Tag, PatSeq) when is_atom(Tag), is_list(PatSeq) ->
+  io_lib:format("~s(~s)", [to_type_name(Tag), seq_comma(PatSeq)]).
+
+%%% ----------------------------------------------------------------------------
+%%% Values.
+%%% ----------------------------------------------------------------------------
+
+%% Examples.
+%% pat_syntax:var(x).
+var(Name) when is_atom(Name) ->
+  to_name(Name).
+
+%% Examples.
+%% pat_syntax:lit(5).
+lit(Value) when is_integer(Value) ->
+  integer_to_list(Value);
+lit(Value) when is_float(Value) ->
+  float_to_list(Value);
+lit(Value) when is_list(Value) ->
+  [$", Value, $"];
+lit(Value) when is_atom(Value) ->
+  atom_to_list(Value).
 
 %% Examples.
 %% pat_syntax:tuple_expr([]).
 %% pat_syntax:tuple_expr([pat_syntax:to_var(x), pat_syntax:literal(5), pat_syntax:tuple_expr([])]).
-tuple_expr(Exprs) when is_list(Exprs) ->
-  io_lib:format("(~s)", [args(Exprs)]).
+tuple(Exprs) when is_list(Exprs) ->
+  io_lib:format("(~s)", [seq_comma(Exprs)]).
+
+unit() ->
+  "()".
+
+%%% ----------------------------------------------------------------------------
+%%% Expressions.
+%%% ----------------------------------------------------------------------------
+
+%% Examples.
+%% pat_syntax:msg(tag, [pat_syntax:var(x)])
+msg_expr(Tag, Args) when is_atom(Tag), is_list(Args) ->
+  io_lib:format("~s(~s)", [to_type_name(Tag), seq_comma(Args)]).
 
 %% Examples.
 %% pat_syntax:op_expr(pat_syntax:op('+'), pat_syntax:var(x), pat_syntax:literal(5)).
@@ -63,15 +154,55 @@ op_expr(Op, Expr) ->
   io_lib:format("~s~s", [Op, Expr]).
 
 %% Examples.
+%% pat_syntax:call_expr(myfun, []).
+%% pat_syntax:call_expr(myfun, [pat_syntax:var(x), pat_syntax:lit(5)]).
+call_expr(FunName, Exprs) when is_list(Exprs) ->
+  io_lib:format("~s(~s)", [FunName, seq_comma(Exprs)]).
+
+%% Examples.
 %% pat_syntax:if_expr(pat_syntax:op_expr(pat_syntax:op('=='), pat_syntax:var(x), pat_syntax:literal(5)), pat_syntax:literal(0), pat_syntax:literal(20)).
 if_expr(ExprC, ExprT, ExprF) ->
   io_lib:format("if (~s) {~n~s~n}~nelse {~n~s~n}", [ExprC, ExprT, ExprF]).
 
 %% Examples.
-%% pat_syntax:call_expr(myfun, []).
-%% pat_syntax:call_expr(myfun, [pat_syntax:var(x), pat_syntax:lit(5)]).
-call_expr(FunName, Exprs) when is_list(Exprs) ->
-  io_lib:format("~s(~s)", [FunName, args(Exprs)]).
+%% pat_syntax:let_expr(pat_syntax:var(x), pat_syntax:literal(1.2), pat_syntax:unit()).
+let_expr(Binders, Expr, Body) ->
+  io_lib:format("let ~s =~n~s~nin~n~s", [Binders, Expr, Body]).
+
+%% Examples.
+%% pat_syntax:new_expr(pat_syntax:mb_type(interface)).
+new_expr(MbType) ->
+  io_lib:format("new [~s]", [MbType]).
+
+%% Examples.
+%% pat_syntax:free_expr(pat_syntax:var(mb)).
+free_expr(Var) ->
+  io_lib:format("free(~s)", [Var]).
+
+%% Examples.
+%% pat_syntax:spawn_expr(pat_syntax:var(x)).
+spawn_expr(Expr) ->
+  io_lib:format("spawn {~n~s~n}", [Expr]).
+
+%% Examples.
+%% pat_syntax:guard_expr(pat_syntax:var(mb), "Tag*", [pat_syntax:receive_expr(pat_syntax:msg(tag, [pat_syntax:var(x)]), pat_syntax:var(mb), pat_syntax:var(x)), pat_syntax:receive_expr(pat_syntax:msg(tag, [pat_syntax:var(x)]), pat_syntax:var(mb), pat_syntax:unit())]).
+guard_expr(Var, Regex, Clauses) when is_list(Clauses) ->
+  io_lib:format("guard ~s: ~s {~n~s~n}", [Var, Regex, seq_nl(Clauses)]).
+
+%% Examples.
+%% pat_syntax:empty_expr(pat_syntax:var('mb0'), pat_syntax:var('mb0')).
+empty_expr(RebindVar, Expr) ->
+  io_lib:format("empty(~s) ->~n~s", [RebindVar, Expr]).
+
+%% Examples.
+%% pat_syntax:receive_expr(pat_syntax:msg(tag, [pat_syntax:var(x)]), pat_syntax:var(mb), pat_syntax:var(x)).
+receive_expr(Msg, RebindVar, Expr) ->
+  io_lib:format("receive ~s from ~s ->~n~s", [Msg, RebindVar, Expr]).
+
+
+
+%%% COMPOSED EXPRESSIONS TO MOVE TO TRANSLATION.
+
 
 %% Examples.
 %% pat_syntax:call_new_expr(pat_syntax:type('Interface'), pat_syntax:call_expr(pat_syntax:fun_name(myfun), [])).
@@ -93,8 +224,8 @@ call_new_expr(MbType, FunName, Exprs) -> %TODO: Move to translation.
   Ret0 = var(x),
 
   Let0 = let_expr(var(y), free_expr(MbVar0), Ret0),
-  Let1 = let_expr(tuple_expr([Ret0, MbVar0]), call_use_expr(FunName, Exprs, MbVar1), Let0), % Or call_expr.
-  let_expr(MbVar1 = var(mb), new_mb_expr(MbType), Let1).
+  Let1 = let_expr(tuple([Ret0, MbVar0]), call_use_expr(FunName, Exprs, MbVar1), Let0), % Or call_expr.
+  let_expr(MbVar1 = var(mb), new_expr(MbType), Let1).
 
 %% Examples.
 %% pat_syntax:call_use_expr('myfun', [], "Mb0").
@@ -110,128 +241,56 @@ spawn_expr(MbType, FunName, Exprs) -> % TODO: Move to translation.
   MbVar1 = var(mb),
   Ret0 = var(x),
 
-  Let0 = let_expr(tuple_expr([Ret0, MbVar0]), call_use_expr(FunName, Exprs, MbVar1), free_expr(MbVar0)),
+  Let0 = let_expr(tuple([Ret0, MbVar0]), call_use_expr(FunName, Exprs, MbVar1), free_expr(MbVar0)),
   Let1 = let_expr(var(y), spawn_expr(Let0), MbVar1),
-  let_expr(MbVar1, new_mb_expr(MbType), Let1).
+  let_expr(MbVar1, new_expr(MbType), Let1).
 
-%% Examples.
-%% pat_syntax:spawn_expr(pat_syntax:var(x)).
-spawn_expr(Expr) ->
-  io_lib:format("spawn {~n~s~n}", [Expr]).
-
-%% Examples.
-%%
-self_expr(MbCtx) -> % TODO: Move to translation.
-  io_lib:format("(~s, ~s)", [MbCtx, MbCtx]).
-
-%% Examples.
-%% pat_syntax:receive_expr(pat_syntax:msg(tag, [pat_syntax:var(x)]), pat_syntax:var(mb), pat_syntax:var(x)).
-receive_expr(Msg, RebindVar, Expr) ->
-  io_lib:format("receive ~s from ~s ->~n~s", [Msg, RebindVar, Expr]).
-
-%% Examples.
-%% pat_syntax:empty_expr(pat_syntax:var('mb0'), pat_syntax:var('mb0')).
-empty_expr(RebindVar, Expr) ->
-  io_lib:format("empty(~s) ->~n~s", [RebindVar, Expr]).
-
-%% Examples.
-%% pat_syntax:guard_expr(pat_syntax:var(mb), "Tag*", [pat_syntax:receive_expr(pat_syntax:msg(tag, [pat_syntax:var(x)]), pat_syntax:var(mb), pat_syntax:var(x)), pat_syntax:receive_expr(pat_syntax:msg(tag, [pat_syntax:var(x)]), pat_syntax:var(mb), pat_syntax:unit())]).
-guard_expr(Var, Regex, Clauses) when is_list(Clauses) ->
-  io_lib:format("guard ~s: ~s {~n~s~n}", [Var, Regex, clauses(Clauses)]).
-
-% Params: pairs of name and type.
 %% Examples.
 %% pat_syntax:fun_def(myfun, [], pat_syntax:lit(5), pat_syntax:lit_type(integer)).
 %% pat_syntax:fun_def(myfun, [{pat_syntax:var(x), pat_syntax:lit_type(string)}], pat_syntax:lit(5), pat_syntax:lit_type(integer)).
-fun_def(FunName, Params, Expr, RetType) when is_list(Params) ->
-  io_lib:format("def ~s(~s): ~s {~n~s~n}", [FunName, params(Params), RetType, Expr]).
+%%fun_def(FunName, Params, Expr, RetType) when is_list(Params) ->
+%%  io_lib:format("def ~s(~s): ~s {~n~s~n}", [FunName, params(Params), RetType, Expr]).
 
 %% Example: pat_syntax:fun_def(pat_syntax:mb_type('Interface', read), pat_syntax:fun_name(myfun), [pat_syntax:param(pat_syntax:var('X'), pat_syntax:lit_type(integer))], pat_syntax:var(x), pat_syntax:lit_type(string)).
-fun_def(MbType, FunName, Params, Body, RetType) when is_list(Params) -> % TODO: Move to translation.
-  Param = param(var('mb0'), MbType),
-  RetType0 = prod_type([RetType, MbType]),
-  fun_def(FunName, [Param | Params], Body, RetType0).
+%%fun_def(MbType, FunName, Params, Body, RetType) when is_list(Params) -> % TODO: Move to translation.
+%%  Param = param(var('mb0'), MbType),
+%%  RetType0 = prod_type([RetType, MbType]),
+%%  fun_def(FunName, [Param | Params], Body, RetType0).
 
-unit_expr() ->
-  "()".
-
-new_mb_expr(MbType) ->
-  io_lib:format("new [~s]", [MbType]).
-
-free_expr(Var) ->
-  io_lib:format("free(~s)", [Var]).
-
-msg(Tag, Args) when is_atom(Tag), is_list(Args) ->
-  io_lib:format("~s(~s)", [to_type(Tag), Args]).
-
-var(Name) when is_atom(Name) ->
-  to_var(Name).
-
-args(Args) when is_list(Args) ->
-  string:join(Args, ?SEP_PAT).
-
-clauses(Clauses) when is_list(Clauses) ->
-  string:join(Clauses, ?SEP_NL).
+%% Examples.
+self_expr(MbCtx) -> % TODO: Move to translation.
+  io_lib:format("(~s, ~s)", [MbCtx, MbCtx]).
 
 
-%%% ----------------------------------------------------------------------------
-%%% Literals and operators.
-%%% ----------------------------------------------------------------------------
-
-lit(Value) when is_integer(Value) ->
-  integer_to_list(Value);
-lit(Value) when is_float(Value) ->
-  float_to_list(Value);
-lit(Value) when is_list(Value) ->
-  [$", Value, $"];
-lit(Value) when is_atom(Value) ->
-  atom_to_list(Value).
-
-op(Op) when is_atom(Op) -> %TODO: Make precise with all operators.
-  atom_to_list(Op).
 
 
-%%% ----------------------------------------------------------------------------
-%%% Types.
-%%% ----------------------------------------------------------------------------
 
-lit_type(Name) when Name =:= integer ->
-  ?T_INTEGER;
-lit_type(Name) when Name =:= float ->
-  ?T_FLOAT;
-lit_type(Name) when Name =:= string ->
-  ?T_STRING;
-lit_type(Name) when Name =:= atom ->
-  ?T_ATOM.
 
-mb_type(Name) when is_atom(Name) ->
-  to_type(Name).
-
-mb_type(Name, read) when is_atom(Name) ->
-  to_type(list_to_atom(atom_to_list(Name) ++ ?C_READ));
-mb_type(Name, write) when is_atom(Name) ->
-  to_type(list_to_atom(atom_to_list(Name) ++ ?C_WRITE)).
-
-prod_type(Types) when is_list(Types) ->
-  io_lib:format("(~s)", [string:join(Types, " * ")]).
-
-param(Name, Type)  ->
-  {Name, Type}.
-
-params(Params) when is_list(Params) ->
-  string:join([io_lib:format("~s: ~s", [Var, Type]) || {Var, Type} <- Params], ?SEP_PAT).
 
 
 %%% ----------------------------------------------------------------------------
 %%% Utility.
 %%% ----------------------------------------------------------------------------
 
-to_type(Name) when is_atom(Name) ->
+seq_comma(Args) when is_list(Args) ->
+  string:join(Args, ?SEP_PAT).
+
+seq_nl(Clauses) when is_list(Clauses) ->
+  string:join(Clauses, ?SEP_NL).
+
+op(Op) when is_atom(Op) -> %TODO: Make precise with all operators.
+  atom_to_list(Op).
+
+
+
+params(Params) when is_list(Params) ->
+  string:join([io_lib:format("~s: ~s", [Var, Type]) || {Var, Type} <- Params], ?SEP_PAT).
+
+to_type_name(Name) when is_atom(Name) ->
   string:titlecase(atom_to_list(Name)).
 
-to_var(Name) when is_atom(Name) ->
+to_name(Name) when is_atom(Name) ->
   string:lowercase(atom_to_list(Name)).
-
 
 
 indent(Lines) ->
