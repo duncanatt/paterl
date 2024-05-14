@@ -237,73 +237,76 @@ translate_expr_seq([Expr | ExprSeq], MbCtx) ->
   {[Expr0 | Exprs0], MbCtx1}.
 
 
-
-hack_it(Expr = {call, Anno, Spawn = {atom, _, spawn}, _MFArgs = [_, Fun, Args]}, MbCtx) ->
-  % Spawn.
-%%  Interface = string:titlecase(atom_to_list(paterl_anno:interface(Anno))),
-  Interface = make_type_name(paterl_anno:interface(Anno)),
-
-  Args0 = erl_syntax:list_elements(Args),
-  Expr0 = erl_syntax:revert(
-    erl_syntax:set_pos(
-      erl_syntax:application(Fun, Args0), paterl_anno:set_modality(use, Anno))
-  ),
-
-  MbCtx0 = new_mb(MbCtx),
-  MbCtx1 = new_mb(MbCtx0),
-  MbCtx2 = new_mb(MbCtx1),
-
-  {Expr1, [], MbCtx1} = translate_expr(Expr0, [], MbCtx1),
-
-  Expr2 =
-    lists:flatten(
-      io_lib:format("spawn {~nlet (x, ~s) = ~s in free(~s); x~n}", [
-        MbCtx2, Expr1, MbCtx2
-      ])
-    ),
-  Expr3 = io_lib:format("let ~s =~nnew[~s]~nin~nlet y =~n~s~nin~n~s", [
-    MbCtx1, Interface, Expr2, MbCtx1
-  ]),
-  Expr4 = io_lib:format("(~s, ~s)", [Expr3, MbCtx]),
-  {Expr4, MbCtx};
-hack_it({call, Anno, Fun = {atom, _, Name}, Args}, MbCtx) ->
-  % Explicit internal function call and explicit internal mailbox-annotated
-  % function call.
-  case paterl_anno:modality(Anno) of
-    undefined ->
-      % Call to closed function call outside mailbox context.
-      Args0 = translate_args(Args),
-      ?TRACE("Translated function arguments: ~p", [lists:flatten(Args0)]),
-      io_lib:format("ERROR!(~s(~s), ~s)", [Name, Args0, MbCtx]);
-    new ->
-      % Only the new interface modality is expected at this point.
-%%      Interface = string:titlecase(atom_to_list(paterl_anno:interface(Anno))),
-      Interface = make_type_name(paterl_anno:interface(Anno)),
-
-      Expr0 = erl_syntax:revert(
-        erl_syntax:set_pos(
-          erl_syntax:application(Fun, Args), paterl_anno:set_modality(use, Anno))
-      ),
-
-      MbCtx0 = new_mb(MbCtx),
-      MbCtx1 = new_mb(MbCtx0),
-      MbCtx2 = new_mb(MbCtx1),
-
-      {Expr1, [], MbCtx1} = translate_expr(Expr0, [], MbCtx1),
-
-      Expr2 =
-        lists:flatten(
-          io_lib:format("let (x, ~s) =~n~s~nin~nlet y =~nfree(~s)~nin~nx", [
-            MbCtx2, Expr1, MbCtx2
-          ])
-        ),
-
-      Expr3 = io_lib:format("let ~s =~nnew[~s]~nin~n~s", [
-        MbCtx1, Interface, Expr2
-      ]),
-      Expr4 = io_lib:format("(~s, ~s)", [Expr3, MbCtx]),
-      {Expr4, MbCtx2}
-  end.
+%%TODO: REMOVE THE HACK AND INTEGRATE WITH REST.
+%%TODO: FIX THE MATCH BUG.
+%%TODO: INTEGRATE THE ERL_SYNTAX MODULE.
+%%TODO: ADD THE PASS THAT CONVERTS CERTAIN EXPRESSIONS TO MATCH EXPRESSIONS.
+%%hack_it(Expr = {call, Anno, Spawn = {atom, _, spawn}, _MFArgs = [_, Fun, Args]}, MbCtx) ->
+%%  % Spawn.
+%%%%  Interface = string:titlecase(atom_to_list(paterl_anno:interface(Anno))),
+%%  Interface = make_type_name(paterl_anno:interface(Anno)),
+%%
+%%  Args0 = erl_syntax:list_elements(Args),
+%%  Expr0 = erl_syntax:revert(
+%%    erl_syntax:set_pos(
+%%      erl_syntax:application(Fun, Args0), paterl_anno:set_modality(use, Anno))
+%%  ),
+%%
+%%  MbCtx0 = new_mb(MbCtx),
+%%  MbCtx1 = new_mb(MbCtx0),
+%%  MbCtx2 = new_mb(MbCtx1),
+%%
+%%  {Expr1, [], MbCtx1} = translate_expr(Expr0, [], MbCtx1),
+%%
+%%  Expr2 =
+%%    lists:flatten(
+%%      io_lib:format("spawn {~nlet (x, ~s) = ~s in free(~s); x~n}", [
+%%        MbCtx2, Expr1, MbCtx2
+%%      ])
+%%    ),
+%%  Expr3 = io_lib:format("let ~s =~nnew[~s]~nin~nlet y =~n~s~nin~n~s", [
+%%    MbCtx1, Interface, Expr2, MbCtx1
+%%  ]),
+%%  Expr4 = io_lib:format("(~s, ~s)", [Expr3, MbCtx]),
+%%  {Expr4, MbCtx};
+%%hack_it({call, Anno, Fun = {atom, _, Name}, Args}, MbCtx) ->
+%%  % Explicit internal function call and explicit internal mailbox-annotated
+%%  % function call.
+%%  case paterl_anno:modality(Anno) of
+%%    undefined ->
+%%      % Call to closed function call outside mailbox context.
+%%      Args0 = translate_args(Args),
+%%      ?TRACE("Translated function arguments: ~p", [lists:flatten(Args0)]),
+%%      io_lib:format("ERROR!(~s(~s), ~s)", [Name, Args0, MbCtx]);
+%%    new ->
+%%      % Only the new interface modality is expected at this point.
+%%%%      Interface = string:titlecase(atom_to_list(paterl_anno:interface(Anno))),
+%%      Interface = make_type_name(paterl_anno:interface(Anno)),
+%%
+%%      Expr0 = erl_syntax:revert(
+%%        erl_syntax:set_pos(
+%%          erl_syntax:application(Fun, Args), paterl_anno:set_modality(use, Anno))
+%%      ),
+%%
+%%      MbCtx0 = new_mb(MbCtx),
+%%      MbCtx1 = new_mb(MbCtx0),
+%%      MbCtx2 = new_mb(MbCtx1),
+%%
+%%      {Expr1, [], MbCtx1} = translate_expr(Expr0, [], MbCtx1),
+%%
+%%      Expr2 =
+%%        lists:flatten(
+%%          io_lib:format("let (x, ~s) =~n~s~nin~nlet y =~nfree(~s)~nin~nx", [
+%%            MbCtx2, Expr1, MbCtx2
+%%          ])
+%%        ),
+%%
+%%      Expr3 = io_lib:format("let ~s =~nnew[~s]~nin~n~s", [
+%%        MbCtx1, Interface, Expr2
+%%      ]),
+%%      Expr4 = io_lib:format("(~s, ~s)", [Expr3, MbCtx]),
+%%      {Expr4, MbCtx2}
+%%  end.
 
 
 %% @private Translates values and expressions.
@@ -312,11 +315,11 @@ translate_expr({call, _, {atom, _, self}, _MFArgs = []}, ExprSeq, MbCtx) ->
   Expr0 = io_lib:format("(~s, ~s)", [MbCtx, MbCtx]),
   {Expr0, ExprSeq, MbCtx};
 
-% TODO: This is currently a hack until I discuss with Simon the let expression scoping in when as a tuple element issue.
-translate_expr(Expr = {call, _, {atom, _, spawn}, _MFArgs = [_Mod, _Fun, _Args]}, ExprSeq, MbCtx) ->
-  % Spawn.
-  {Expr0, MbCtx0} = hack_it(Expr, MbCtx),
-  {Expr0, ExprSeq, MbCtx0};
+%%% TODO: This is currently a hack until I discuss with Simon the let expression scoping in when as a tuple element issue.
+%%translate_expr(Expr = {call, _, {atom, _, spawn}, _MFArgs = [_Mod, _Fun, _Args]}, ExprSeq, MbCtx) ->
+%%  % Spawn.
+%%  {Expr0, MbCtx0} = hack_it(Expr, MbCtx),
+%%  {Expr0, ExprSeq, MbCtx0};
 
 translate_expr(Expr = {call, Anno, Fun = {atom, _, Name}, Args}, ExprSeq, MbCtx) ->
   % Explicit internal function call and explicit internal mailbox-annotated
@@ -336,10 +339,11 @@ translate_expr(Expr = {call, Anno, Fun = {atom, _, Name}, Args}, ExprSeq, MbCtx)
           new ->
             io:format("-------------------------------------------------------> We are translating a NEW function in context~n", []),
             % Inject new mailbox.
-%%            io_lib:format("(~s, ~s)££", [translate_expr(Expr), MbCtx]); % Re-enable this line and delete the one below once fixed.
-            % TODO: This is a hack until the issue is fixed from Pat's end.
-            {Expr2, _} = hack_it(Expr, MbCtx),
-            Expr2;
+            {Expr2, []} = translate_c_expr(Expr, []),
+            io_lib:format("(~s, ~s)", [Expr2, MbCtx]); % Re-enable this line and delete the one below once fixed.
+%%            % TODO: This is a hack until the issue is fixed from Pat's end.
+%%            {Expr2, _} = hack_it(Expr, MbCtx),
+%%            Expr2;
 
           use ->
             io:format("-------------------------------------------------------> We are translating a USE function in context ~p~n", [Expr]),
@@ -357,31 +361,24 @@ translate_expr(Expr = {call, Anno, Fun = {atom, _, Name}, Args}, ExprSeq, MbCtx)
 
 translate_expr({match, _, Pat, Expr}, ExprSeq, MbCtx) ->
   % Match.
-%%  {Expr0, MbCtx0} = translate_expr(Expr, MbCtx),
-%%
-%%  MbCtx1 = new_mb(MbCtx0),
-%%
-%%  Expr1 = io_lib:format("let (~s, ~s) =~n~s~nin", [
-%%    translate_pat(Pat), MbCtx1, Expr0
-%%  ]),
-%%  {Expr1, MbCtx1};
-
   {PatExpr0, [], MbCtx0} = translate_expr(Expr, [], MbCtx),
   MbCtx1 = new_mb(MbCtx0),
-  {PatExpr1, MbCtx2} = translate_body(ExprSeq, MbCtx1),
+%%  {PatExpr1, MbCtx2} = translate_body(ExprSeq, MbCtx1),
+
+  LetPat = io_lib:format("(~s, ~s)", [translate_pat(Pat), MbCtx1]),
+  {Cont, MbCtx3} =
+  case translate_body(ExprSeq, MbCtx1) of
+    {[], MbCtx1} ->
+      {LetPat, MbCtx1};
+    {PatExpr1, MbCtx2} ->
+      {PatExpr1, MbCtx2}
+  end,
 
   PatExpr2 = io_lib:format(
-    "let (~s, ~s) =~n~s~nin~n~s", [translate_pat(Pat), MbCtx1, PatExpr0, PatExpr1]
+    "let ~s =~n~s~nin~n~s", [LetPat, PatExpr0, Cont]
   ),
-  {PatExpr2, [], MbCtx2};
+  {PatExpr2, [], MbCtx3};
 
-%%{PatExpr0, []} = translate_c_expr(Expr, []),
-%%?TRACE("Translated C expr: ~p", [PatExpr0]),
-%%PatExpr1 = translate_c_expr_seq(ExprSeq),
-%%PatExpr2 = io_lib:format(
-%%"let ~s =~n~s~nin~n~s", [translate_pat(Pat), PatExpr0, PatExpr1]
-%%),
-%%{PatExpr2, []};
 
 
 translate_expr({'if', _, Clauses = [Clause0, Clause1]}, ExprSeq, MbCtx) ->
