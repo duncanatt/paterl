@@ -13,6 +13,7 @@
 -export([]).
 -compile(export_all).
 
+
 %%% ----------------------------------------------------------------------------
 %%% Macro and record definitions.
 %%% ----------------------------------------------------------------------------
@@ -36,23 +37,6 @@
 -define(C_WRITE, "!").
 
 -define(C_READ, "?").
-
-%%% ----------------------------------------------------------------------------
-%%% Functions.
-%%% ----------------------------------------------------------------------------
-
-%% Examples.
-%% pat_syntax:fun_def(myfun, [pat_syntax:fun_clause([pat_syntax:param(pat_syntax:var(x), pat_syntax:lit_type(integer))], pat_syntax:lit(5), pat_syntax:lit_type(integer))]).
-fun_def(Name, Clauses) when is_atom(Name), is_list(Clauses), length(Clauses) =:= 1 ->
-  io_lib:format("def ~s~s", [to_name(Name), seq_nl(Clauses)]).
-
-%% Params: pairs of name and type.
-%% Examples.
-%% pat_syntax:fun_clause([], pat_syntax:lit(5), pat_syntax:lit_type(integer)).
-%% pat_syntax:fun_clause([pat_syntax:param(pat_syntax:var(x), pat_syntax:lit_type(integer))], pat_syntax:lit(5), pat_syntax:lit_type(integer)).
-fun_clause(Params, Expr, RetType) when is_list(Params) ->
-  io_lib:format("(~s): ~s {~n~s~n}", [params(Params), RetType, Expr]).
-
 
 %%% ----------------------------------------------------------------------------
 %%% Types.
@@ -97,6 +81,23 @@ param(Name, Type)  ->
 
 
 %%% ----------------------------------------------------------------------------
+%%% Functions.
+%%% ----------------------------------------------------------------------------
+
+%% Examples.
+%% pat_syntax:fun_def(myfun, [pat_syntax:fun_clause([pat_syntax:param(pat_syntax:var(x), pat_syntax:lit_type(integer))], pat_syntax:lit(5), pat_syntax:lit_type(integer))]).
+fun_def(Name, Clauses) when is_atom(Name), is_list(Clauses), length(Clauses) =:= 1 ->
+  io_lib:format("def ~s~s", [to_name(Name), seq_nl(Clauses)]).
+
+%% Params: pairs of name and type.
+%% Examples.
+%% pat_syntax:fun_clause([], pat_syntax:lit(5), pat_syntax:lit_type(integer)).
+%% pat_syntax:fun_clause([pat_syntax:param(pat_syntax:var(x), pat_syntax:lit_type(integer))], pat_syntax:lit(5), pat_syntax:lit_type(integer)).
+fun_clause(Params, Expr, RetType) when is_list(Params) ->
+  io_lib:format("(~s): ~s {~n~s~n}", [params(Params), RetType, Expr]).
+
+
+%%% ----------------------------------------------------------------------------
 %%% Patterns.
 %%% ----------------------------------------------------------------------------
 
@@ -104,6 +105,7 @@ param(Name, Type)  ->
 %% pat_syntax:msg(tag, [pat_syntax:var(x)])
 msg_pat(Tag, PatSeq) when is_atom(Tag), is_list(PatSeq) ->
   io_lib:format("~s(~s)", [to_type_name(Tag), seq_comma(PatSeq)]).
+
 
 %%% ----------------------------------------------------------------------------
 %%% Values.
@@ -140,8 +142,8 @@ unit() ->
 
 %% Examples.
 %% pat_syntax:msg(tag, [pat_syntax:var(x)])
-msg_expr(Tag, Args) when is_atom(Tag), is_list(Args) ->
-  io_lib:format("~s(~s)", [to_type_name(Tag), seq_comma(Args)]).
+msg_expr(Tag, ArgSeq) when is_atom(Tag), is_list(ArgSeq) ->
+  io_lib:format("~s(~s)", [to_type_name(Tag), seq_comma(ArgSeq)]).
 
 %% Examples.
 %% pat_syntax:op_expr(pat_syntax:op('+'), pat_syntax:var(x), pat_syntax:literal(5)).
@@ -261,13 +263,6 @@ spawn_expr(MbType, FunName, Exprs) -> % TODO: Move to translation.
 self_expr(MbCtx) -> % TODO: Move to translation.
   io_lib:format("(~s, ~s)", [MbCtx, MbCtx]).
 
-
-
-
-
-
-
-
 %%% ----------------------------------------------------------------------------
 %%% Utility.
 %%% ----------------------------------------------------------------------------
@@ -352,8 +347,18 @@ indent([Line | Lines], Level) ->
 tabs(N, Line) ->
   lists:flatten([?SEP_NL, lists:duplicate(N, "  "), Line]).
 
-%% Example.
-%%def myfun1(value: Int, mode: String): (Int * Interface?) { # Def
+%% Interface example.
+%% interface {
+%%   Put(Int),
+%%   Get(Int)
+%% }
+%%
+%% PutType = pat_syntax:msg_type(put, [pat_syntax:lit_type(integer)]),
+%% GetType = pat_syntax:msg_type(get, [pat_syntax:lit_type(integer)]),
+%% IFace = pat_syntax:iface_def(interface, [PutType, GetType]).
+
+%% Function example.
+%% def myfun1(value: Int, mode: String): (Int * Interface?) { # Def
 %%  let (a, b) = # LetIf
 %%    let mb = # LetMb
 %%      new [Interface]
@@ -385,15 +390,15 @@ tabs(N, Line) ->
 %%      }
 %%    }
 %%}
-
-%% Example.
-%% ReceivePut = pat_syntax:receive_expr(pat_syntax:msg(put, pat_syntax:var(x)), pat_syntax:var('mb0'), pat_syntax:call_expr(myfun1, [pat_syntax:var(x), pat_syntax:lit("Put")])),
-%% ReceiveGet = pat_syntax:receive_expr(pat_syntax:msg(get, pat_syntax:var(x)), pat_syntax:var('mb0'), pat_syntax:let_expr(pat_syntax:var(i), pat_syntax:op_expr('+', pat_syntax:var(x), pat_syntax:lit(1)), pat_syntax:call_expr(myfun1, [pat_syntax:var(i), pat_syntax:lit("Get")]))),
-%% Empty = pat_syntax:empty_expr(pat_syntax:var('mb0'), pat_syntax:tuple_expr([pat_syntax:var(value), pat_syntax:var('mb0')])),
+%%
+%% ReceivePut = pat_syntax:receive_expr(pat_syntax:msg_pat(put, [pat_syntax:var(x)]), pat_syntax:var('mb0'), pat_syntax:call_expr(myfun1, [pat_syntax:var(x), pat_syntax:lit("Put")])),
+%% ReceiveGet = pat_syntax:receive_expr(pat_syntax:msg_pat(get, [pat_syntax:var(x)]), pat_syntax:var('mb0'), pat_syntax:let_expr(pat_syntax:var(i), pat_syntax:op_expr('+', pat_syntax:var(x), pat_syntax:lit(1)), pat_syntax:call_expr(myfun1, [pat_syntax:var(i), pat_syntax:lit("Get")]))),
+%% Empty = pat_syntax:empty_expr(pat_syntax:var('mb0'), pat_syntax:tuple([pat_syntax:var(value), pat_syntax:var('mb0')])),
 %% Guard = pat_syntax:guard_expr(pat_syntax:var(mb), "Put*.Get*", [ReceivePut, ReceiveGet, Empty]),
 %% If = pat_syntax:if_expr(pat_syntax:op_expr('==', pat_syntax:op_expr('-', pat_syntax:lit(1)), pat_syntax:var(y)), pat_syntax:tuple_expr([pat_syntax:op_expr('-', pat_syntax:lit(1)), pat_syntax:lit("Bye")]), Guard),
 %% Spawn = pat_syntax:spawn_expr(pat_syntax:let_expr(pat_syntax:tuple_expr([pat_syntax:var(x), pat_syntax:var('mb0')]), pat_syntax:call_expr('myfun2', []), pat_syntax:free_expr('mb0'))),
 %% LetSpawn = pat_syntax:let_expr(pat_syntax:var(y), Spawn, pat_syntax:var(mb)),
 %% LetMb = pat_syntax:let_expr(pat_syntax:var(mb), pat_syntax:new_mb_expr(pat_syntax:mb_type(interface)), LetSpawn),
 %% LetIf = pat_syntax:let_expr(pat_syntax:tuple_expr([pat_syntax:var(a), pat_syntax:var(b)]), LetMb, If),
+%% Clause = pat_syntax:fun_clause([pat_syntax:param(pat_syntax:var(value), pat_syntax:lit_type(integer)), pat_syntax:param(pat_syntax:var(mode), pat_syntax:lit_type(string))], LetIf, pat_syntax:prod_type([pat_syntax:lit_type(integer), pat_syntax:mb_type(interface, read)])).
 %% Def = pat_syntax:fun_def(myfun1, [{pat_syntax:var(value), pat_syntax:lit_type(integer)}, {pat_syntax:var(mode), pat_syntax:lit_type(string)}], LetIf, pat_syntax:prod_type([pat_syntax:lit_type(integer), pat_syntax:mb_type(interface, read)])).
