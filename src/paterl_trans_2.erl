@@ -849,7 +849,6 @@ translate_lit({integer, _, Value}) ->
   integer_to_list(Value);
 translate_lit({float, _, Value}) ->
   float_to_list(Value);
-%%  io_lib:format("~.10f", [Value]);
 translate_lit({string, _, Value}) ->
   [$", Value, $"];
 translate_lit({atom, _, Value}) ->
@@ -905,16 +904,3 @@ simplify([]) ->
   ok.
 
 
-%% Pending.
-% 0. Fix bug in let where it generates an empty 'in' expression when it's the last thing in the sequence. NOT A BUG.
-% 1. Upper case message tags in regular expressions.
-% 2. Regular expression parser to simplify things.
-% 3. Add pass before annotations that converts expression sequences to assignments.
-% 4. Maybe ask Simon to support the _?
-% 5. Add a lightweight check that excludes the unsupported Erlang expressions to bring the input as the syntax we have on paper.
-% 6. Insert variable use in let expressions when we have unit () variables. This happens in when we let bind expressions
-%    that return unit. There are three cases: send, function calls that return unit, 'if' condition maybe. We can have a function is_unit()?
-% 7. Have a module that provides a PAT API to create functions out of translated expressions: this enables us to encapsulate
-%    the string mess (pat_syntax).
-% 8. Then have another module that provides an API that does the translation? Maybe or maybe not because then we would not
-%    be able to leverage pattern matching (it becomes similar to when we are using erl_syntax.)
