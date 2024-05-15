@@ -89,7 +89,7 @@ translate_form({function, _, Name, Arity, Clauses = [_]}) ->
   % Function with one clause.
   ?TRACE("Translating function ~s/~b.", [Name, Arity]),
   Clauses0 = translate_fun_clauses(Clauses),
-  io_lib:format("def ~s ~s~n", [make_fun_name(Name), Clauses0]);
+  io_lib:format("def ~s~s~n", [make_fun_name(Name), Clauses0]);
 translate_form(_) ->
   % Other Erlang module attributes without Pat equivalent.
   "".
@@ -665,11 +665,11 @@ translate_c_expr({call, Anno, {atom, _, spawn}, _MFArgs = [_, Fun, Args]}, ExprS
 
   PatExpr2 =
     lists:flatten(
-      io_lib:format("spawn {~nlet (x, ~s) = ~s in free(~s); x~n}", [
+      io_lib:format("spawn {~nlet (x, ~s) = ~s in free(~s)~n}", [
         MbCtx1, PatExpr1, MbCtx1
       ])
     ),
-  PatExpr3 = io_lib:format("let ~s =~nnew[~s]~nin~nlet y =~n~s~nin ~s", [
+  PatExpr3 = io_lib:format("let ~s =~nnew [~s]~nin~nlet y =~n~s~nin~n~s", [
     MbCtx0, Interface, PatExpr2, MbCtx0
   ]),
   {PatExpr3, ExprSeq};
@@ -707,7 +707,7 @@ translate_c_expr({call, Anno, Fun = {atom, _, Name}, Args}, ExprSeq) ->
               MbCtx1, PatExpr1, MbCtx1
             ])
           ),
-        io_lib:format("let ~s =~nnew[~s]~nin~n~s", [
+        io_lib:format("let ~s =~nnew [~s]~nin~n~s", [
           MbCtx0, Interface, PatExpr2
         ])
     end,
