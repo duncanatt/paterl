@@ -80,7 +80,7 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
                   compile:forms(Annotated),
 
                   io:fwrite(color:green("[TRANSLATE] Translating Erlang forms to Pat.~n")),
-                  Pat = pat_prettypr:indent(paterl_trans_3:translate(Annotated)),
+                  Pat = pat_prettypr:indent(paterl_trans_3:module(Annotated)),
                   io:format("~n~n~nOutput Pat:~n~n~n~s~n", [number(Pat)]),
 
                   PatFile = filename:rootname(File),
