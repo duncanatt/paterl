@@ -17,8 +17,8 @@
 -include("paterl.hrl").
 
 %% API
--export([]).
--compile(export_all).
+-export([module/1]).
+%%-compile(export_all).
 
 %%% ----------------------------------------------------------------------------
 %%% Macro and record definitions.
@@ -30,33 +30,7 @@
 
 -spec module(erl_syntax:forms()) -> list().
 module(Forms) ->
-
-  Type = erl_syntax:revert(
-    erl_syntax:type_application(erl_syntax:atom(any), [])
-  ),
-
-  Call =
-    erl_syntax:set_pos(
-      erl_syntax:application(erl_syntax:atom(main), []),
-      paterl_anno:set_modality(new, paterl_anno:set_interface(main_mb, erl_anno:new(0)))
-    ),
-
-  Clause =
-    erl_syntax:revert(
-      erl_syntax:set_pos(
-        erl_syntax:clause([], [Call]),
-        paterl_anno:set_type(Type, erl_anno:new(0))
-
-      )),
-
-  Fun = erl_syntax:revert(
-    erl_syntax:set_pos(
-      erl_syntax:function(erl_syntax:atom('main\''), [Clause]),
-      paterl_anno:set_type(Type, erl_anno:new(0))
-    )),
-
-  forms(Forms ++ [Fun]).
-
+  forms(Forms ++ [main_fun_def()]).
 
 forms(Forms) ->
   [form(Form) || Form <- Forms].
@@ -183,7 +157,7 @@ expr(Expr = {call, Anno, {atom, _, Name}, Args}, ExprSeq, Mb) ->
         {Call, []} = expr(Expr, []),
         pat_syntax:tuple([Call, pat_syntax:var(make_mb(Mb))]);
 
-      _ ->
+      _Interface ->
         % Call to an open function call inside mailbox context.
         case paterl_anno:modality(Anno) of
           new ->
@@ -218,7 +192,6 @@ expr({match, _, Pat, Expr}, ExprSeq, Mb) ->
         expr_seq(ExprSeq, Mb1)
     end,
   {pat_syntax:let_expr(Binders, Expr0, Body), [], Mb2};
-
 
 expr({'if', _, [Clause0, Clause1]}, ExprSeq, Mb) ->
   % If expression with one user-defined constraint and one catch-all constraint.
@@ -296,7 +269,7 @@ fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
       Expr = expr_seq(Body),
 
       pat_syntax:fun_clause(Params, Expr, RetType);
-    Interface ->
+    _Interface ->
       % Mailbox-annotated function.
       ?TRACE("Translating mailbox-annotated function clause */~b.",
         [length(PatSeq)]
@@ -318,7 +291,6 @@ fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
 if_clause({clause, _, _PatSeq = [], [[GuardTest]], Body}) ->
   % Constrained if clause with exactly one guard and one guard test.
   {guard_test(GuardTest), expr_seq(Body)}.
-
 
 %% @private Translates value and expression sequences.
 expr_seq([]) ->
@@ -342,99 +314,23 @@ expr({var, _, Name}, ExprSeq) ->
 expr({tuple, _, [_Tag = {atom, _, Name} | Args]}, ExprSeq) ->
   % Message.
   {pat_syntax:msg_expr(Name, expr_seq(Args)), ExprSeq};
-expr({call, Anno, {atom, _, spawn}, _MFArgs = [_, Fun, Args]}, ExprSeq) ->
+expr(Expr = {call, _, {atom, _, spawn}, _MFArgs = [_, _Fun, _Args]}, ExprSeq) ->
   % Spawn expression.
-  Interface = paterl_anno:interface(Anno),
-
-  Mb0 = new_mb(),
-  Mb1 = new_mb(Mb0),
-
-  % Create Erlang syntax of function to be spawned.
-  Args0 = erl_syntax:list_elements(Args),
-  Expr0 = erl_syntax:revert(
-    erl_syntax:set_pos(
-      erl_syntax:application(Fun, Args0), paterl_anno:set_modality(use, Anno))
-  ),
-
-  % Translate function call.
-  {Call, [], Mb0} = expr(Expr0, [], Mb0),
-
-  %% TODO: START Refactor this to own call.
-  % Variables used to construct spawn expression.
-  MbVarNew = pat_syntax:var(make_mb(Mb0)),
-  MbVarCall = pat_syntax:var(make_mb(Mb1)),
-  RetCall = pat_syntax:var(x),
-
-  % Let with call expression to be spawned.
-  LetCall = pat_syntax:let_expr(
-    pat_syntax:tuple([RetCall, MbVarCall]),
-    Call,
-    pat_syntax:free_expr(MbVarCall)
-  ),
-
-  % Let with spawn expression.
-  LetSpawn = pat_syntax:let_expr(
-    pat_syntax:var(y), pat_syntax:spawn_expr(LetCall), MbVarNew
-  ),
-
-  % Let with new mailbox creation.
-  LetNewMb = pat_syntax:let_expr(
-    MbVarNew, pat_syntax:new_expr(pat_syntax:mb_type(Interface)), LetSpawn
-  ),
-
-  %% TODO: END Refactor this to own call.
-  {LetNewMb, ExprSeq};
-
+  {spawn_expr(Expr), ExprSeq};
 expr({call, _, {atom, _, format}, _}, ExprSeq) ->
   % Format call expressions.
   {pat_syntax:unit(), ExprSeq};
-expr({call, Anno, Fun = {atom, _, Name}, Args}, ExprSeq) ->
+expr(Expr = {call, Anno, _Fun = {atom, _, Name}, Args}, ExprSeq) ->
   % Explicit internal function call and explicit internal mailbox-annotated
   % function call. Function calls with use mailbox annotations not permitted.
-  Expr =
-    case paterl_anno:modality(Anno) of
-      undefined ->
-        % Call to closed function call outside mailbox context.
-        pat_syntax:call_expr(Name, expr_seq(Args));
-      new ->
-        % New interface modality. Use modality not permitted.
-        Interface0 = paterl_anno:interface(Anno),
-
-        Mb0 = new_mb(),
-        Mb1 = new_mb(Mb0),
-
-        % Create Erlang syntax of function to be called.
-        Expr0 = erl_syntax:revert(
-          erl_syntax:set_pos(
-            erl_syntax:application(Fun, Args), paterl_anno:set_modality(use, Anno))
-        ),
-
-        % Translate function call.
-        {Call, [], _} = expr(Expr0, [], Mb0),
-
-        %% TODO: START Refactor this to own call.
-        % Variables used to construct call expression.
-        MbVarNew = pat_syntax:var(make_mb(Mb0)),
-        MbVarCall = pat_syntax:var(make_mb(Mb1)),
-        RetCall = pat_syntax:var(x),
-
-        % Let with free expression.
-        LetFree = pat_syntax:let_expr(
-          pat_syntax:var(y), pat_syntax:free_expr(MbVarCall), RetCall
-        ),
-
-        % Let with call expression.
-        LetCall = pat_syntax:let_expr(
-          pat_syntax:tuple([RetCall, MbVarCall]), Call, LetFree
-        ),
-
-        % Let with new mailbox creation.
-        pat_syntax:let_expr(
-          MbVarNew, pat_syntax:new_expr(pat_syntax:mb_type(Interface0)), LetCall
-        )
-      %% TODO: END Refactor this to own call.
-    end,
-  {Expr, ExprSeq};
+  case paterl_anno:modality(Anno) of
+    undefined ->
+      % Call to closed function call outside mailbox context.
+      {pat_syntax:call_expr(Name, expr_seq(Args)), ExprSeq};
+    new ->
+      % New interface modality. Use modality not permitted.
+      {new_call_expr(Expr), ExprSeq}
+  end;
 expr({match, _, Pat, Expr}, ExprSeq) ->
   % Match expression.
   {Expr0, []} = expr(Expr, []),
@@ -550,6 +446,109 @@ new_mb(Id) ->
 make_mb(Id) ->
   list_to_atom(?MB_VAR_NAME ++ integer_to_list(Id)).
 
+new_call_expr({call, Anno, Fun = {atom, _, _}, Args}) ->
+  % Only function calls with new mailbox-annotation modality are permitted.
+  ?assertEqual(new, paterl_anno:modality(Anno)),
 
+  % Create Erlang syntax of function to be called. The created function must
+  % be annotated with use modality.
+  Expr = erl_syntax:revert(
+    erl_syntax:set_pos(
+      erl_syntax:application(Fun, Args), paterl_anno:set_modality(use, Anno))
+  ),
 
+  % Create local mailbox IDs.
+  MbNew = new_mb(),
+  MbCall = new_mb(MbNew),
+
+  % Translate function call with .
+  {Call, [], _} = expr(Expr, [], MbNew),
+
+  % Variables used to construct call expression.
+  MbVarNew = pat_syntax:var(make_mb(MbNew)),
+  MbVarCall = pat_syntax:var(make_mb(MbCall)),
+  RetCall = pat_syntax:var(x),
+
+  % Let with free expression.
+  LetFree = pat_syntax:let_expr(
+    pat_syntax:var(y), pat_syntax:free_expr(MbVarCall), RetCall
+  ),
+
+  % Let with call expression.
+  LetCall = pat_syntax:let_expr(
+    pat_syntax:tuple([RetCall, MbVarCall]), Call, LetFree
+  ),
+
+  % Let with new mailbox creation.
+  Interface = paterl_anno:interface(Anno),
+  pat_syntax:let_expr(
+    MbVarNew, pat_syntax:new_expr(pat_syntax:mb_type(Interface)), LetCall
+  ).
+
+spawn_expr({call, Anno, {atom, _, spawn}, _MFArgs = [_, Fun, Args]}) ->
+  % Create Erlang syntax of function to be spawned. The created function must
+  % be annotated with use modality.
+  Expr = erl_syntax:revert(
+    erl_syntax:set_pos(
+      erl_syntax:application(Fun, erl_syntax:list_elements(Args)),
+      paterl_anno:set_modality(use, Anno))
+  ),
+
+  % Create local mailbox IDs.
+  MbNew = new_mb(),
+  MbCall = new_mb(MbNew),
+
+  % Translate function call.
+  {Call, [], MbNew} = expr(Expr, [], MbNew),
+
+  % Variables used to construct spawn expression.
+  MbVarNew = pat_syntax:var(make_mb(MbNew)),
+  MbVarCall = pat_syntax:var(make_mb(MbCall)),
+  RetCall = pat_syntax:var(x),
+
+  % Let with call expression to be spawned.
+  LetCall = pat_syntax:let_expr(
+    pat_syntax:tuple([RetCall, MbVarCall]),
+    Call,
+    pat_syntax:free_expr(MbVarCall)
+  ),
+
+  % Let with spawn expression.
+  LetSpawn = pat_syntax:let_expr(
+    pat_syntax:var(y), pat_syntax:spawn_expr(LetCall), MbVarNew
+  ),
+
+  % Let with new mailbox creation.
+  pat_syntax:let_expr(
+    MbVarNew,
+    pat_syntax:new_expr(pat_syntax:mb_type(paterl_anno:interface(Anno))),
+    LetSpawn
+  ).
+
+%% @private Creates the auxiliary main function that is added to the Pat file
+%% to complete it.
+main_fun_def() ->
+  Type = erl_syntax:revert(
+    erl_syntax:type_application(erl_syntax:atom(any), [])
+  ),
+
+  Call =
+    erl_syntax:set_pos(
+      erl_syntax:application(erl_syntax:atom(main), []),
+      paterl_anno:set_modality(new, paterl_anno:set_interface(main_mb, erl_anno:new(0)))
+    ),
+
+  Clause =
+    erl_syntax:revert(
+      erl_syntax:set_pos(
+        erl_syntax:clause([], [Call]),
+        paterl_anno:set_type(Type, erl_anno:new(0))
+
+      )),
+
+  erl_syntax:revert(
+    erl_syntax:set_pos(
+      erl_syntax:function(erl_syntax:atom('main\''), [Clause]),
+      paterl_anno:set_type(Type, erl_anno:new(0))
+    )).
 
