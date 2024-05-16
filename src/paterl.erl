@@ -39,8 +39,6 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
 
   io:fwrite(color:green("[SYNTAX] Sub-syntax checking.~n")),
 
-  % TODO: Add phase to desugar lets in functions. Confirm with Simon F.
-
   case epp:parse_file(File, Opts) of
     {ok, Forms} ->
       % File preprocessed.
@@ -51,10 +49,19 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
           % File valid but possible warnings.
           errors:show_warnings(Warnings0),
 
+          io:fwrite(color:green("[IR] IRing.~n")),
+          Desugared = paterl_ir:module(Forms),
+          io:format("~n~n~n D E S U G A R E D~n~n~n~n", []),
+          pp_forms(Desugared),
+          io:format("~n~n~n E N D D E S U G A R E D~n~n~n~n", []),
+%%          init:stop(-1),
+%%
+
           % Get program types table.
           io:fwrite(color:green("[TYPE] Extracting typespecs.~n")),
 
-          case paterl_types:table(Forms) of
+%%          case paterl_types:table(Forms) of
+          case paterl_types:table(Desugared) of
             {ok, TInfo = #t_info{types = Types, specs = Specs, mb_defs = MbDefs, mb_names = MbNames}, Warnings1} ->
               % Type table valid but possible warnings.
               errors:show_warnings({File, Warnings1}),
@@ -68,7 +75,8 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
 
               % Annotate forms using type table.
               io:fwrite(color:green("[ANNOTATE] Annotating Erlang forms.~n")),
-              case paterl_anno:annotate(Forms, TInfo) of
+%%              case paterl_anno:annotate(Forms, TInfo) of
+              case paterl_anno:annotate(Desugared, TInfo) of
 
                 {ok, Annotated} ->
                   % Forms annotated.
@@ -192,6 +200,9 @@ number(Data) ->
   lists:zipwith(fun(I, Line) -> [integer_to_list(I), ": " | Line] end, lists:seq(1, length(Lines)), Lines).
 
 
+pp_forms(Forms) ->
+  [io:fwrite(erl_pp:form(Form, [{indent, 2}])) || Form <- Forms].
+
 %%% ----------------------------------------------------------------------------
 %%% Error handling and reporting.
 %%% ----------------------------------------------------------------------------
@@ -204,3 +215,4 @@ format_error({?E_PAT_MSG, Reason}) ->
   );
 format_error(?E_PAT_NONE) ->
   "Unknown Pat error; see generated output file".
+

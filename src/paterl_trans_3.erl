@@ -11,7 +11,6 @@
 
 %%% Includes.
 -include_lib("stdlib/include/assert.hrl").
--include_lib("syntax_tools/include/merl.hrl").
 -include("log.hrl").
 -include("errors.hrl").
 -include("paterl.hrl").
@@ -32,7 +31,7 @@
 module(Forms) ->
   forms(Forms ++ [main_fun_def()]).
 
-forms(Forms) ->
+forms(Forms) when is_list(Forms) ->
   [form(Form) || Form <- Forms].
 
 
@@ -56,7 +55,7 @@ form({function, _, Name, Arity, Clauses = [_]}) ->
   ?TRACE("Translating function ~s/~b.", [Name, Arity]),
   pat_syntax:fun_def(Name, fun_clauses(Clauses));
 form(_) ->
-  % Other Erlang module attributes without Pat equivalent.
+  % Other Erlang forms without Pat equivalent.
   [].
 
 type({type, _, pid, _Vars = []}) ->
@@ -119,8 +118,8 @@ clauses(Fun, Clauses, MbCtx)
 case_clauses(Clauses, MbCtx) ->
   clauses(fun case_clause/2, Clauses, MbCtx).
 
-if_clauses(Clauses, MbCtx) ->
-  clauses(fun if_clause/2, Clauses, MbCtx).
+%%if_clauses(Clauses, MbCtx) ->
+%%  clauses(fun if_clause/2, Clauses, MbCtx).
 
 %% @private Translates a receive/case and if clause.
 case_clause(_Clause = {clause, _, PatSeq = [_], _GuardSeq = [], Body}, Mb) ->
@@ -241,12 +240,12 @@ expr(Expr, ExprSeq, Mb) ->
 
 %% @private Translates closed functions and if clauses.
 fun_clauses(Clauses) ->
-  clauses(Clauses, fun fun_clause/1).
+  clauses(fun fun_clause/1, Clauses).
 
-if_clauses(Clauses) ->
-  clauses(Clauses, fun if_clause/1).
+%%if_clauses(Clauses) ->
+%%  clauses(fun if_clause/1, Clauses).
 
-clauses(Clauses, Fun) when is_list(Clauses), is_function(Fun, 1) ->
+clauses(Fun, Clauses) when is_function(Fun, 1), is_list(Clauses) ->
   [Fun(Clause) || Clause <- Clauses].
 
 %% @private Translates closed function and if clauses.

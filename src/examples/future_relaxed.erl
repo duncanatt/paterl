@@ -39,7 +39,7 @@
 -spec future() -> no_return().
 future() ->
   ?mb_assert_regex("Put.*Get"),
-%%  ?mb_assert_regex("Put"), % Uncomment for "missing Put"
+%%  ?mb_assert_regex("Put"), % Uncomment for "unexpected Get"
   receive
     {put, X} ->
       resolved_future(X)
@@ -50,8 +50,8 @@ resolved_future(X) ->
   ?mb_assert_regex("*Get"),
   receive
     {get, User} ->
-      T0 = User ! {reply, X}, % Comment for "missing reply".
-      T1 = 5,
+      10,
+      User ! {reply, X}, % Comment for "missing reply".
       resolved_future(X)
   end.
 
@@ -59,73 +59,84 @@ resolved_future(X) ->
 user(Future) ->
   Self = self(),
   T0 = Future ! {get, Self},
-%%  T0 = Future ! {get, Self}, % Uncomment for "extra Get".
+%%  T0 = Future ! {get, Self}, % Uncomment for "extra Reply".
   ?mb_assert_regex("Reply"), % Add extra Reply and fix it with nested receive.
   receive
     {reply, X} ->
+      10,
       X
-  end.
+  end,
+  80.
 
 -spec main() -> any().
 main() ->
   ?mb_new(future_mb),
   Future_mb = spawn(?MODULE, future, []),
-%%  T0 = Future_mb ! {put, 5}, % Comment out for "missing Put".
-%%  T0 = XX ! {put, 5}, % Comment out for "missing Put".
-  T0 = Future_mb ! {put, 5}, % Comment out for "missing Put".
-%%  let (d, mb) = (let (t0, mb) = future_mb ! {put, 5}) in
-%%  Future_mb ! {put, 5}, % Comment out for "missing Put".
-%%  5 + 5,
+  Future_mb ! {put, 5}, % Comment out for "missing Put".
+%%  Future_mb ! {put, 5}, % Uncomment for "extra Put".
   A = user(Future_mb),
+  5 + 6,
   T1 = format("~s", [A]),
-  if (1 == 1) -> T1; true -> T1 end. %TODO: Bug -> Uncomment to raise the not bound mailbox error.
+  format("~s", [A]),
+  a_non_annotated_fun("hello", 6 + 8, 900),
+  if 5 == 2 -> K = "five_is_two"; true -> X = "five_is_not_two", Y = "but two is not" end,
+  if 5 == 2 -> "five_is_two"; true -> "five_is_not_two", "but two is not" end,
+  T1.
 
-%%-spec main0() -> ok.
-%%main0() ->
-%%  main().
 
 
-%%-spec a_non_annotated_fun(string(), integer(), integer()) -> any().
-%%a_non_annotated_fun(Var, 1, 2) ->
-%%  if 5 == 2 -> five_is_two; true -> five_is_not_two, "but two is not", 5 end,
+-spec a_non_annotated_fun(string(), integer(), integer()) -> boolean().
+a_non_annotated_fun(Var, A, B) ->
+%%  U = if 5 == 2 -> K = "five_is_two"; true -> X = "five_is_not_two", Y = "but two is not" end,
+%%  %: TODO: Ask Simon.
+%%  U = if 5 == 2 -> "five_is_two"; true -> "five_is_not_two" end.
 %%  T1 = format("Some text", []),
-%%  5 + 5,
-%%  "String",
-%%  a_non_annotated_fun(Var, 1, 2).
+%%  G = 5 + 5,
+%%  H = "String",
+%%  a_non_annotated_fun(Var, 1, 2),
+%%  ?mb_assert_regex("Regex"),
+%%  O = receive
+%%    {a, Var} ->
+%%      5
+%%  end,
+  T = true,
+  Y = a_non_annotated_fun(Var, 1, 2 + 3).
 
 
 %%-spec main1() -> any().
 %%main1() -> main().
 
--spec pure1() -> integer().
-pure1() ->
-  X = 5.
-  % Expected: let x = 5 in x; Generated: let x = 5 in <EMPTY>.
+%%-spec pure1() -> integer().
+%%pure1() ->
+%%  X = 5.
+%%  % Expected: let x = 5 in x; Generated: let x = 5 in <EMPTY>.
+%%
+%%-spec pure2() -> integer().
+%%pure2() ->
+%%  X = 5,
+%%  7.
+%%  % Expected: let x = 5 in 7; Generated: let x = 5 in 7.
+%%
+%%-spec pure3() -> integer().
+%%pure3() ->
+%%  Y = X = 5.
+%%  % Expected: let y = (let x = 5 in x) in y; Generated: let y = (let x = 5 in <EMPTY>) in <EMPTY>.
+%%
+%%-spec pure4() -> integer().
+%%pure4() ->
+%%  Z = Y = X = 5.
+%%  % Expected: let z = (let y = (let x = 5 in x) in y) in z
+%%
+%%-spec pure5() -> integer().
+%%pure5() ->
+%%  X = 5,
+%%  Y = X.
+%%  % Expected: let x = 5 in let y = x in x; Generated: let x = 5 in let y = x in <EMPTY>.
+%%
+%%-spec pure6() -> integer().
+%%pure6() ->
+%%  Y = X = 5,
+%%  7.
+%%  % Expected: let y = (let x = 5 in x) in 7; Generated: let y = (let x = 5 in <EMPTY>) in 7
 
--spec pure2() -> integer().
-pure2() ->
-  X = 5,
-  7.
-  % Expected: let x = 5 in 7; Generated: let x = 5 in 7.
-
--spec pure3() -> integer().
-pure3() ->
-  Y = X = 5.
-  % Expected: let y = (let x = 5 in x) in y; Generated: let y = (let x = 5 in <EMPTY>) in <EMPTY>.
-
--spec pure4() -> integer().
-pure4() ->
-  Z = Y = X = 5.
-  % Expected: let z = (let y = (let x = 5 in x) in y) in z
-
--spec pure5() -> integer().
-pure5() ->
-  X = 5,
-  Y = X.
-  % Expected: let x = 5 in let y = x in x; Generated: let x = 5 in let y = x in <EMPTY>.
-
--spec pure6() -> integer().
-pure6() ->
-  Y = X = 5,
-  7.
-  % Expected: let y = (let x = 5 in x) in 7; Generated: let y = (let x = 5 in <EMPTY>) in 7
+%%./src/paterl src/examples/future_relaxed.erl -v all -I include
