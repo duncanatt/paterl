@@ -28,6 +28,8 @@
 
 -define(SEP_NL, [$\n]).
 
+-define(T_BOOLEAN, "Bool").
+
 -define(T_INTEGER, "Int").
 
 -define(T_FLOAT, "Float").
@@ -46,6 +48,8 @@
 %%% Types.
 %%% ----------------------------------------------------------------------------
 
+lit_type(Name) when Name =:= boolean ->
+  ?T_BOOLEAN;
 lit_type(Name) when Name =:= integer ->
   ?T_INTEGER;
 lit_type(Name) when Name =:= float ->
@@ -130,6 +134,8 @@ var(Name) when is_atom(Name) ->
 
 %% Examples.
 %% pat_syntax:lit(5).
+lit(Value) when is_boolean(Value) ->
+  atom_to_list(Value);
 lit(Value) when is_integer(Value) ->
   integer_to_list(Value);
 lit(Value) when is_float(Value) ->

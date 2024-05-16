@@ -26,6 +26,8 @@
 
 -define(MB_IDX_START, 0).
 
+-define(MB_VAR_NAME, "mb").
+
 -spec translate(erl_syntax:forms()) -> list().
 translate(Forms) ->
 
@@ -59,6 +61,7 @@ translate(Forms) ->
 translate_forms(Forms) ->
   [translate_form(Form) || Form <- Forms].
 
+
 %%% ----------------------------------------------------------------------------
 %%% Translation on forms and types.
 %%% ----------------------------------------------------------------------------
@@ -86,15 +89,15 @@ translate_type({type, _, pid, _Vars = []}) ->
   % Erlang PID type is not translated. This handles the case where the a mailbox
   % interface type is just a PID.
   undefined;
-translate_type({type, _, integer, _Vars = []}) ->
-  % Integer type.
-  pat_syntax:lit_type(integer);
-translate_type({type, _, float, _Vars = []}) ->
-  % Float type.
-  pat_syntax:lit_type(float);
-translate_type({type, _, string, _Vars = []}) ->
-  % String type.
-  pat_syntax:lit_type(string);
+translate_type({type, _, Type, _Vars = []})
+  when
+  Type =:= boolean;
+  Type =:= integer;
+  Type =:= float;
+  Type =:= string;
+  Type =:= atom ->
+  % Literal types.
+  pat_syntax:lit_type(Type);
 translate_type({type, _, Name, _Vars = []})
   when Name =:= no_return; Name =:= any; Name =:= none ->
   % Unit type.
@@ -120,11 +123,6 @@ translate_type_seq([{type, _, pid, _Vars = []} | TypeSeq]) ->
 translate_type_seq([Type | TypeSeq]) ->
   [translate_type(Type) | translate_type_seq(TypeSeq)].
 
-make_type_name(Type) when is_atom(Type) ->
-  string:titlecase(atom_to_list(Type)).
-
-make_fun_name(Fun) when is_atom(Fun) ->
-  atom_to_list(Fun).
 
 
 %%% ----------------------------------------------------------------------------
@@ -152,43 +150,31 @@ translate_if_clauses(Clauses, MbCtx) ->
   translate_open_clauses(fun translate_if_clause/2, Clauses, MbCtx).
 
 %% @private Translates a receive/case and if clause.
-translate_case_clause(_Clause = {clause, Anno, PatSeq = [_], _GuardSeq = [], Body}, MbCtx) ->
+translate_case_clause(_Clause = {clause, _, PatSeq = [_], _GuardSeq = [], Body}, Mb) ->
   % Unconstrained receive or case clause.
-  MbCtx0 = new_mb(MbCtx),
-  {Body0, MbCtx1} = translate_expr_seq(Body, MbCtx0),
-  Receive = pat_syntax:receive_expr(translate_pat_seq(PatSeq), MbCtx0, Body0),
-  {Receive, MbCtx1}.
+  Mb0 = new_mb(Mb),
+  {Expr, Mb1} = translate_expr_seq(Body, Mb0),
+  {pat_syntax:receive_expr(translate_pat_seq(PatSeq), pat_syntax:var(make_mb(Mb0)), Expr), Mb1}.
 
-translate_if_clause(_Clause = {clause, _, _PatSeq = [], GuardSeq = [_], Body}, MbCtx) ->
-  % Constrained if clause.
-  {Expr, MbCtx0} = translate_expr_seq(Body, MbCtx),
+translate_if_clause(_Clause = {clause, _, _PatSeq = [], [[GuardTest]], ExprSeq}, Mb) ->
+  % Constrained if clause with exactly one guard and one guard test.
+  {Expr0, Mb0} = translate_expr_seq(ExprSeq, Mb),
+  {{translate_guard_test(GuardTest), Expr0}, Mb0}.
 
-  Expr1 =
-    case translate_guard_seq(GuardSeq) of
-      [["true"]] ->
-        % Default Erlang if guard equates to else branch in Pat.
-        Expr;
-      GuardSeq0 ->
-        % If branch.
-        {GuardSeq0, Expr}
-    end,
-  {Expr1, MbCtx0}.
-
-
-translate_expr_seq([], MbCtx) ->
-  {[], MbCtx};
-translate_expr_seq([Expr | ExprSeq], MbCtx) ->
-  {Expr0, Rest, MbCtx0} = translate_expr(Expr, ExprSeq, MbCtx),
-  {Exprs0, MbCtx1} = translate_expr_seq(Rest, MbCtx0),
-  {[Expr0 | Exprs0], MbCtx1}.
+translate_expr_seq([], Mb) ->
+  {[], Mb};
+translate_expr_seq([Expr | ExprSeq], Mb) ->
+  {Expr0, Rest, Mb0} = translate_expr(Expr, ExprSeq, Mb),
+  {ExprSeq0, Mb1} = translate_expr_seq(Rest, Mb0),
+  {[Expr0 | ExprSeq0], Mb1}.
 
 %% @private Translates values and expressions.
-translate_expr({call, _, {atom, _, self}, _MFArgs = []}, ExprSeq, MbCtx) ->
+translate_expr({call, _, {atom, _, self}, _MFArgs = []}, ExprSeq, Mb) ->
   % Self expression.
-  Self = pat_syntax:tuple([MbCtx, MbCtx]),
-  {Self, ExprSeq, MbCtx};
+  MbVar = pat_syntax:var(make_mb(Mb)),
+  {pat_syntax:tuple([MbVar, MbVar]), ExprSeq, Mb};
 
-translate_expr(Expr = {call, Anno, {atom, _, Name}, Args}, ExprSeq, MbCtx) ->
+translate_expr(Expr = {call, Anno, {atom, _, Name}, Args}, ExprSeq, Mb) ->
   % Explicit internal function call, and explicit internal mailbox-annotated
   % function call.
   Call0 =
@@ -196,7 +182,7 @@ translate_expr(Expr = {call, Anno, {atom, _, Name}, Args}, ExprSeq, MbCtx) ->
       undefined ->
         % Call to closed function call outside mailbox context.
         {Call, []} = closed_expr(Expr, []),
-        pat_syntax:tuple([Call, pat_syntax:var(list_to_atom(MbCtx))]);
+        pat_syntax:tuple([Call, pat_syntax:var(make_mb(Mb))]);
 
       _ ->
         % Call to an open function call inside mailbox context.
@@ -204,80 +190,76 @@ translate_expr(Expr = {call, Anno, {atom, _, Name}, Args}, ExprSeq, MbCtx) ->
           new ->
             % Inject new mailbox.
             {Call, []} = closed_expr(Expr, []),
-            pat_syntax:tuple([Call, pat_syntax:var(list_to_atom(MbCtx))]);
+            pat_syntax:tuple([Call, pat_syntax:var(make_mb(Mb))]);
 
           use ->
             % Thread through existing mailbox.
-            Args0 = [erl_syntax:revert(erl_syntax:atom(MbCtx)) | Args],
+            Args0 = [erl_syntax:revert(erl_syntax:atom(make_mb(Mb))) | Args],
             pat_syntax:call_expr(Name, closed_expr_seq(Args0))
         end
     end,
-  {Call0, ExprSeq, MbCtx};
+  {Call0, ExprSeq, Mb};
 
-
-
-translate_expr({match, _, Pat, Expr}, ExprSeq, MbCtx) ->
+translate_expr({match, _, Pat, Expr}, ExprSeq, Mb) ->
   % Match expression.
-  {Expr0, [], MbCtx0} = translate_expr(Expr, [], MbCtx),
-  MbCtx1 = new_mb(MbCtx0),
-  Binders = pat_syntax:tuple([translate_pat(Pat), MbCtx1]),
+  {Expr0, [], Mb0} = translate_expr(Expr, [], Mb),
+  Mb1 = new_mb(Mb0),
+  Binders = pat_syntax:tuple([translate_pat(Pat), pat_syntax:var(make_mb(Mb1))]),
 
   % Rest of Erlang expression sequence is translated because let expressions
   % induce a hierarchy of nested expression contexts that does not align with
   % Erlang match expressions.
-  {Body, MbCtx3} =
-    case translate_expr_seq(ExprSeq, MbCtx1) of
-      {[], MbCtx1} ->
+  {Body, Mb3} =
+    case translate_expr_seq(ExprSeq, Mb1) of
+      {[], Mb1} ->
         % Empty let body. Use binders to complete let body.
-        {Binders, MbCtx1};
-      {Expr1, MbCtx2} ->
+        {Binders, Mb1};
+      {Expr1, Mb2} ->
         % Non-empty let body.
-        {Expr1, MbCtx2}
+        {Expr1, Mb2}
     end,
-  {pat_syntax:let_expr(Binders, Expr0, Body), [], MbCtx3};
+  {pat_syntax:let_expr(Binders, Expr0, Body), [], Mb3};
 
-translate_expr({'if', _, [Clause0, Clause1]}, ExprSeq, MbCtx) ->
+translate_expr({'if', _, [Clause0, Clause1]}, ExprSeq, Mb) ->
   % If expression with one user-defined constraint and one catch-all constraint.
   % The two constraints emulate the if and else in Pat branching expressions.
-  {{ExprC, ExprT}, MbCtx} = translate_if_clause(Clause0, MbCtx), % If.
-  {ExprF, MbCtx1} = translate_if_clause(Clause1, MbCtx), % Else.
+  {{ExprC, ExprT}, Mb0} = translate_if_clause(Clause0, Mb), % If.
+  {{"true", ExprF}, Mb1} = translate_if_clause(Clause1, Mb), % Else.
 
-  IfExpr = pat_syntax:if_expr(ExprC, ExprT, ExprF),
-  MbCtx2 = new_mb(MbCtx1),
-  {IfExpr, ExprSeq, MbCtx2};
+  Mb2 = new_mb(max(Mb0, Mb1)),
+  {pat_syntax:if_expr(ExprC, ExprT, ExprF), ExprSeq, Mb2};
 
-translate_expr({'receive', Anno, Clauses}, ExprSeq, MbCtx) ->
+translate_expr({'receive', Anno, Clauses}, ExprSeq, Mb) ->
   % Unconstrained receive expression that is translated to Pat guard expression.
   State = paterl_anno:state(Anno),
-  {ReceiveExprSeq, MbCtx0} = translate_case_clauses(Clauses, MbCtx),
+  {ReceiveClauses, Mb0} = translate_case_clauses(Clauses, Mb),
 
   % Check whether an empty expression is required.
-  ReceiveExprSeq0 =
+  ReceiveClauses0 =
     case pat_regex:is_mb_empty(State) of
       true ->
         % Regex may be empty. Add empty expression.
-        MbCtx1 = new_mb(MbCtx),
-        MbVar = pat_syntax:var(list_to_atom(MbCtx1)),
+        Mb1 = new_mb(Mb),
+        MbVar = pat_syntax:var(make_mb(Mb1)),
         EmptyExpr = pat_syntax:empty_expr(
           MbVar, pat_syntax:tuple([pat_syntax:unit(), MbVar])
         ),
-        [EmptyExpr | ReceiveExprSeq];
+        [EmptyExpr | ReceiveClauses];
       false ->
-        ReceiveExprSeq
+        ReceiveClauses
     end,
 
   Guard = pat_syntax:guard_expr(
-    pat_syntax:var(list_to_atom(MbCtx)), State, ReceiveExprSeq0
+    pat_syntax:var(make_mb(Mb)), State, ReceiveClauses0
   ),
-  {Guard, ExprSeq, MbCtx0};
+  {Guard, ExprSeq, Mb0};
 
-translate_expr(Expr, ExprSeq, MbCtx) ->
+translate_expr(Expr, ExprSeq, Mb) ->
   % Literal and variable.
   % Binary and unary operators.
   % Spawn expression.
   {Expr0, []} = closed_expr(Expr, []),
-  Tuple = pat_syntax:tuple([Expr0, pat_syntax:var(list_to_atom(MbCtx))]),
-  {Tuple, ExprSeq, MbCtx}.
+  {pat_syntax:tuple([Expr0, pat_syntax:var(make_mb(Mb))]), ExprSeq, Mb}.
 
 
 %%% ----------------------------------------------------------------------------
@@ -322,30 +304,20 @@ fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
 
       % Create mailbox to inject as first parameter of the mailbox-annotated
       % function clause.
-      MbCtx = new_mb(),
+      Mb = new_mb(),
       MbType = pat_syntax:mb_type(paterl_anno:interface(Anno), read),
       Params = [
-        pat_syntax:param(pat_syntax:var(list_to_atom(MbCtx)), MbType) |
+        pat_syntax:param(pat_syntax:var(make_mb(Mb)), MbType) |
         translate_params(PatSeq)
       ],
 
-      {Expr, _} = translate_expr_seq(Body, MbCtx),
+      {Expr, _} = translate_expr_seq(Body, Mb),
       pat_syntax:fun_clause(Params, Expr, pat_syntax:prod_type([RetType, MbType]))
   end.
 
-translate_if_clause({clause, _, _PatSeq = [], GuardSeq = [_], Body}) ->
-  % Constrained if clause.
-  Expr = closed_expr_seq(Body),
-
-  % Determine whether clause is the default catch-all true clause.
-  case translate_guard_seq(GuardSeq) of
-    [["true"]] ->
-      % Default Erlang if guard equates to else branch in Pat.
-      Expr;
-    GuardSeq0 ->
-      % If branch.
-      {GuardSeq0, Expr}
-  end.
+translate_if_clause({clause, _, _PatSeq = [], [[GuardTest]], Body}) ->
+  % Constrained if clause with exactly one guard and one guard test.
+  {translate_guard_test(GuardTest), closed_expr_seq(Body)}.
 
 
 %% @private Translates value and expression sequences.
@@ -374,8 +346,8 @@ closed_expr({call, Anno, {atom, _, spawn}, _MFArgs = [_, Fun, Args]}, ExprSeq) -
   % Spawn expression.
   Interface = paterl_anno:interface(Anno),
 
-  MbCtx0 = new_mb(),
-  MbCtx1 = new_mb(MbCtx0),
+  Mb0 = new_mb(),
+  Mb1 = new_mb(Mb0),
 
   % Create Erlang syntax of function to be spawned.
   Args0 = erl_syntax:list_elements(Args),
@@ -385,12 +357,12 @@ closed_expr({call, Anno, {atom, _, spawn}, _MFArgs = [_, Fun, Args]}, ExprSeq) -
   ),
 
   % Translate function call.
-  {Call, [], MbCtx0} = translate_expr(Expr0, [], MbCtx0),
+  {Call, [], Mb0} = translate_expr(Expr0, [], Mb0),
 
   %% TODO: START Refactor this to own call.
   % Variables used to construct spawn expression.
-  MbVarNew = pat_syntax:var(list_to_atom(MbCtx0)),
-  MbVarCall = pat_syntax:var(list_to_atom(MbCtx1)),
+  MbVarNew = pat_syntax:var(make_mb(Mb0)),
+  MbVarCall = pat_syntax:var(make_mb(Mb1)),
   RetCall = pat_syntax:var(x),
 
   % Let with call expression to be spawned.
@@ -426,11 +398,10 @@ closed_expr({call, Anno, Fun = {atom, _, Name}, Args}, ExprSeq) ->
         pat_syntax:call_expr(Name, closed_expr_seq(Args));
       new ->
         % New interface modality. Use modality not permitted.
-        Interface = make_type_name(paterl_anno:interface(Anno)),
         Interface0 = paterl_anno:interface(Anno),
 
-        MbCtx0 = new_mb(),
-        MbCtx1 = new_mb(MbCtx0),
+        Mb0 = new_mb(),
+        Mb1 = new_mb(Mb0),
 
         % Create Erlang syntax of function to be called.
         Expr0 = erl_syntax:revert(
@@ -439,12 +410,12 @@ closed_expr({call, Anno, Fun = {atom, _, Name}, Args}, ExprSeq) ->
         ),
 
         % Translate function call.
-        {Call, [], _} = translate_expr(Expr0, [], MbCtx0),
+        {Call, [], _} = translate_expr(Expr0, [], Mb0),
 
         %% TODO: START Refactor this to own call.
         % Variables used to construct call expression.
-        MbVarNew = pat_syntax:var(list_to_atom(MbCtx0)),
-        MbVarCall = pat_syntax:var(list_to_atom(MbCtx1)),
+        MbVarNew = pat_syntax:var(make_mb(Mb0)),
+        MbVarCall = pat_syntax:var(make_mb(Mb1)),
         RetCall = pat_syntax:var(x),
 
         % Let with free expression.
@@ -461,7 +432,7 @@ closed_expr({call, Anno, Fun = {atom, _, Name}, Args}, ExprSeq) ->
         pat_syntax:let_expr(
           MbVarNew, pat_syntax:new_expr(pat_syntax:mb_type(Interface0)), LetCall
         )
-        %% TODO: END Refactor this to own call.
+      %% TODO: END Refactor this to own call.
     end,
   {Expr, ExprSeq};
 closed_expr({match, _, Pat, Expr}, ExprSeq) ->
@@ -495,7 +466,7 @@ closed_expr({'if', _, [Clause0, Clause1]}, ExprSeq) ->
   % If expression with one user-defined constraint and one catch-all constraint.
   % The two constraints emulate the if and else in Pat branching expressions.
   {ExprC, ExprT} = translate_if_clause(Clause0), % If
-  ExprF = translate_if_clause(Clause1), % Else
+  {"true", ExprF} = translate_if_clause(Clause1), % Else
   {pat_syntax:if_expr(ExprC, ExprT, ExprF), ExprSeq};
 closed_expr(Other, ExprSeq) ->
   PatExpr = io_lib:format("<Cannot translate ~p>", [Other]),
@@ -505,6 +476,7 @@ closed_expr(Other, ExprSeq) ->
 %%% ----------------------------------------------------------------------------
 %%% Translation on guards and patterns.
 %%% ----------------------------------------------------------------------------
+
 
 %% @private Translates a guard sequence.
 translate_guard_seq(GuardSeq) ->
@@ -525,21 +497,16 @@ translate_guard_test(Lit)
   pat_syntax:lit(element(3, Lit));
 translate_guard_test({var, _, Name}) ->
   % Variable.
-  string:lowercase(atom_to_list(Name));
+  pat_syntax:var(Name);
 translate_guard_test({call, _, {atom, _, Name}, GuardTests}) ->
-  % Function call.
-  % TODO: I think the arguments need to be translated as expressions and not guard tests.
-  GuardTests0 = string:join(translate_guard(GuardTests), ","),
-  [atom_to_list(Name), "(", GuardTests0, ")"];
+  % Decidable function call.
+  pat_syntax:call_expr(Name, translate_guard(GuardTests));
 translate_guard_test({op, _, Op, GuardTest0, GuardTest1}) ->
   % Binary operator.
-  GuardTest2 = translate_guard_test(GuardTest0),
-  GuardTest3 = translate_guard_test(GuardTest1),
-  [GuardTest2, " ", atom_to_list(Op), " ", GuardTest3];
+  pat_syntax:op_expr(Op, translate_guard_test(GuardTest0), translate_guard_test(GuardTest1));
 translate_guard_test({op, _, Op, GuardTest}) ->
   % Unary operator.
-  GuardTest0 = translate_guard_test(GuardTest),
-  [atom_to_list(Op), GuardTest0].
+  pat_syntax:op_expr(Op, translate_guard_test(GuardTest)).
 
 translate_params(PatSeq) ->
   Translate =
@@ -570,22 +537,26 @@ translate_pat({tuple, _, [_Tag = {atom, _, Name} | Args]}) ->
   pat_syntax:msg_expr(Name, translate_pat_seq(Args)).
 
 
-
 %%% ----------------------------------------------------------------------------
 %%% Helpers.
 %%% ----------------------------------------------------------------------------
 
-%%make_mb(MbId) ->
-%%  "mb" + integer_to_list(MbId).
 
-%%new_mb1(MbId) ->
-%%  {"mb" ++ integer_to_list(MbId), MbId + 1}.
+%%new_mb() ->
+%%  "mb" ++ integer_to_list(?MB_IDX_START).
+%%
+%%new_mb([$m, $b | IdStr]) ->
+%%  "mb" ++ integer_to_list(list_to_integer(IdStr) + 1).
+
 
 new_mb() ->
-  "mb" ++ integer_to_list(?MB_IDX_START).
+  ?MB_IDX_START.
 
-new_mb([$m, $b | IdStr]) ->
-  "mb" ++ integer_to_list(list_to_integer(IdStr) + 1).
+new_mb(Id) ->
+  Id + 1.
+
+make_mb(Id) ->
+  list_to_atom(?MB_VAR_NAME ++ integer_to_list(Id)).
 
 %%reset_mb() ->
 %%  put(mb, 0).
