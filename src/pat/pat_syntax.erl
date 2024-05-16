@@ -22,6 +22,10 @@
 
 -define(SEP_PAT, [$,, $\s]).
 
+-define(SEP_PROD, [$\s, $*, $\s]).
+
+-define(SEP_UNION, [$,, $\n]).
+
 -define(SEP_NL, [$\n]).
 
 -define(T_INTEGER, "Int").
@@ -49,7 +53,9 @@ lit_type(Name) when Name =:= float ->
 lit_type(Name) when Name =:= string ->
   ?T_STRING;
 lit_type(Name) when Name =:= atom ->
-  ?T_ATOM.
+  ?T_ATOM;
+lit_type(Name) when Name =:= unit ->
+  ?T_UNIT.
 
 mb_type(Name) when is_atom(Name) ->
   to_type_name(Name).
@@ -62,7 +68,11 @@ mb_type(Name, write) when is_atom(Name) ->
 %% Examples.
 %% pat_syntax:prod_type([pat_syntax:lit_type(integer), pat_syntax:mb_type(interface, read)]).
 prod_type(Types) when is_list(Types) ->
-  io_lib:format("(~s)", [string:join(Types, " * ")]).
+  io_lib:format("(~s)", [seq_prod(Types)]).
+
+%% Examples.
+union_type(Types) when is_list(Types) ->
+  io_lib:format("~s", [seq_union(Types)]).
 
 %% Examples.
 %% pat_syntax:msg_type(tag, [pat_syntax:lit_type(integer), pat_syntax:mb_type(interface, write)]).
@@ -71,8 +81,10 @@ msg_type(Tag, Types) when is_atom(Tag), is_list(Types) ->
 
 %% Examples.
 %% pat_syntax:iface_def(interface, [pat_syntax:msg_type(tag, [pat_syntax:lit_type(integer), pat_syntax:mb_type(interface, write)])]).
-iface_def(Name, MsgTypes) when is_atom(Name), is_list(MsgTypes) ->
-  io_lib:format("interface ~s {~n~s~n}", [to_type_name(Name), seq_nl(MsgTypes)]).
+iface_def(Name) when is_atom(Name) ->
+  io_lib:format("interface ~s { }~n", [to_type_name(Name)]).
+iface_def(Name, Type) when is_atom(Name) ->
+  io_lib:format("interface ~s {~n~s~n}~n", [to_type_name(Name), Type]).
 
 %% Examples.
 %% pat_syntax:param(pat_syntax:var(value), pat_syntax:lit_type(integer)).
@@ -94,7 +106,7 @@ fun_def(Name, Clauses) when is_atom(Name), is_list(Clauses), length(Clauses) =:=
 %% pat_syntax:fun_clause([], pat_syntax:lit(5), pat_syntax:lit_type(integer)).
 %% pat_syntax:fun_clause([pat_syntax:param(pat_syntax:var(x), pat_syntax:lit_type(integer))], pat_syntax:lit(5), pat_syntax:lit_type(integer)).
 fun_clause(Params, Expr, RetType) when is_list(Params) ->
-  io_lib:format("(~s): ~s {~n~s~n}", [params(Params), RetType, Expr]).
+  io_lib:format("(~s): ~s {~n~s~n}~n", [params(Params), RetType, Expr]).
 
 
 %%% ----------------------------------------------------------------------------
@@ -158,8 +170,8 @@ op_expr(Op, Expr) ->
 %% Examples.
 %% pat_syntax:call_expr(myfun, []).
 %% pat_syntax:call_expr(myfun, [pat_syntax:var(x), pat_syntax:lit(5)]).
-call_expr(FunName, Exprs) when is_list(Exprs) ->
-  io_lib:format("~s(~s)", [FunName, seq_comma(Exprs)]).
+call_expr(Name, Exprs) when is_list(Exprs) ->
+  io_lib:format("~s(~s)", [Name, seq_comma(Exprs)]).
 
 %% Examples.
 %% pat_syntax:if_expr(pat_syntax:op_expr(pat_syntax:op('=='), pat_syntax:var(x), pat_syntax:literal(5)), pat_syntax:literal(0), pat_syntax:literal(20)).
@@ -168,8 +180,8 @@ if_expr(ExprC, ExprT, ExprF) ->
 
 %% Examples.
 %% pat_syntax:let_expr(pat_syntax:var(x), pat_syntax:literal(1.2), pat_syntax:unit()).
-let_expr(Binders, Expr, Body) ->
-  io_lib:format("let ~s =~n~s~nin~n~s", [Binders, Expr, Body]).
+let_expr(Binders, Expr0, Expr1) ->
+  io_lib:format("let ~s =~n~s~nin~n~s", [Binders, Expr0, Expr1]).
 
 %% Examples.
 %% pat_syntax:new_expr(pat_syntax:mb_type(interface)).
@@ -270,6 +282,12 @@ self_expr(MbCtx) -> % TODO: Move to translation.
 seq_comma(Args) when is_list(Args) ->
   string:join(Args, ?SEP_PAT).
 
+seq_prod(Args) when is_list(Args) ->
+  string:join(Args, ?SEP_PROD).
+
+seq_union(Args) when is_list(Args) ->
+  string:join(Args, ?SEP_UNION).
+
 seq_nl(Clauses) when is_list(Clauses) ->
   string:join(Clauses, ?SEP_NL).
 
@@ -288,64 +306,7 @@ to_name(Name) when is_atom(Name) ->
   string:lowercase(atom_to_list(Name)).
 
 
-indent(Lines) ->
-  Lines0 = string:split(lists:flatten(Lines), ?SEP_NL, all),
-  io:format("Lines to indent: ~p~n~n~n", [Lines0]),
-  indent(Lines0, 0).
 
-indent([], _) ->
-  [];
-
-indent([Line = [$i, $n, $t, $e, $r, $f, $a, $c, $e | _] | Lines], _) ->
-  io:format("Found interface { (indent ~p).~n", [0]),
-  [[10, Line] | indent(Lines, 1)];
-
-indent([Line = [$d, $e, $f | _] | Lines], _) ->
-  io:format("Found def { (indent ~p).~n", [0]),
-  [[10, Line] | indent(Lines, 1)];
-
-indent([Line = [$} | _] | Lines], Level) ->
-  io:format("Found closing } (indent ~p).~n", [Level - 1]),
-  [tabs(Level - 1, Line) | indent(Lines, Level - 1)];
-
-indent([Line = [$l, $e, $t | _] | Lines], Level) ->
-  io:format("Found let (indent ~p).~n", [Level]),
-  [tabs(Level, Line) | indent(Lines, Level + 1)];
-
-indent([Line = [$i, $n | _] | Lines], Level) ->
-  io:format("Found in (indent ~p).~n", [Level - 1]),
-  [tabs(Level - 1, Line), indent(Lines, Level)];
-
-indent([Line = [$i, $f | _] | Lines], Level) ->
-  io:format("Found if (indent ~p).~n", [Level]),
-  [tabs(Level, Line) | indent(Lines, Level + 1)];
-
-indent([Line = [$e, $l, $s, $e | _] | Lines], Level) ->
-  io:format("Found else (indent ~p).~n", [Level]),
-  [tabs(Level, Line), indent(Lines, Level + 1)];
-
-indent([Line = [$s, $p, $a, $w, $n | _] | Lines], Level) ->
-  io:format("Found spawn (indent ~p).~n", [Level]),
-  [tabs(Level, Line), indent(Lines, Level + 1)];
-
-indent([Line = [$g, $u, $a, $r, $d | _] | Lines], Level) ->
-  io:format("Found receive (indent ~p).~n", [Level]),
-  [tabs(Level, Line), indent(Lines, Level + 1)];
-
-indent([Line = [$r, $e, $c, $e, $i, $v, $e | _] | Lines], Level) ->
-  io:format("Found receive (indent ~p).~n", [Level]),
-  [tabs(Level, Line), indent(Lines, Level + 1)];
-
-indent([Line = [$e, $m, $p, $t, $y | _] | Lines], Level) ->
-  io:format("Found empty (indent ~p).~n", [Level]),
-  [tabs(Level, Line), indent(Lines, Level + 1)];
-
-indent([Line | Lines], Level) ->
-  io:format("Found other ~s (indent ~p).~n", [Line, Level]),
-  [tabs(Level, Line) | indent(Lines, Level)].
-
-tabs(N, Line) ->
-  lists:flatten([?SEP_NL, lists:duplicate(N, "  "), Line]).
 
 %% Interface example.
 %% interface {
