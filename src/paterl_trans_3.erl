@@ -208,16 +208,17 @@ expr({match, _, Pat, Expr}, ExprSeq, Mb) ->
   % Rest of Erlang expression sequence is translated because let expressions
   % induce a hierarchy of nested expression contexts that does not align with
   % Erlang match expressions.
-  {Body, Mb3} =
-    case expr_seq(ExprSeq, Mb1) of
-      {[], Mb1} ->
+  {Body, Mb2} =
+    case ExprSeq of
+      [] ->
         % Empty let body. Use binders to complete let body.
         {Binders, Mb1};
-      {Expr1, Mb2} ->
+      ExprSeq ->
         % Non-empty let body.
-        {Expr1, Mb2}
+        expr_seq(ExprSeq, Mb1)
     end,
-  {pat_syntax:let_expr(Binders, Expr0, Body), [], Mb3};
+  {pat_syntax:let_expr(Binders, Expr0, Body), [], Mb2};
+
 
 expr({'if', _, [Clause0, Clause1]}, ExprSeq, Mb) ->
   % If expression with one user-defined constraint and one catch-all constraint.
@@ -443,13 +444,13 @@ expr({match, _, Pat, Expr}, ExprSeq) ->
   % Erlang match expressions.
   Binders = pat(Pat),
   Body =
-    case expr_seq(ExprSeq) of
+    case ExprSeq of
       [] ->
         % Empty let body. Use binders to complete let body.
         Binders;
-      Expr1 ->
+      ExprSeq ->
         % Non-empty let body.
-        Expr1
+        expr_seq(ExprSeq)
     end,
   {pat_syntax:let_expr(Binders, Expr0, Body), []};
 expr({op, _, Op, Expr0, Expr1}, ExprSeq) ->
