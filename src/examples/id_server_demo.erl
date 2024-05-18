@@ -72,7 +72,7 @@ main() ->
   ?mb_new(id_server_mb),
   Server = spawn(?MODULE, id_server, []),
   Server ! {init, 5},
-  Server ! {init, 5}, % Uncomment for "extra Init request".
+%%  Server ! {init, 5}, % Uncomment for "extra Init request".
   Id = id_client(Server),
   format("Id: ~p~n", [Id]).
 
