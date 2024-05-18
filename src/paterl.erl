@@ -53,6 +53,7 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
           Desugared = paterl_ir:module(Forms),
           io:format("~n~n~n D E S U G A R E D~n~n~n~n", []),
           pp_forms(Desugared),
+          io:format("~n~n~n~p~n", [Desugared]),
           io:format("~n~n~n E N D D E S U G A R E D~n~n~n~n", []),
 %%          init:stop(-1),
 %%
@@ -109,7 +110,7 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
                       errors:show_error({file, Error})
                   end;
                 #error{errors = Errors2} ->
-                  io:format("Errors found: ~p", [Errors2]),
+%%                  io:format("Errors found: ~p", [Errors2]),
                   % File contains mailbox annotation errors.
                   errors:show_errors({File, Errors2})
               end;
@@ -186,9 +187,20 @@ translate(Msg) ->
   case re:run(
     Msg,
     "^(?P<A>.*) is not included in (?P<B>.*)$", [{capture, ['A', 'B'], list}]) of
+    {match, ["1", B]} ->
+      io_lib:format(
+        "Inferred omitted message send but expected user-asserted message pattern '~s'",
+        [B]
+      );
+    {match, [A, "1"]} ->
+      io_lib:format(
+        "Inferred omitted message receive but expected user-asserted message pattern '~s'",
+        [A]
+      );
     {match, [A, B]} ->
       io_lib:format(
-        "Inferred message pattern '~s' is not included in user-asserted message pattern '~s'",
+%%        "Inferred message pattern '~s' is not included in user-asserted message pattern '~s'",
+        "Inferred message pattern '~s' but expected user-asserted message pattern '~s'",
         [A, B]
       );
     nomatch ->
