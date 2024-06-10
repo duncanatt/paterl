@@ -50,7 +50,7 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
           errors:show_warnings(Warnings0),
 
           io:fwrite(color:green("[IR] IRing.~n")),
-          Desugared = paterl_ir:module(Forms),
+          Desugared = paterl_ir_2:module(Forms),
           io:format("~n~n~n D E S U G A R E D~n~n~n~n", []),
           pp_forms(Desugared),
           io:format("~n~n~n~p~n", [Desugared]),

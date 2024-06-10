@@ -21,7 +21,7 @@
 -export([future/0]).
 
 %% Mailbox interface-function associations.
--new({future_mb, [future/0]}).
+-new({future_mb, [future/0, x/0]}).
 -use({future_mb, [resolved_future/1]}).
 -new({user_mb, [user/1]}).
 -new({main_mb, [main/0]}).
@@ -102,6 +102,15 @@ a_non_annotated_fun(Var, A, B) ->
   T = true,
   Y = a_non_annotated_fun(Var, 1, 2 + 3).
 
+-spec simple() -> integer().
+simple() ->
+  ?mb_new(future_mb),
+  MyMb = spawn(?MODULE, x, []),
+  5.
+
+-spec x() -> integer().
+x() ->
+  5.
 
 %%-spec main1() -> any().
 %%main1() -> main().
