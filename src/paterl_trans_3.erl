@@ -46,9 +46,9 @@ form({attribute, _, interface, {Name, Type, _Vars = []}}) ->
   ?TRACE("Translating interface ~s.", [Name]),
   case type(Type) of
     undefined ->
-      pat_syntax:iface_def(Name);
+      pat_syntax:interface_def(Name);
     Type0 ->
-      pat_syntax:iface_def(Name, Type0)
+      pat_syntax:interface_def(Name, Type0)
   end;
 form({function, _, Name, Arity, Clauses = [_]}) ->
   % Function with one clause.

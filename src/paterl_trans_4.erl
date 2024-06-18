@@ -39,19 +39,23 @@ module(Forms) ->
 
 %% @private Translates Erlang forms.
 forms(Forms) when is_list(Forms) ->
-  [form(Form) || Form <- Forms].
+%%  [case form(Form) of undefined -> end || Form <- Forms].
+  [Form0 || Form <- Forms, (Form0 = form(Form)) =/= undefined].
 
 %% @private Translates Erlang forms.
 form({attribute, _, module, Name}) ->
-  io_lib:format("# Translated from ~s.erl~n", [Name]);
+%%  io_lib:format("# Translated from ~s.erl~n", [Name]);
+  pat_syntax:comment("Translated from " ++ atom_to_list(Name) ++ ".erl");
 form({attribute, _, interface, {Name, Type, _Vars = []}}) ->
   % Erlang interface with message signature types.
   ?TRACE("Translating interface ~s.", [Name]),
   case type(Type) of
     undefined ->
-      pat_syntax:iface_def(Name);
+      % Empty interface.
+      pat_syntax:interface_def(Name);
     Type0 ->
-      pat_syntax:iface_def(Name, Type0)
+      % Non-empty interface.
+      pat_syntax:interface_def(Name, Type0)
   end;
 form({function, _, Name, Arity, Clauses = [_]}) ->
   % Erlang function with one clause.
@@ -59,7 +63,7 @@ form({function, _, Name, Arity, Clauses = [_]}) ->
   pat_syntax:fun_def(Name, fun_clauses(Clauses));
 form(_) ->
   % Skip other Erlang forms without Pat equivalent.
-  [].
+  undefined.
 
 %% @private Translates Erlang type definitions.
 type({type, _, pid, _Vars = []}) ->
@@ -126,12 +130,13 @@ case_clause(_Clause = {clause, _, PatSeq = [_], _GuardSeq = [], Body}, _Mb) ->
   % Erlang unconstrained case and receive clause.
   ?TRACE("(~s) Translating case/receive clause.", [_Mb]),
   Mb = fresh_mb(),
-  Expr = expr_seq(Body, Mb),
-  pat_syntax:receive_expr(pat_seq(PatSeq), pat_syntax:var(Mb), Expr).
+  [Expr] = expr_seq(Body, Mb),
+  [PatSeq0] = pat_seq(PatSeq),
+  pat_syntax:receive_expr(PatSeq0, pat_syntax:var(Mb), Expr).
 if_clause(_Clause = {clause, _, _PatSeq = [], [[GuardTest]], ExprSeq}, Mb) ->
   % Erlang constrained if clause with exactly one guard and one guard test.
   ?TRACE("(~s) Translating if clause.", [Mb]),
-  Expr0 = expr_seq(ExprSeq, Mb),
+  [Expr0] = expr_seq(ExprSeq, Mb),
   {guard_test(GuardTest), Expr0}.
 
 %% @private Translates Erlang expression sequences.
@@ -194,23 +199,32 @@ expr({match, _, Pat, Expr}, ExprSeq, Mb) ->
 
   % Rest of Erlang expression sequence is translated because let expressions
   % induce a hierarchy of nested Pat expression contexts that does not align
-  % with Erlang match expression sequences.
-  Body =
+  % with Erlang match expression sequences. This means that an Erlang expression
+  % sequence is always reduced to a singleton list, which consists either of
+  % the translated Erlang expression forming the root context of the let-binding
+  % or the singleton list consisting of the expression in the pattern, when the
+  % expression is the list expression in the sequence.
+  [Body] =
     case ExprSeq of
       [] ->
         % Empty let body. Use binders to complete let body.
-        Binders;
+        [Binders];
       ExprSeq ->
         % Non-empty let body.
         expr_seq(ExprSeq, Mb0)
     end,
+  ?INFO("@@@@ [Inside MB context] About to create let expression."),
   {pat_syntax:let_expr(Binders, Expr0, Body), []};
 expr({'if', _, [Clause0, Clause1]}, ExprSeq, Mb) ->
   % Erlang if expression with exactly one used-defined constraint and one catch-
   % all constraint. These pair of constraints emulate if and else Pat branches.
   ?TRACE("(~s) Translating if-else expression.", [Mb]),
   {ExprC, ExprT} = if_clause(Clause0, Mb), % If.
-  {"true", ExprF} = if_clause(Clause1, Mb), % Else.
+
+  ?TRACE("Translated else clause is: ~p~n~n", [if_clause(Clause1, Mb)]),
+
+%%  {"true", ExprF} = if_clause(Clause1, Mb), % Else.
+  {{boolean, _, true}, ExprF} = if_clause(Clause1, Mb), % Else.
   {pat_syntax:if_expr(ExprC, ExprT, ExprF), ExprSeq};
 expr({'receive', Anno, Clauses}, ExprSeq, Mb) ->
   % Erlang unconstrained receive expression. Translated to Pat guard expression.
@@ -282,7 +296,9 @@ fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
 
       % Translate function parameters and body.
       Params = params(PatSeq),
-      Expr = expr_seq(Body),
+%%      [Expr] = expr_seq(Body),
+      [Expr] = expr_seq(Body),
+      ?TRACE("------------------------------------>> Expr: ~p~n", [Expr]),
       pat_syntax:fun_clause(Params, Expr, RetType);
     _Interface ->
       % Mailbox-annotated function.
@@ -299,7 +315,7 @@ fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
         params(PatSeq)
       ],
 
-      Expr = expr_seq(Body, Mb),
+      [Expr] = expr_seq(Body, Mb),
       pat_syntax:fun_clause(Params, Expr, pat_syntax:prod_type([RetType, MbType]))
   end.
 if_clause({clause, _, _PatSeq = [], [[GuardTest]], Body}) ->
@@ -312,9 +328,22 @@ if_clause({clause, _, _PatSeq = [], [[GuardTest]], Body}) ->
 expr_seq([]) ->
   [];
 expr_seq([Expr | ExprSeq]) ->
-  {Expr0, Rest} = expr(Expr, ExprSeq),
+  ?TRACE("Translating the expression ~p in sequence.", [Expr]),
+  Tmp = expr(Expr, ExprSeq),
+  ?TRACE("Translated expr ~p (~p)", [Tmp, tuple_size(Tmp)]),
+  {Expr0, Rest} = Tmp,
   [Expr0 | expr_seq(Rest)].
 
+% TODO: I think the cleanest way to write this function, since we need to
+% TODO: convert a list of Erlang expressions into a single Pat let expression,
+% TODO: is to incorporate the expr_seq above with the expr function such that
+% TODO: the signature is: expr_seq([Expr | ExprSeq]) with clauses for each case.
+% TODO: The advantage of this is two-fold. One, we eliminate the extra logic
+% TODO: with users of the function which need to case-split on empty and
+% TODO: singleton list expressions, although we need to case spilt on the length
+% TODO: of the remaining list. Two, the function takes two parameters, one of
+% TODO: which is the list of expressions, which maybe makes sense to consolidate
+% TODO: it into one in order to make it cleaner.
 %% @private Translates values and expressions.
 expr(Lit, ExprSeq)
   when
@@ -378,15 +407,16 @@ expr({match, _, Pat, Expr}, ExprSeq) ->
   % induce a hierarchy of nested Pat expression contexts that does not align
   % with Erlang match expression sequences.
   Binders = pat(Pat),
-  Body =
+  [Body] =
     case ExprSeq of
       [] ->
         % Empty let body. Use binders to complete let body.
-        Binders;
+        [Binders];
       ExprSeq ->
         % Non-empty let body.
         expr_seq(ExprSeq)
     end,
+  ?INFO("@@@@ [Outside MB context] About to create let expression."),
   {pat_syntax:let_expr(Binders, Expr0, Body), []};
 expr({op, _, Op, Expr0, Expr1}, ExprSeq) ->
   % Erlang binary operator expression.
@@ -404,7 +434,8 @@ expr({'if', _, [Clause0, Clause1]}, ExprSeq) ->
   % all constraint. These pair of constraints emulate if and else Pat branches.
   ?TRACE("Translating if-else expression."),
   {ExprC, ExprT} = if_clause(Clause0), % If
-  {"true", ExprF} = if_clause(Clause1), % Else
+%%  {"true", ExprF} = if_clause(Clause1), % Else
+  {{boolean, _, true}, ExprF} = if_clause(Clause1), % Else
   {pat_syntax:if_expr(ExprC, ExprT, ExprF), ExprSeq};
 expr(Other, ExprSeq) ->
   % Erlang unsupported expressions.
@@ -470,10 +501,11 @@ pat(Lit)
   pat_syntax:lit(element(3, Lit));
 pat({var, _, Name}) ->
   % Erlang variable pattern.
-  string:lowercase(atom_to_list(Name));
+%%  string:lowercase(atom_to_list(Name));
+  pat_syntax:var(Name);
 pat({tuple, _, [_Tag = {atom, _, Name} | Args]}) ->
   % Erlang message pattern.
-  pat_syntax:msg_expr(Name, pat_seq(Args)).
+  pat_syntax:msg_pat(Name, pat_seq(Args)).
 
 
 %%% ----------------------------------------------------------------------------

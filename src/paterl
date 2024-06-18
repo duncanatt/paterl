@@ -26,7 +26,8 @@ cli() ->
       }
     ],
     handler =>
-    fun(Args = #{file := File, includes := Includes, verbose := Verbose}) ->
+%%    fun(Args = #{file := File, includes := Includes, verbose := Verbose}) ->
+    fun(Args = #{file := File, includes := Includes}) ->
       io:format("~p~n", [Args]),
       paterl:compile(File, [{includes, Includes}])
     end

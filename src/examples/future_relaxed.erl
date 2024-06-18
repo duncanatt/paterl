@@ -82,6 +82,12 @@ main() ->
   a_non_annotated_fun("hello", 6 + 8, 900),
   if 5 == 2 -> K = "five_is_two"; true -> X = "five_is_not_two", Y = "but two is not" end,
   if 5 == 2 -> "five_is_two"; true -> "five_is_not_two", "but two is not" end,
+  10,
+  20,
+  30,
+  40,
+  50,
+
   T1.
 
 
@@ -101,7 +107,7 @@ a_non_annotated_fun(Var, A, B) ->
 %%      5
 %%  end,
   T = true,
-  Y = a_non_annotated_fun(Var, 1, 2 + 3).
+  Last = a_non_annotated_fun(Var, 1, 2 + 3).
 
 %%-spec simple() -> integer().
 %%simple() ->

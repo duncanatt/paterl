@@ -89,12 +89,19 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
                   compile:forms(Annotated),
 
                   io:fwrite(color:green("[TRANSLATE] Translating Erlang forms to Pat.~n")),
-                  Pat = pat_prettypr:indent(paterl_trans_4:module(Annotated)),
-                  io:format("~n~n~nOutput Pat:~n~n~n~s~n", [number(Pat)]),
+                  PatAst = paterl_trans_4:module(Annotated),
+                  io:fwrite("Pat AST: ~p~n~n", [PatAst]),
+                  PatString = pat_prettypr:module(PatAst),
+                  io:fwrite("Pat String:~n~n~s~n~n", [PatString]),
+
+%%                  init:stop(),
+
+%%                  Pat = pat_prettypr:indent(paterl_trans_4:module(Annotated)),
+                  io:format("~n~n~nOutput Pat:~n~n~n~s~n", [number(PatString)]),
 
                   PatFile = filename:rootname(File),
                   io:fwrite(color:green("[WRITE] Writing temporary Pat file ~s.~n"), [PatFile]),
-                  case file:write_file(PatFile, Pat) of
+                  case file:write_file(PatFile, PatString) of
                     ok ->
                       io:fwrite(color:green("[PAT] Pat'ting ~s.~n"), [PatFile]),
                       case exec(?EXEC ++ " " ++ PatFile) of
