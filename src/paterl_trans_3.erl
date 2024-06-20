@@ -284,7 +284,7 @@ fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
       ],
 
       {Expr, _} = expr_seq(Body, Mb),
-      pat_syntax:fun_clause(Params, Expr, pat_syntax:prod_type([RetType, MbType]))
+      pat_syntax:fun_clause(Params, Expr, pat_syntax:product_type([RetType, MbType]))
   end.
 
 if_clause({clause, _, _PatSeq = [], [[GuardTest]], Body}) ->

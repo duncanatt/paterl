@@ -9,7 +9,12 @@
 -module(pat_syntax).
 -author("duncan").
 
-%% API
+%%% Includes.
+-include_lib("stdlib/include/assert.hrl").
+-include("log.hrl").
+-include("pat.hrl").
+
+%%% API
 -export([]).
 -compile(export_all).
 
@@ -47,51 +52,8 @@
 -define(DEF_ANNO_VAL, 0).
 
 %% Checks whether the term is a type.
--define(IS_TYPE(Term), element(1, Term) =:= 'type').
+%%-define(IS_TYPE(Term), element(1, Term) =:= 'type').
 
-%% Checks whether the term is a type.
--define(IS_VAR(Term), element(1, Term) =:= 'var').
-
--define(IS_LIT(Term),
-  element(1, Term) =:= 'boolean' orelse
-    element(1, Term) =:= 'integer' orelse
-    element(1, Term) =:= 'float' orelse
-    element(1, Term) =:= 'string' orelse
-    element(1, Term) =:= 'atom'
-).
-
--define(IS_VAL(Term), (
-    ?IS_VAR(Term) orelse
-      ?IS_LIT(Term) orelse
-      element(1, Term) =:= 'tuple' orelse
-      element(1, Term) =:= 'unit'
-)).
-
-%% Checks whether the term is an expression.
--define(IS_EXPR(Term), (
-    element(1, Term) =:= 'msg' orelse
-      element(1, Term) =:= 'op' orelse
-      element(1, Term) =:= 'call' orelse
-      element(1, Term) =:= 'if' orelse
-      element(1, Term) =:= 'let' orelse
-      element(1, Term) =:= 'new' orelse
-      element(1, Term) =:= 'free' orelse
-      element(1, Term) =:= 'spawn' orelse
-      element(1, Term) =:= 'guard' orelse
-      element(1, Term) =:= 'empty' orelse
-      element(1, Term) =:= 'receive' orelse
-      element(1, Term) =:= 'comment' orelse
-      ?IS_VAL(Term)
-)).
-
-%% Checks whether the term is an expression.
--define(IS_OP(Op), (
-    Op =:= '+' orelse
-      Op =:= '-' orelse
-      Op =:= '*' orelse
-      Op =:= '/' orelse
-      Op =:= '!'
-)).
 
 %%-define(IS_TYPE(Term),
 %%  element(1, Type) =:= 'type', ?IS_LIT()
@@ -101,39 +63,61 @@
 %%% Types.
 %%% ----------------------------------------------------------------------------
 
+type_test(Type) when ?IS_MB_MOD_TYPE(Type) ->
+  is_type;
+type_test(_) ->
+  unexpected_type.
+
+val_test(Term) when ?IS_VAL(Term) ->
+  is_val;
+val_test(_) ->
+  is_not_val.
+
+
 lit_type(Name) when Name =:= boolean ->
+  % Boolean literal type.
   {'type', ?DEF_ANNO_VAL, 'boolean'};
 lit_type(Name) when Name =:= integer ->
+  % Integer literal type.
   {'type', ?DEF_ANNO_VAL, 'integer'};
 lit_type(Name) when Name =:= float ->
+  % Float literal type.
   {'type', ?DEF_ANNO_VAL, 'float'};
 lit_type(Name) when Name =:= string ->
+  % String literal type.
   {'type', ?DEF_ANNO_VAL, 'string'};
 lit_type(Name) when Name =:= atom ->
+  % Atom literal type.
   {'type', ?DEF_ANNO_VAL, 'atom'};
 lit_type(Name) when Name =:= unit ->
+  % Unit literal type.
   {'type', ?DEF_ANNO_VAL, 'unit'}.
 
 mb_type(Name) when is_atom(Name) ->
 %%  to_type_name(Name).
+  % Mailbox type without modality.
   {'type', ?DEF_ANNO_VAL, Name}.
 
 mb_type(Name, read) when is_atom(Name) ->
 %%  to_type_name(list_to_atom(atom_to_list(Name) ++ ?C_READ));
-  {'type', ?DEF_ANNO_VAL, 'read', to_type_name(Name)};
+  % Mailbox type with read modality.
+  {'type', ?DEF_ANNO_VAL, to_type_name(Name), 'read'};
 mb_type(Name, write) when is_atom(Name) ->
 %%  to_type_name(list_to_atom(atom_to_list(Name) ++ ?C_WRITE)).
-  {'type', ?DEF_ANNO_VAL, 'write', to_type_name(Name)}.
+  % Mailbox type with write modality.
+  {'type', ?DEF_ANNO_VAL, to_type_name(Name), 'write'}.
 
 %% Examples.
 %% pat_syntax:prod_type([pat_syntax:lit_type(integer), pat_syntax:mb_type(interface, read)]).
-prod_type(Types) when is_list(Types) ->
+product_type(Types) when is_list(Types) ->
 %%  io_lib:format("(~s)", [seq_prod(Types)]).
+  % Product type.
   {'type', ?DEF_ANNO_VAL, 'product', Types}.
 
 %% Examples.
 union_type(Types) when is_list(Types) ->
 %%  io_lib:format("~s", [seq_union(Types)]).
+  % Union type.
   {'type', ?DEF_ANNO_VAL, 'union', Types}.
 
 %% Examples.
@@ -240,7 +224,7 @@ msg_expr(Tag, ArgSeq) when is_atom(Tag), is_list(ArgSeq) ->
 
 %% Examples.
 %% pat_syntax:op_expr(pat_syntax:op('+'), pat_syntax:var(x), pat_syntax:literal(5)).
-op_expr(Op, ExprL, ExprR) when ?IS_EXPR(ExprL), ?IS_EXPR(ExprR) ->
+op_expr(Op, ExprL, ExprR) when ?IS_OP(Op), ?IS_EXPR(ExprL), ?IS_EXPR(ExprR) ->
 %%  io_lib:format("~s ~s ~s", [ExprL, Op, ExprR]).
   {'op', ?DEF_ANNO_VAL, Op, ExprL, ExprR}.
 
@@ -272,7 +256,7 @@ let_expr(Binders, Expr0, Expr1) when ?IS_EXPR(Expr0), ?IS_EXPR(Expr1) ->
 
 %% Examples.
 %% pat_syntax:new_expr(pat_syntax:mb_type(interface)).
-new_expr(MbType) when ?IS_TYPE(MbType) ->
+new_expr(MbType) when ?IS_MB_TYPE(MbType) ->
 %%  io_lib:format("new [~s]", [MbType]).
   {'new', ?DEF_ANNO_VAL, MbType}.
 
@@ -302,7 +286,7 @@ empty_expr(RebindVar, Expr) when ?IS_VAR(RebindVar), ?IS_EXPR(Expr) ->
 
 %% Examples.
 %% pat_syntax:receive_expr(pat_syntax:msg(tag, [pat_syntax:var(x)]), pat_syntax:var(mb), pat_syntax:var(x)).
-receive_expr(MsgPat, RebindVar, Expr) when ?IS_VAR(RebindVar), ?IS_EXPR(Expr) ->
+receive_expr(MsgPat, RebindVar, Expr) when ?IS_MSG_PAT(MsgPat), ?IS_VAR(RebindVar), ?IS_EXPR(Expr) ->
 %%  io_lib:format("receive ~s from ~s ->~n~s", [Msg, RebindVar, Expr]).
   io:format("-------RECV EXPR"),
   io:format("-------Msg: ~p", [MsgPat]),
