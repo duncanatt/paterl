@@ -75,6 +75,10 @@
       Op =:= '*' orelse
       Op =:= '/' orelse
       Op =:= '==' orelse
+      Op =:= '<' orelse
+      Op =:= '>' orelse
+      Op =:= '>=' orelse
+      Op =:= '=<' orelse
       Op =:= '!'
 )).
 

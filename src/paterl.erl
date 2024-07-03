@@ -216,7 +216,8 @@ translate(Msg) ->
 
 number(Data) ->
   Lines = re:split(Data, "^", [{return, list}, multiline]),
-  lists:zipwith(fun(I, Line) -> [integer_to_list(I), ": " | Line] end, lists:seq(1, length(Lines)), Lines).
+%%  lists:zipwith(fun(I, Line) -> [integer_to_list(I), ": " | Line] end, lists:seq(1, length(Lines)), Lines).
+  lists:zipwith(fun(I, Line) -> [io_lib:format("~3b: ", [I]) | Line] end, lists:seq(1, length(Lines)), Lines).
 
 
 pp_forms(Forms) ->
