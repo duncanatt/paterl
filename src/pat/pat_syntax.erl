@@ -76,22 +76,22 @@ val_test(_) ->
 
 lit_type(Name) when Name =:= boolean ->
   % Boolean literal type.
-  {'type', ?DEF_ANNO_VAL, 'boolean'};
+  {type, ?DEF_ANNO_VAL, boolean};
 lit_type(Name) when Name =:= integer ->
   % Integer literal type.
-  {'type', ?DEF_ANNO_VAL, 'integer'};
+  {type, ?DEF_ANNO_VAL, integer};
 lit_type(Name) when Name =:= float ->
   % Float literal type.
-  {'type', ?DEF_ANNO_VAL, 'float'};
+  {type, ?DEF_ANNO_VAL, float};
 lit_type(Name) when Name =:= string ->
   % String literal type.
-  {'type', ?DEF_ANNO_VAL, 'string'};
+  {type, ?DEF_ANNO_VAL, string};
 lit_type(Name) when Name =:= atom ->
   % Atom literal type.
-  {'type', ?DEF_ANNO_VAL, 'atom'};
-lit_type(Name) when Name =:= unit ->
+  {type, ?DEF_ANNO_VAL, atom};
+lit_type(Name) when Name =:= 'unit' ->
   % Unit literal type.
-  {'type', ?DEF_ANNO_VAL, 'unit'}.
+  {type, ?DEF_ANNO_VAL, unit}.
 
 mb_type(Name) when is_atom(Name) ->
 %%  to_type_name(Name).

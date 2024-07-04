@@ -423,12 +423,12 @@ expr({op, _, Op, Expr0, Expr1}, ExprSeq) ->
   ?TRACE("Translating binary operator expression ~s.", [Op]),
   {ExprL, []} = expr(Expr0, []),
   {ExprR, []} = expr(Expr1, []),
-  {pat_syntax:op_expr(Op, ExprL, ExprR), ExprSeq};
+  {pat_syntax:op_expr(to_pat_op(Op), ExprL, ExprR), ExprSeq};
 expr({op, _, Op, Expr}, ExprSeq) ->
   % Erlang unary operator expression.
   ?TRACE("Translating unary operator expression ~s.", [Op]),
   {Expr0, []} = expr(Expr, []),
-  {pat_syntax:op_expr(Op, Expr0), ExprSeq};
+  {pat_syntax:op_expr(to_pat_op(Op), Expr0), ExprSeq};
 expr({'if', _, [Clause0, Clause1]}, ExprSeq) ->
   % Erlang if expression with exactly one used-defined constraint and one catch-
   % all constraint. These pair of constraints emulate if and else Pat branches.
@@ -472,10 +472,10 @@ guard_test({call, _, {atom, _, Name}, GuardTests}) ->
   pat_syntax:call_expr(Name, guard(GuardTests));
 guard_test({op, _, Op, GuardTest0, GuardTest1}) ->
   % Erlang binary operator guard test.
-  pat_syntax:op_expr(Op, guard_test(GuardTest0), guard_test(GuardTest1));
+  pat_syntax:op_expr(to_pat_op(Op), guard_test(GuardTest0), guard_test(GuardTest1));
 guard_test({op, _, Op, GuardTest}) ->
   % Erlang unary operator guard test.
-  pat_syntax:op_expr(Op, guard_test(GuardTest)).
+  pat_syntax:op_expr(to_pat_op(Op), guard_test(GuardTest)).
 
 %% @private Translates a list of Erlang parameters.
 params(PatSeq) ->
@@ -628,3 +628,19 @@ main_fun_def() ->
 %% @private Returns a fresh mailbox name.
 fresh_mb() ->
   paterl_tools:fresh_var(?MB_VAR_NAME).
+
+to_pat_op(Op) when
+  Op =:= '+';
+  Op =:= '-';
+  Op =:= '*';
+  Op =:= '/';
+  Op =:= '==';
+  Op =:= '<';
+  Op =:= '>';
+  Op =:= '>=';
+  Op =:= '!' ->
+  ?TRACE("Passing through pat op"),
+  Op;
+to_pat_op(Op) when Op =:= '=<' ->
+  ?TRACE("Converting pat op"),
+  '<='.
