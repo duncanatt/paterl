@@ -33,21 +33,21 @@
 
 -define(SEP_NL, [$\n]).
 
--define(T_BOOLEAN, "Bool").
+-define(TYP_BOOLEAN, "Bool").
 
--define(T_INTEGER, "Int").
+-define(TYP_INTEGER, "Int").
 
--define(T_FLOAT, "Float").
+-define(TYP_FLOAT, "Float").
 
--define(T_STRING, "String").
+-define(TYP_STRING, "String").
 
--define(T_ATOM, "Atom").
+-define(TYP_ATOM, "Atom").
 
--define(T_UNIT, "Unit").
+-define(TYP_UNIT, "Unit").
 
--define(C_WRITE, "!").
+-define(CAP_WRITE, "!").
 
--define(C_READ, "?").
+-define(CAP_READ, "?").
 
 -define(DEF_ANNO_VAL, 0).
 

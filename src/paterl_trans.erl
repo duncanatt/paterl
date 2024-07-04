@@ -30,17 +30,17 @@
 
 -define(SEP_NL, [$\n]).
 
--define(T_INTEGER, "Int").
+-define(TYP_INTEGER, "Int").
 
--define(T_FLOAT, "Float").
+-define(TYP_FLOAT, "Float").
 
--define(T_STRING, "String").
+-define(TYP_STRING, "String").
 
--define(T_UNIT, "Unit").
+-define(TYP_UNIT, "Unit").
 
--define(C_WRITE, "!").
+-define(CAP_WRITE, "!").
 
--define(C_READ, "?").
+-define(CAP_READ, "?").
 
 -spec translate(erl_syntax:forms()) -> list().
 translate(Forms) ->
@@ -101,23 +101,23 @@ translate_type({type, _, pid, _Vars = []}) ->
   "";
 translate_type({type, _, integer, _Vars = []}) ->
   % Integer type.
-  ?T_INTEGER;
+  ?TYP_INTEGER;
 translate_type({type, _, float, _Vars = []}) ->
   % Float type.
-  ?T_FLOAT;
+  ?TYP_FLOAT;
 translate_type({type, _, string, _Vars = []}) ->
   % String type.
-  ?T_STRING;
+  ?TYP_STRING;
 translate_type({type, _, Name, _Vars = []})
   when Name =:= no_return; Name =:= any; Name =:= none ->
   % Unit type.
-  ?T_UNIT;
+  ?TYP_UNIT;
 translate_type({atom, _, ok}) ->
   % Atom ok translated as unit type.
-  ?T_UNIT;
+  ?TYP_UNIT;
 translate_type({user_type, _, Name, _Vars = []}) ->
   % Mailbox type. Mailbox types default to the write capability.
-  make_type_name(Name) ++ ?C_WRITE;
+  make_type_name(Name) ++ ?CAP_WRITE;
 translate_type({type, _, tuple, [{atom, _, Name} | TypeSeq]}) ->
   % Message signature type.
   Params = string:join(translate_type_seq(TypeSeq), ?SEP_PAT),

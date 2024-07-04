@@ -23,28 +23,37 @@
 %%% Macro and record definitions.
 %%% ----------------------------------------------------------------------------
 
-%%% Types.
+%%% Pat data type names.
 
--define(T_BOOLEAN, "Bool").
+%% Boolean type.
+-define(TYP_BOOLEAN, "Bool").
 
--define(T_INTEGER, "Int").
+%% Integer type.
+-define(TYP_INTEGER, "Int").
 
--define(T_FLOAT, "Float").
+%% Float type.
+-define(TYP_FLOAT, "Float").
 
--define(T_STRING, "String").
+%% String type.
+-define(TYP_STRING, "String").
 
--define(T_ATOM, "Atom").
+%% Atom type.
+-define(TYP_ATOM, "Atom").
 
--define(T_UNIT, "Unit").
+%% Unit type.
+-define(TYP_UNIT, "Unit").
 
--define(C_WRITE, "!").
+%% Mailbox write capability.
+-define(CAP_WRITE, "!").
 
--define(C_READ, "?").
+%% Mailbox read capability.
+-define(CAP_READ, "?").
 
-%% Default indent depth.
--define(IND_STEP, 1).
 
 %%% Code formatting.
+
+%% Default indent depth.
+-define(IND_STEP, 1). % TODO: Use this instead of + 1.
 
 %% Code column separator.
 -define(SEP_COL, [$\s, $\s]).
@@ -61,10 +70,13 @@
 %% Expression sequence separator.
 -define(SEP_EXPR_SEQ, [$,, $\s]).
 
+%% Expression separator.
+-define(SEP_EXPR, io_lib:nl()).
+
 %% Block separator.
 -define(SEP_BLOCK, io_lib:nl()).
 
-%% Definition separator.
+%% Interface and function definition separator.
 -define(SEP_FORM, [?SEP_BLOCK, ?SEP_BLOCK]).
 
 %% Clause separator.
@@ -73,11 +85,15 @@
 
 
 
+
+-spec module(list()) -> iolist(). % TODO: Make the list() more specific by defining a type in pat_syntax.
+%% @doc Pretty prints a list of Pat forms.
 module(Forms) when is_list(Forms) ->
   % A Pat module is a set of interface definitions followed by a set of function
   % definitions in that strict order.
   lists:join(?SEP_FORM, [form(Form, 10) || Form <- Forms]).
 
+%% @private Pretty prints forms.
 form({'interface', _, Name, []}, Col) when is_atom(Name) ->
   % Interface form.
   format_col("interface ~s { }", [to_type_name(Name)], Col);
@@ -98,24 +114,25 @@ form({comment, _, Text}, Col) when is_list(Text) ->
 %%% Types.
 %%% ----------------------------------------------------------------------------
 
+%% @private Pretty prints literal types.
 lit_type({'type', _, 'boolean'}) ->
   % Boolean type.
-  ?T_BOOLEAN;
+  ?TYP_BOOLEAN;
 lit_type({'type', _, 'integer'}) ->
   % Integer type
-  ?T_INTEGER;
+  ?TYP_INTEGER;
 lit_type({'type', _, 'float'}) ->
   % Float type.
-  ?T_FLOAT;
+  ?TYP_FLOAT;
 lit_type({'type', _, 'string'}) ->
   % String type.
-  ?T_STRING;
+  ?TYP_STRING;
 lit_type({'type', _, 'atom'}) ->
   % Atom type.
-  ?T_ATOM;
+  ?TYP_ATOM;
 lit_type({'type', _, 'unit'}) ->
   % Unit type.
-  ?T_UNIT.
+  ?TYP_UNIT.
 
 type(Type, Col) when ?IS_LIT_TYPE(Type) ->
   % Literal types.
@@ -126,10 +143,10 @@ type({'type', _, Name}, Col) when is_atom(Name) ->
   format_col(to_type_name(Name), Col);
 type({'type', _, Name, 'read'}, Col) when is_atom(Name) ->
   % Mailbox type with read modality.
-  format_col(to_type_name(list_to_atom(atom_to_list(Name) ++ ?C_READ)), Col);
+  format_col(to_type_name(list_to_atom(atom_to_list(Name) ++ ?CAP_READ)), Col);
 type({'type', _, Name, 'write'}, Col) when is_atom(Name) ->
   % Mailbox type with write modality.
-  format_col(to_type_name(list_to_atom(atom_to_list(Name) ++ ?C_WRITE)), Col);
+  format_col(to_type_name(list_to_atom(atom_to_list(Name) ++ ?CAP_WRITE)), Col);
 type({'type', _, 'product', Types}, Col) when is_list(Types) ->
   % Product type.
   format("(~s)", [product_types(Types, Col)]);
@@ -273,20 +290,20 @@ expr({'if', _, ExprC, ExprT, ExprF}, Col)
 expr({'let', _, Binders, Expr0, Expr1}, Col) when ?IS_EXPR(Expr0), ?IS_EXPR(Expr1) ->
   % Let expression.
   [
-    format_col("let ~s =~n", [expr(Binders, 0)], Col),
-    format("~s~n", [expr(Expr0, Col + 1)]),
-    format_col("in~n", Col),
+    format_col("let ~s =", [expr(Binders, 0)], Col),
+    ?SEP_EXPR,
+    format("~s", [expr(Expr0, Col + 1)]),
+    ?SEP_EXPR,
+    format_col("in", Col),
+    ?SEP_EXPR,
     expr(Expr1, Col + 1)
   ];
-
 expr({'new', _, MbType}, Col) when ?IS_MB_TYPE(MbType) ->
   % New expression.
   format_col("new [~s]", [type(MbType, 0)], Col);
-
 expr({'free', _, Var}, Col) when ?IS_VAR(Var) ->
   % Free expression.
   format_col("free(~s)", [var(Var)], Col);
-
 expr({'spawn', _, Expr}, Col) when ?IS_EXPR(Expr) ->
   % Spawn expression.
   [
