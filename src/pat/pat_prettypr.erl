@@ -15,9 +15,8 @@
 -include("pat.hrl").
 
 
-%%% API
+%%% API.
 -export([module/1]).
--compile(export_all).
 
 %%% ----------------------------------------------------------------------------
 %%% Macro and record definitions.

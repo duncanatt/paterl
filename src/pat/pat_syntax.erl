@@ -14,7 +14,7 @@
 -include("log.hrl").
 -include("pat.hrl").
 
-%%% API
+%%% API.
 -export([]).
 -compile(export_all).
 
@@ -23,46 +23,19 @@
 %%% Macro and record definitions.
 %%% ----------------------------------------------------------------------------
 
+%% Mailbox ID counter start.
 -define(MB_IDX_START, 0).
 
--define(SEP_PAT, [$,, $\s]).
-
--define(SEP_PROD, [$\s, $*, $\s]).
-
--define(SEP_UNION, [$,, $\n]).
-
--define(SEP_NL, [$\n]).
-
--define(TYP_BOOLEAN, "Bool").
-
--define(TYP_INTEGER, "Int").
-
--define(TYP_FLOAT, "Float").
-
--define(TYP_STRING, "String").
-
--define(TYP_ATOM, "Atom").
-
--define(TYP_UNIT, "Unit").
-
--define(CAP_WRITE, "!").
-
--define(CAP_READ, "?").
-
+%% Default annotation value.
 -define(DEF_ANNO_VAL, 0).
 
-%% Checks whether the term is a type.
-%%-define(IS_TYPE(Term), element(1, Term) =:= 'type').
-
-
-%%-define(IS_TYPE(Term),
-%%  element(1, Type) =:= 'type', ?IS_LIT()
-%%).
 
 %%% ----------------------------------------------------------------------------
 %%% Types.
 %%% ----------------------------------------------------------------------------
 
+%% TODO: These are used only to test the things in the pat.hrl file. Should be
+%% TODO: moved to the end of the file or deleted.
 type_test(Type) when ?IS_MB_MOD_TYPE(Type) ->
   is_type;
 type_test(_) ->
