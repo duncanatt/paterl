@@ -52,7 +52,7 @@
 %%% Code formatting.
 
 %% Default indent depth.
--define(IND_STEP, 1). % TODO: Use this instead of + 1.
+-define(IND_STEP, 1).
 
 %% Code column separator.
 -define(SEP_COL, [$\s, $\s]).
@@ -100,7 +100,7 @@ form({interface, _, Name, Type}, Col) when is_atom(Name) ->
   [
     format_col("interface ~s {", [to_type_name(Name)], Col),
     ?SEP_EXPR,
-    type(Type, Col + 1),
+    type(Type, Col + ?IND_STEP),
     ?SEP_EXPR,
     format_col("}", Col)
   ];
@@ -139,22 +139,22 @@ lit_type({type, _, unit}) ->
 type(Type, Col) when ?IS_LIT_TYPE(Type) ->
   % Literal types.
   format_col(lit_type(Type), Col);
-type({'type', _, Name}, Col) when is_atom(Name) ->
+type({type, _, Name}, Col) when is_atom(Name) ->
   % Mailbox type without modality.
   format_col(to_type_name(Name), Col);
-type({'type', _, Name, 'read'}, Col) when is_atom(Name) ->
+type({type, _, Name, read}, Col) when is_atom(Name) ->
   % Mailbox type with read modality.
   format_col(to_type_name(list_to_atom(atom_to_list(Name) ++ ?CAP_READ)), Col);
-type({'type', _, Name, 'write'}, Col) when is_atom(Name) ->
+type({type, _, Name, write}, Col) when is_atom(Name) ->
   % Mailbox type with write modality.
   format_col(to_type_name(list_to_atom(atom_to_list(Name) ++ ?CAP_WRITE)), Col);
-type({'type', _, 'product', Types}, Col) when is_list(Types) ->
+type({type, _, product, Types}, Col) when is_list(Types) ->
   % Product type.
   format("(~s)", [product_types(Types, Col)]);
-type({'type', _, 'union', Types}, Col) when is_list(Types) ->
+type({type, _, union, Types}, Col) when is_list(Types) ->
   % Union type.
   format("~s", [union_types(Types, Col)]);
-type({'type', _, 'msg', Tag, Types}, Col) when is_atom(Tag), is_list(Types) ->
+type({type, _, msg, Tag, Types}, Col) when is_atom(Tag), is_list(Types) ->
   % Message type.
   format_col("~s(~s)", [to_type_name(Tag), msg_types(Types, 0)], Col).
 
@@ -185,7 +185,7 @@ fun_clause({fun_clause, _, Params, Expr, RetType}, Col) when is_list(Params) ->
   [
     format("(~s): ~s {", [params(Params), type(RetType, 0)]),
     ?SEP_EXPR,
-    expr(Expr, Col + 1),
+    expr(Expr, Col + ?IND_STEP),
     ?SEP_EXPR,
     format_col("}", Col)
   ].
@@ -290,13 +290,13 @@ expr({'if', _, ExprC, ExprT, ExprF}, Col)
   [
     format_col("if (~s) {", [expr(ExprC, 0)], Col),
     ?SEP_EXPR,
-    expr(ExprT, Col + 1),
+    expr(ExprT, Col + ?IND_STEP),
     ?SEP_EXPR,
     format_col("}", Col),
     ?SEP_EXPR,
     format_col("else {", Col),
     ?SEP_EXPR,
-    expr(ExprF, Col + 1),
+    expr(ExprF, Col + ?IND_STEP),
     ?SEP_EXPR,
     format_col("}", Col)
   ];
@@ -305,11 +305,11 @@ expr({'let', _, Binders, Expr0, Expr1}, Col) when ?IS_EXPR(Expr0), ?IS_EXPR(Expr
   [
     format_col("let ~s =", [expr(Binders, 0)], Col),
     ?SEP_EXPR,
-    expr(Expr0, Col + 1),
+    expr(Expr0, Col + ?IND_STEP),
     ?SEP_EXPR,
     format_col("in", Col),
     ?SEP_EXPR,
-    expr(Expr1, Col + 1)
+    expr(Expr1, Col + ?IND_STEP)
   ];
 expr({new, _, MbType}, Col) when ?IS_MB_TYPE(MbType) ->
   % New expression.
@@ -322,7 +322,7 @@ expr({spawn, _, Expr}, Col) when ?IS_EXPR(Expr) ->
   [
     format_col("spawn {", Col),
     ?SEP_EXPR,
-    expr(Expr, Col + 1),
+    expr(Expr, Col + ?IND_STEP),
     ?SEP_EXPR,
     format_col("}", Col)
   ];
@@ -331,7 +331,7 @@ expr({guard, _, Var, Regex, Clauses}, Col) when ?IS_VAR(Var), is_list(Clauses) -
   [
     format_col("guard ~s: ~s {", [var(Var), Regex], Col),
     ?SEP_EXPR,
-    case_clauses(Clauses, Col + 1),
+    case_clauses(Clauses, Col + ?IND_STEP),
     ?SEP_EXPR,
     format_col("}", Col)
   ];
@@ -340,14 +340,14 @@ expr({empty, _, RebindVar, Expr}, Col) when ?IS_VAR(RebindVar), ?IS_EXPR(Expr) -
   [
     format_col("empty(~s) ->", [var(RebindVar)], Col),
     ?SEP_EXPR,
-    expr(Expr, Col + 1)
+    expr(Expr, Col + ?IND_STEP)
   ];
 expr({'receive', _, MsgPat, RebindVar, Expr}, Col)
   when ?IS_MSG_PAT(MsgPat), ?IS_VAR(RebindVar), ?IS_EXPR(Expr) ->
   % Receive expression.
   [
     format_col("receive ~s from ~s ->~n", [pat(MsgPat), var(RebindVar)], Col),
-    expr(Expr, Col + 1)
+    expr(Expr, Col + ?IND_STEP)
   ];
 expr({comment, _, Text}, Col) when is_list(Text) ->
   % Comment.
