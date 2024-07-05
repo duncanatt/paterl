@@ -13,6 +13,7 @@
 -include("paterl.hrl").
 
 -import(io, [format/2]).
+-import(rand, [uniform/1]).
 
 %% API
 -export([main/0]).
@@ -103,9 +104,9 @@ teller(Num_accounts) ->
 %% }
 -spec generate_work(teller_mb(), integer(), account_mb(), account_mb(), account_mb()) -> no_return().
 generate_work(Teller, Num_accounts, Account1, Account2, Account3) ->
-  Source_id = rand:uniform(Num_accounts),
+  Source_id = uniform(Num_accounts),
   if Source_id == 1 -> choose_dst_acc(Teller, Num_accounts, Account1, Account2, Account3);
-    Source_id == 2 -> choose_dst_acc(Teller, Num_accounts, Account2, Account1, Account3);
+%%    Source_id == 2 -> choose_dst_acc(Teller, Num_accounts, Account2, Account1, Account3);
     true -> choose_dst_acc(Teller, Num_accounts, Account3, Account1, Account2)
   end.
 
@@ -210,7 +211,7 @@ account(Id, Balance) ->
 %%  }
 -spec account_exit() -> no_return().
 account_exit() ->
-  ?free,
+%%  ?free,
   ?mb_assert_regex("*(Debit + Credit)"),
   receive
     {debit, Account, Amount} ->
