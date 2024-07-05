@@ -15,7 +15,17 @@
 -include("pat.hrl").
 
 %%% API.
--export([]).
+-export([lit_type/1, mb_type/1, mb_type/2, product_type/1, union_type/1]).
+-export([interface_def/1, interface_def/2]).
+-export([fun_def/2, fun_clause/3]).
+-export([msg_pat/2, param/2]).
+-export([var/1, lit/1, tuple/1, unit/0]).
+-export([msg_expr/2, op_expr/2, op_expr/3, call_expr/2, if_expr/3, let_expr/3]).
+-export([
+  new_expr/1, free_expr/1, spawn_expr/1, guard_expr/3, empty_expr/2,
+  receive_expr/3
+]).
+-export([comment/1]).
 -compile(export_all).
 
 
@@ -34,19 +44,7 @@
 %%% Types.
 %%% ----------------------------------------------------------------------------
 
-%% TODO: These are used only to test the things in the pat.hrl file. Should be
-%% TODO: moved to the end of the file or deleted.
-type_test(Type) when ?IS_MB_MOD_TYPE(Type) ->
-  is_type;
-type_test(_) ->
-  unexpected_type.
-
-val_test(Term) when ?IS_VAL(Term) ->
-  is_val;
-val_test(_) ->
-  is_not_val.
-
-
+%% @doc Returns a literal type node.
 lit_type(Name) when Name =:= boolean ->
   % Boolean literal type.
   {type, ?DEF_ANNO_VAL, boolean};
@@ -66,48 +64,50 @@ lit_type(Name) when Name =:= 'unit' ->
   % Unit literal type.
   {type, ?DEF_ANNO_VAL, unit}.
 
+%% @doc Returns a modality-less mailbox type node with the specified name.
 mb_type(Name) when is_atom(Name) ->
-%%  to_type_name(Name).
   % Mailbox type without modality.
-  {'type', ?DEF_ANNO_VAL, Name}.
+  {type, ?DEF_ANNO_VAL, Name}.
 
+%% @doc Returns a mailbox type node with the specified name and read or write
+%% modality.
 mb_type(Name, read) when is_atom(Name) ->
-%%  to_type_name(list_to_atom(atom_to_list(Name) ++ ?C_READ));
   % Mailbox type with read modality.
-  {'type', ?DEF_ANNO_VAL, to_type_name(Name), 'read'};
+  {type, ?DEF_ANNO_VAL, to_type_name(Name), read};
 mb_type(Name, write) when is_atom(Name) ->
-%%  to_type_name(list_to_atom(atom_to_list(Name) ++ ?C_WRITE)).
   % Mailbox type with write modality.
-  {'type', ?DEF_ANNO_VAL, to_type_name(Name), 'write'}.
+  {type, ?DEF_ANNO_VAL, to_type_name(Name), write}.
 
 %% Examples.
 %% pat_syntax:prod_type([pat_syntax:lit_type(integer), pat_syntax:mb_type(interface, read)]).
+%% @doc Returns a product type node with the specified type elements.
 product_type(Types) when is_list(Types) ->
-%%  io_lib:format("(~s)", [seq_prod(Types)]).
   % Product type.
-  {'type', ?DEF_ANNO_VAL, 'product', Types}.
+  {type, ?DEF_ANNO_VAL, product, Types}.
 
 %% Examples.
+%% @doc Returns a union type node with the specified type elements.
 union_type(Types) when is_list(Types) ->
-%%  io_lib:format("~s", [seq_union(Types)]).
   % Union type.
-  {'type', ?DEF_ANNO_VAL, 'union', Types}.
+  {type, ?DEF_ANNO_VAL, union, Types}.
 
 %% Examples.
 %% pat_syntax:msg_type(tag, [pat_syntax:lit_type(integer), pat_syntax:mb_type(interface, write)]).
+%% @doc Returns a message type node with the specified name and payload types.
 msg_type(Tag, Types) when is_atom(Tag), is_list(Types) ->
-%%  io_lib:format("~s(~s)", [to_type_name(Tag), seq_comma(Types)]).
-  {'type', ?DEF_ANNO_VAL, 'msg', to_type_name(Tag), Types}.
-
+  {type, ?DEF_ANNO_VAL, msg, to_type_name(Tag), Types}.
 
 %% Examples.
 %% pat_syntax:iface_def(interface, [pat_syntax:msg_type(tag, [pat_syntax:lit_type(integer), pat_syntax:mb_type(interface, write)])]).
+%% @doc Returns an empty interface definition node.
 interface_def(Name) when is_atom(Name) ->
-%%  io_lib:format("interface ~s { }~n", [to_type_name(Name)]).
-  {'interface', ?DEF_ANNO_VAL, to_type_name(Name), []}.
-interface_def(Name, Type) when is_atom(Name), ?IS_TYPE(Type) ->
-%%  io_lib:format("interface ~s {~n~s~n}~n", [to_type_name(Name), Type]).
-  {'interface', ?DEF_ANNO_VAL, to_type_name(Name), Type}.
+  {interface, ?DEF_ANNO_VAL, to_type_name(Name), []}.
+
+%% @doc Returns an interface definition node containing the specified union of
+%% message types.
+interface_def(Name, Type) when is_atom(Name), ?IS_UNION_TYPE(Type) ->
+%%interface_def(Name, Type) when is_atom(Name), ?IS_TYPE(Type) ->
+  {interface, ?DEF_ANNO_VAL, to_type_name(Name), Type}.
 
 
 %%% ----------------------------------------------------------------------------
@@ -116,17 +116,18 @@ interface_def(Name, Type) when is_atom(Name), ?IS_TYPE(Type) ->
 
 %% Examples.
 %% pat_syntax:fun_def(myfun, [pat_syntax:fun_clause([pat_syntax:param(pat_syntax:var(x), pat_syntax:lit_type(integer))], pat_syntax:lit(5), pat_syntax:lit_type(integer))]).
+%% @doc Returns a function definition node.
 fun_def(Name, Clauses) when is_atom(Name), is_list(Clauses), length(Clauses) =:= 1 ->
-%%  io_lib:format("def ~s~s", [to_name(Name), seq_nl(Clauses)]).
   {'fun', ?DEF_ANNO_VAL, to_name(Name), Clauses}.
 
 %% Params: pairs of name and type.
 %% Examples.
 %% pat_syntax:fun_clause([], pat_syntax:lit(5), pat_syntax:lit_type(integer)).
 %% pat_syntax:fun_clause([pat_syntax:param(pat_syntax:var(x), pat_syntax:lit_type(integer))], pat_syntax:lit(5), pat_syntax:lit_type(integer)).
+%% @doc Returns a function clause node with the specified parameters, body, and
+%% return type.
 fun_clause(Params, Expr, RetType) when is_list(Params) ->
-%%  io_lib:format("(~s): ~s {~n~s~n}~n", [params(Params), RetType, Expr]).
-  {'fun_clause', ?DEF_ANNO_VAL, Params, Expr, RetType}.
+  {fun_clause, ?DEF_ANNO_VAL, Params, Expr, RetType}.
 
 
 %%% ----------------------------------------------------------------------------
@@ -135,15 +136,17 @@ fun_clause(Params, Expr, RetType) when is_list(Params) ->
 
 %% Examples.
 %% pat_syntax:msg(tag, [pat_syntax:var(x)])
+%% @doc Returns a message pattern node with the specified tag and payload
+%% patterns.
 msg_pat(Tag, PatSeq) when is_atom(Tag), is_list(PatSeq) ->
-%%  io_lib:format("~s(~s)", [to_type_name(Tag), seq_comma(PatSeq)]).
-  {'pat', ?DEF_ANNO_VAL, 'msg', Tag, PatSeq}.
+  {pat, ?DEF_ANNO_VAL, msg, Tag, PatSeq}.
 
 %% Examples.
 %% pat_syntax:param(pat_syntax:var(value), pat_syntax:lit_type(integer)).
+%% @doc Returns a function parameter node consisting of a variable name and its
+%% type.
 param(Var, Type) when ?IS_VAR(Var), ?IS_TYPE(Type) ->
-%%  {Name, Type}.
-  {'pat', ?DEF_ANNO_VAL, Var, Type}.
+  {pat, ?DEF_ANNO_VAL, Var, Type}.
 
 
 %%% ----------------------------------------------------------------------------
@@ -152,37 +155,34 @@ param(Var, Type) when ?IS_VAR(Var), ?IS_TYPE(Type) ->
 
 %% Examples.
 %% pat_syntax:var(x).
+%% @doc Returns a variable node.
 var(Name) when is_atom(Name) ->
-%%  to_name(Name).
-  {'var', ?DEF_ANNO_VAL, to_name(Name)}.
+  {var, ?DEF_ANNO_VAL, to_name(Name)}.
 
 %% Examples.
 %% pat_syntax:lit(5).
+%% @doc Returns a literal node.
 lit(Value) when is_boolean(Value) ->
-%%  atom_to_list(Value);
-  {'boolean', ?DEF_ANNO_VAL, Value};
+  {boolean, ?DEF_ANNO_VAL, Value};
 lit(Value) when is_integer(Value) ->
-%%  integer_to_list(Value);
-  {'integer', ?DEF_ANNO_VAL, Value};
+  {integer, ?DEF_ANNO_VAL, Value};
 lit(Value) when is_float(Value) ->
-%%  float_to_list(Value);
-  {'float', ?DEF_ANNO_VAL, Value};
+  {float, ?DEF_ANNO_VAL, Value};
 lit(Value) when is_list(Value) ->
-%%  [$", Value, $"];
-  {'string', ?DEF_ANNO_VAL, Value};
+  {string, ?DEF_ANNO_VAL, Value};
 lit(Value) when is_atom(Value) ->
-%%  atom_to_list(Value).
-  {'atom', ?DEF_ANNO_VAL, Value}.
+  {atom, ?DEF_ANNO_VAL, Value}.
 
 %% Examples.
 %% pat_syntax:tuple_expr([]).
 %% pat_syntax:tuple_expr([pat_syntax:to_var(x), pat_syntax:literal(5), pat_syntax:tuple_expr([])]).
+%% @doc Returns a tuple node with the specified expression elements.
 tuple(Exprs) when is_list(Exprs) ->
-%%  io_lib:format("(~s)", [seq_comma(Exprs)]).
-  {'tuple', ?DEF_ANNO_VAL, Exprs}.
+  {tuple, ?DEF_ANNO_VAL, Exprs}.
+
+%% @doc Returns a unit node.
 unit() ->
-%%  "()".
-  {'unit', ?DEF_ANNO_VAL}.
+  {unit, ?DEF_ANNO_VAL}.
 
 
 %%% ----------------------------------------------------------------------------
@@ -191,175 +191,112 @@ unit() ->
 
 %% Examples.
 %% pat_syntax:msg(tag, [pat_syntax:var(x)])
+%% @doc Returns a message expression node with the specified tag and payload
+%% expressions.
 msg_expr(Tag, ArgSeq) when is_atom(Tag), is_list(ArgSeq) ->
-%%  io_lib:format("~s(~s)", [to_type_name(Tag), seq_comma(ArgSeq)]).
-  {'msg', ?DEF_ANNO_VAL, Tag, ArgSeq}.
+  {msg, ?DEF_ANNO_VAL, Tag, ArgSeq}.
 
 %% Examples.
 %% pat_syntax:op_expr(pat_syntax:op('+'), pat_syntax:var(x), pat_syntax:literal(5)).
+%% @doc Returns a binary operator node with the specified operands.
 op_expr(Op, ExprL, ExprR) when ?IS_OP(Op), ?IS_EXPR(ExprL), ?IS_EXPR(ExprR) ->
-%%  io_lib:format("~s ~s ~s", [ExprL, Op, ExprR]).
-  {'op', ?DEF_ANNO_VAL, Op, ExprL, ExprR}.
+  {op, ?DEF_ANNO_VAL, Op, ExprL, ExprR}.
 
 %% Examples.
 %% pat_syntax:op_expr(pat_syntax:op('+'), pat_syntax:var(x)).
+%% @doc Returns a unary operator node with the specified operand.
 op_expr(Op, Expr) when ?IS_OP(Op), ?IS_EXPR(Expr) ->
-%%  io_lib:format("~s~s", [Op, Expr]).
-  {'op', ?DEF_ANNO_VAL, Op, Expr}.
+  {op, ?DEF_ANNO_VAL, Op, Expr}.
 
 %% Examples.
 %% pat_syntax:call_expr(myfun, []).
 %% pat_syntax:call_expr(myfun, [pat_syntax:var(x), pat_syntax:lit(5)]).
+%% @doc Returns a function call node with the specified name and
+%% arguments.
 call_expr(Name, Exprs) when is_atom(Name), is_list(Exprs) ->
-%%  io_lib:format("~s(~s)", [Name, seq_comma(Exprs)]).
-  {'call', ?DEF_ANNO_VAL, Name, Exprs}.
+  {call, ?DEF_ANNO_VAL, Name, Exprs}.
 
 %% Examples.
 %% pat_syntax:if_expr(pat_syntax:op_expr(pat_syntax:op('=='), pat_syntax:var(x), pat_syntax:literal(5)), pat_syntax:literal(0), pat_syntax:literal(20)).
+%% @doc Returns an if node with the specified condition, true and false
+%% expression branches.
 if_expr(ExprC, ExprT, ExprF) when ?IS_EXPR(ExprC), ?IS_EXPR(ExprT), ?IS_EXPR(ExprF) ->
-%%  io_lib:format("if (~s) {~n~s~n}~nelse {~n~s~n}", [ExprC, ExprT, ExprF]).
   {'if', ?DEF_ANNO_VAL, ExprC, ExprT, ExprF}.
 
 %% Examples.
 %% pat_syntax:let_expr(pat_syntax:var(x), pat_syntax:literal(1.2), pat_syntax:unit()).
+%% @doc Returns a let node with the specified binders, expression, and body.
 let_expr(Binders, Expr0, Expr1) when ?IS_EXPR(Expr0), ?IS_EXPR(Expr1) ->
-%%  io_lib:format("let ~s =~n~s~nin~n~s", [Binders, Expr0, Expr1]).
-  io:format("+++++++++++++++++++++++++++++++ Creating let expression with body ~p~n~n", [Expr1]),
   {'let', ?DEF_ANNO_VAL, Binders, Expr0, Expr1}.
 
 %% Examples.
 %% pat_syntax:new_expr(pat_syntax:mb_type(interface)).
+%% @doc Returns a new node with the specified mailbox type name.
 new_expr(MbType) when ?IS_MB_TYPE(MbType) ->
-%%  io_lib:format("new [~s]", [MbType]).
-  {'new', ?DEF_ANNO_VAL, MbType}.
+  {new, ?DEF_ANNO_VAL, MbType}.
 
 %% Examples.
 %% pat_syntax:free_expr(pat_syntax:var(mb)).
+%% @doc Returns a free node with the specified variable name.
 free_expr(Var) when ?IS_VAR(Var) ->
-%%  io_lib:format("free(~s)", [Var]).
-  {'free', ?DEF_ANNO_VAL, Var}.
+  {free, ?DEF_ANNO_VAL, Var}.
 
 %% Examples.
 %% pat_syntax:spawn_expr(pat_syntax:var(x)).
+%% @doc Returns a spawn node with the specified expression.
 spawn_expr(Expr) when ?IS_EXPR(Expr) ->
-%%  io_lib:format("spawn {~n~s~n}", [Expr]).
-  {'spawn', ?DEF_ANNO_VAL, Expr}.
+  {spawn, ?DEF_ANNO_VAL, Expr}.
 
 %% Examples.
 %% pat_syntax:guard_expr(pat_syntax:var(mb), "Tag*", [pat_syntax:receive_expr(pat_syntax:msg(tag, [pat_syntax:var(x)]), pat_syntax:var(mb), pat_syntax:var(x)), pat_syntax:receive_expr(pat_syntax:msg(tag, [pat_syntax:var(x)]), pat_syntax:var(mb), pat_syntax:unit())]).
+%% @doc Returns a guard node with the specified variable, regex, and clauses.
 guard_expr(Var, Regex, Clauses) when ?IS_VAR(Var), is_list(Clauses) ->
-%%  io_lib:format("guard ~s: ~s {~n~s~n}", [Var, Regex, seq_nl(Clauses)]).
-  {'guard', ?DEF_ANNO_VAL, Var, Regex, Clauses}.
+  {guard, ?DEF_ANNO_VAL, Var, Regex, Clauses}.
 
 %% Examples.
 %% pat_syntax:empty_expr(pat_syntax:var('mb0'), pat_syntax:var('mb0')).
+%% @doc Returns an empty node with the specified rebound variable name and body.
 empty_expr(RebindVar, Expr) when ?IS_VAR(RebindVar), ?IS_EXPR(Expr) ->
-%%  io_lib:format("empty(~s) ->~n~s", [RebindVar, Expr]).
-  {'empty', ?DEF_ANNO_VAL, RebindVar, Expr}.
+  {empty, ?DEF_ANNO_VAL, RebindVar, Expr}.
 
 %% Examples.
 %% pat_syntax:receive_expr(pat_syntax:msg(tag, [pat_syntax:var(x)]), pat_syntax:var(mb), pat_syntax:var(x)).
+%% @doc Returns a receive node with the specified message pattern, rebound
+%% variable name, and body.
 receive_expr(MsgPat, RebindVar, Expr) when ?IS_MSG_PAT(MsgPat), ?IS_VAR(RebindVar), ?IS_EXPR(Expr) ->
-%%  io_lib:format("receive ~s from ~s ->~n~s", [Msg, RebindVar, Expr]).
-  io:format("-------RECV EXPR"),
-  io:format("-------Msg: ~p", [MsgPat]),
-  io:format("-------RebindVar: ~p", [MsgPat]),
-  io:format("-------Expr: ~p", [Expr]),
   {'receive', ?DEF_ANNO_VAL, MsgPat, RebindVar, Expr}.
 
 %% Others.
+%% @doc Returns a comment node.
 comment(Text) when is_list(Text) ->
   {comment, ?DEF_ANNO_VAL, Text}.
 
-
-%%% COMPOSED EXPRESSIONS TO MOVE TO TRANSLATION.
-
-
-%% Examples.
-%% pat_syntax:call_new_expr(pat_syntax:type('Interface'), pat_syntax:call_expr(pat_syntax:fun_name(myfun), [])).
-%%call_new_expr_2(MbType, CallUseExpr) ->
-%%  MbVar0 = var('mb\''),
-%%  MbVar1 = var(mb),
-%%  Ret0 = var(x),
-%%
-%%  Let0 = let_expr(var(y), free_expr(MbVar0), Ret0),
-%%  Let1 = let_expr(tuple_expr([Ret0, MbVar0]), CallUseExpr, Let0),
-%%  let_expr(MbVar1 = var(mb), new_mb(MbType), Let1).
-
-%% Examples.
-%% pat_syntax:call_new_expr(pat_syntax:mb_type('Interface'), myfun, []).
-%% pat_syntax:call_new_expr(pat_syntax:mb_type('Interface'), myfun, [pat_syntax:var(x), pat_syntax:lit(5)]).
-%%call_new_expr(MbType, FunName, Exprs) -> %TODO: Move to translation.
-%%  MbVar0 = var('mb\''),
-%%  MbVar1 = var(mb),
-%%  Ret0 = var(x),
-%%
-%%  Let0 = let_expr(var(y), free_expr(MbVar0), Ret0),
-%%  Let1 = let_expr(tuple([Ret0, MbVar0]), call_use_expr(FunName, Exprs, MbVar1), Let0), % Or call_expr.
-%%  let_expr(MbVar1 = var(mb), new_expr(MbType), Let1).
-
-%% Examples.
-%% pat_syntax:call_use_expr('myfun', [], "Mb0").
-%% pat_syntax:call_use_expr('myfun', [pat_syntax:var(x), pat_syntax:lit(5)], "Mb0").
-%%call_use_expr(FunName, Exprs, MbCtx) when is_list(Exprs) -> % TODO: Move to translation.
-%%  call_expr(FunName, [MbCtx | Exprs]).
-
-%% Examples.
-%% pat_syntax:spawn_expr(pat_syntax:mb_type('Interface'), myfun, []).
-%% pat_syntax:spawn_expr(pat_syntax:mb_type('Interface'), myfun, [pat_syntax:var(x), pat_syntax:lit(5)]).
-%%spawn_expr(MbType, FunName, Exprs) -> % TODO: Move to translation.
-%%  MbVar0 = var('mb\''),
-%%  MbVar1 = var(mb),
-%%  Ret0 = var(x),
-%%
-%%  Let0 = let_expr(tuple([Ret0, MbVar0]), call_use_expr(FunName, Exprs, MbVar1), free_expr(MbVar0)),
-%%  Let1 = let_expr(var(y), spawn_expr(Let0), MbVar1),
-%%  let_expr(MbVar1, new_expr(MbType), Let1).
-
-%% Examples.
-%% pat_syntax:fun_def(myfun, [], pat_syntax:lit(5), pat_syntax:lit_type(integer)).
-%% pat_syntax:fun_def(myfun, [{pat_syntax:var(x), pat_syntax:lit_type(string)}], pat_syntax:lit(5), pat_syntax:lit_type(integer)).
-%%fun_def(FunName, Params, Expr, RetType) when is_list(Params) ->
-%%  io_lib:format("def ~s(~s): ~s {~n~s~n}", [FunName, params(Params), RetType, Expr]).
-
-%% Example: pat_syntax:fun_def(pat_syntax:mb_type('Interface', read), pat_syntax:fun_name(myfun), [pat_syntax:param(pat_syntax:var('X'), pat_syntax:lit_type(integer))], pat_syntax:var(x), pat_syntax:lit_type(string)).
-%%fun_def(MbType, FunName, Params, Body, RetType) when is_list(Params) -> % TODO: Move to translation.
-%%  Param = param(var('mb0'), MbType),
-%%  RetType0 = prod_type([RetType, MbType]),
-%%  fun_def(FunName, [Param | Params], Body, RetType0).
-
-%%%% Examples.
-%%self_expr(MbCtx) -> % TODO: Move to translation.
-%%  io_lib:format("(~s, ~s)", [MbCtx, MbCtx]).
 
 %%% ----------------------------------------------------------------------------
 %%% Utility.
 %%% ----------------------------------------------------------------------------
 
-%%seq_comma(Args) when is_list(Args) ->
-%%  string:join(Args, ?SEP_PAT).
-%%
-%%seq_prod(Args) when is_list(Args) ->
-%%  string:join(Args, ?SEP_PROD).
-%%
-%%seq_union(Args) when is_list(Args) ->
-%%  string:join(Args, ?SEP_UNION).
-%%
-%%seq_nl(Clauses) when is_list(Clauses) ->
-%%  string:join(Clauses, ?SEP_NL).
-%%
-%%op(Op) when is_atom(Op) -> %TODO: Make precise with all operators.
-%%  atom_to_list(Op).
-
-
-%%params(Params) when is_list(Params) ->
-%%  string:join([io_lib:format("~s: ~s", [Var, Type]) || {Var, Type} <- Params], ?SEP_PAT).
-
+%% @private Returns the Pat type name from the specified atom.
 to_type_name(Name) when is_atom(Name) ->
   list_to_atom(string:titlecase(atom_to_list(Name))).
 
+%% @private Returns the Pat variable or function identifier name from the
+%% specified atom.
 to_name(Name) when is_atom(Name) ->
   list_to_atom(string:lowercase(atom_to_list(Name))).
+
+
+%% TODO: These are used only to test the things in the pat.hrl file. Should be
+%% TODO: moved to the end of the file or deleted.
+type_test(Type) when ?IS_MB_MOD_TYPE(Type) ->
+  is_type;
+type_test(_) ->
+  unexpected_type.
+
+val_test(Term) when ?IS_VAL(Term) ->
+  is_val;
+val_test(_) ->
+  is_not_val.
 
 
 %% Interface example.

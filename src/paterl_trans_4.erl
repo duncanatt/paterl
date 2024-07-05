@@ -44,7 +44,6 @@ forms(Forms) when is_list(Forms) ->
 
 %% @private Translates Erlang forms.
 form({attribute, _, module, Name}) ->
-%%  io_lib:format("# Translated from ~s.erl~n", [Name]);
   pat_syntax:comment("Translated from " ++ atom_to_list(Name) ++ ".erl");
 form({attribute, _, interface, {Name, Type, _Vars = []}}) ->
   % Erlang interface with message signature types.

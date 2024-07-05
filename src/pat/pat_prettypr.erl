@@ -81,17 +81,23 @@
 -define(SEP_CLAUSE, ?SEP_BLOCK).
 
 
-
-
+%%% ----------------------------------------------------------------------------
+%%% API.
+%%% ----------------------------------------------------------------------------
 
 -spec module(list()) -> iolist(). % TODO: Make the list() more specific by defining a type in pat_syntax.
-%% @doc Pretty prints a list of Pat forms.
+%% @doc Pretty prints a list of Pat form nodes.
 module(Forms) when is_list(Forms) ->
   % A Pat module is a set of interface definitions followed by a set of function
   % definitions in that strict order.
   lists:join(?SEP_FORM, [form(Form, 0) || Form <- Forms]).
 
-%% @private Pretty prints forms.
+
+%%% ----------------------------------------------------------------------------
+%%% Forms.
+%%% ----------------------------------------------------------------------------
+
+%% @private Pretty prints form nodes.
 form({interface, _, Name, []}, Col) when is_atom(Name) ->
   % Interface form.
   format_col("interface ~s { }", [to_type_name(Name)], Col);
@@ -103,10 +109,12 @@ form({interface, _, Name, Type}, Col) when is_atom(Name) ->
     ?SEP_EXPR,
     format_col("}", Col)
   ];
-form({'fun', _, Name, Clauses}, Col) when is_atom(Name), is_list(Clauses), length(Clauses) =:= 1 ->
+form({'fun', _, Name, Clauses}, Col)
+  when is_atom(Name), is_list(Clauses), length(Clauses) =:= 1 ->
   % Our implementation expects exactly one function clause.
   format_col("def ~s~s", [to_name(Name), fun_clauses(Clauses, Col)], Col);
 form({comment, _, Text}, Col) when is_list(Text) ->
+  % TODO: Add reference to comment text.
   format_col("# ~s", [Text], Col).
 
 
@@ -114,7 +122,7 @@ form({comment, _, Text}, Col) when is_list(Text) ->
 %%% Types.
 %%% ----------------------------------------------------------------------------
 
-%% @private Pretty prints literal types.
+%% @private Pretty prints literal type nodes.
 lit_type({type, _, boolean}) ->
   % Boolean type.
   ?TYP_BOOLEAN;
@@ -134,7 +142,7 @@ lit_type({type, _, unit}) ->
   % Unit type.
   ?TYP_UNIT.
 
-%% @private Pretty prints types.
+%% @private Pretty prints type nodes.
 type(Type, Col) when ?IS_LIT_TYPE(Type) ->
   % Literal types.
   format_col(lit_type(Type), Col);
@@ -157,19 +165,19 @@ type({type, _, msg, Tag, Types}, Col) when is_atom(Tag), is_list(Types) ->
   % Message type.
   format_col("~s(~s)", [to_type_name(Tag), msg_types(Types, 0)], Col).
 
-%% @private Pretty prints a generic type list.
+%% @private Pretty prints a generic type node list.
 types(Types, Col) when is_list(Types) ->
   [type(Type, Col) || Type <- Types].
 
-%% @private Pretty prints a type list as a product.
+%% @private Pretty prints a type node list as a product.
 product_types(Types, Col) when is_list(Types) ->
   lists:join(?SEP_PROD, types(Types, Col)).
 
-%% @private Pretty prints a type list as a union.
+%% @private Pretty prints a type node list as a union.
 union_types(Types, Col) when is_list(Types) ->
   lists:join(?SEP_UNION, types(Types, Col)).
 
-%% @private Pretty prints a type list as message arguments.
+%% @private Pretty prints a type node list as message arguments.
 msg_types(Types, Col) when is_list(Types) ->
   lists:join(?SEP_PAT, types(Types, Col)).
 
@@ -178,7 +186,7 @@ msg_types(Types, Col) when is_list(Types) ->
 %%% Functions.
 %%% ----------------------------------------------------------------------------
 
-%% @private Pretty prints a function clause.
+%% @private Pretty prints a function clause node.
 fun_clause({fun_clause, _, Params, Expr, RetType}, Col) when is_list(Params) ->
   % Function clause.
   [
@@ -189,7 +197,7 @@ fun_clause({fun_clause, _, Params, Expr, RetType}, Col) when is_list(Params) ->
     format_col("}", Col)
   ].
 
-%% @private Pretty prints a list of function clauses.
+%% @private Pretty prints a list of function clause nodes.
 fun_clauses(Clauses, Col) when is_list(Clauses) ->
   % Function clauses.
   lists:join(?SEP_CLAUSE, [fun_clause(Clause, Col) || Clause <- Clauses]).
@@ -199,7 +207,7 @@ fun_clauses(Clauses, Col) when is_list(Clauses) ->
 %%% Patterns.
 %%% ----------------------------------------------------------------------------
 
-%% @private Pretty prints patterns.
+%% @private Pretty prints pattern nodes.
 pat(Var) when ?IS_VAR(Var) ->
   % Variable pattern.
   var(Var);
@@ -210,17 +218,17 @@ pat({pat, _, msg, Tag, PatSeq}) when is_atom(Tag), is_list(PatSeq) ->
   % Message pattern.
   format("~s(~s)", [to_type_name(Tag), pat_seq(PatSeq)]).
 
-%% @private Pretty prints a pattern sequence.
+%% @private Pretty prints a pattern node sequence.
 pat_seq(PatSeq) when is_list(PatSeq) ->
   % Pattern sequence.
   lists:join(?SEP_PAT, [pat(Pat) || Pat <- PatSeq]).
 
-%% @private Pretty prints a parameter and its type.
+%% @private Pretty prints a parameter node and its type.
 param({pat, _, Var, Type}) ->
   % Parameter pattern.
   format("~s: ~s", [var(Var), type(Type, 0)]).
 
-%% @private Pretty prints a parameter sequence.
+%% @private Pretty prints a parameter node sequence.
 params(Params) when is_list(Params) ->
   lists:join(?SEP_PAT, [param(Param) || Param <- Params]).
 
@@ -229,12 +237,12 @@ params(Params) when is_list(Params) ->
 %%% Values.
 %%% ----------------------------------------------------------------------------
 
-%% @private Pretty prints a variable.
+%% @private Pretty prints a variable node.
 var({var, _, Name}) when is_atom(Name) ->
   % Variable value.
   to_name(Name).
 
-%% @private Pretty prints a literal.
+%% @private Pretty prints a literal node.
 lit({boolean, _, Value}) when is_boolean(Value) ->
   % Boolean value.
   atom_to_list(Value);
@@ -256,7 +264,7 @@ lit({atom, _, Value}) when is_atom(Value) ->
 %%% Expressions.
 %%% ----------------------------------------------------------------------------
 
-%% @private Pretty prints an expression.
+%% @private Pretty prints an expression node.
 expr(Var, Col) when ?IS_VAR(Var) ->
   % Variable expression.
   format_col("~s", [var(Var)], Col);
@@ -299,7 +307,8 @@ expr({'if', _, ExprC, ExprT, ExprF}, Col)
     ?SEP_EXPR,
     format_col("}", Col)
   ];
-expr({'let', _, Binders, Expr0, Expr1}, Col) when ?IS_EXPR(Expr0), ?IS_EXPR(Expr1) ->
+expr({'let', _, Binders, Expr0, Expr1}, Col)
+  when ?IS_EXPR(Expr0), ?IS_EXPR(Expr1) ->
   % Let expression.
   [
     format_col("let ~s =", [expr(Binders, 0)], Col),
