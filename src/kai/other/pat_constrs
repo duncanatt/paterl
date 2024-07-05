@@ -1,0 +1,54 @@
+# Translated from pat_constrs.erl
+
+interface Test_mb {
+  Foo(),
+  Bar()
+}
+
+interface Main_mb { }
+
+def foo(mb0: Test_mb?): (Unit * Test_mb?) {
+  let (v0, mb3) =
+    guard mb0: Foo {
+      receive Foo() from mb1 ->
+        (ok, mb1)
+      receive Bar() from mb2 ->
+        (ok, mb2)
+    }
+  in
+    (v0, mb3)
+}
+
+def main(mb4: Main_mb?): (Unit * Main_mb?) {
+  let (mb, mb5) =
+    (mb4, mb4)
+  in
+    let (v1, mb8) =
+      (let mb6 =
+  new [Test_mb]
+in
+  let y =
+    spawn {
+      let (x, mb7) =
+        foo(mb6)
+      in
+        free(mb7)
+    }
+  in
+    mb6, mb5)
+    in
+      (mb ! Foo(), mb8)
+}
+
+def main'(): Unit {
+  let mb9 =
+    new [Main_mb]
+  in
+    let (x, mb10) =
+      main(mb9)
+    in
+      let y =
+        free(mb10)
+      in
+        x
+}

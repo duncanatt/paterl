@@ -1,0 +1,167 @@
+                    # Translated from cig_smok.erl
+
+                    interface Arbiter_mb {
+                      Start(),
+                      Started_smoking()
+                    }
+
+                    interface Smoker_mb {
+                      Start_smoking(Int),
+                      Exit()
+                    }
+
+                    interface Main_mb { }
+
+                    def arbiter(mb0: Arbiter_mb?, num_rounds: Int): (Unit * Arbiter_mb?) {
+                      let (self, mb1) =
+                        (mb0, mb0)
+                      in
+                        let (smoker1, mb4) =
+                          (let mb2 =
+  new [Smoker_mb]
+in
+  let y =
+    spawn {
+      let (x, mb3) =
+        smoker(mb2, self)
+      in
+        free(mb3)
+    }
+  in
+    mb2, mb1)
+                        in
+                          let (smoker2, mb7) =
+                            (let mb5 =
+  new [Smoker_mb]
+in
+  let y =
+    spawn {
+      let (x, mb6) =
+        smoker(mb5, self)
+      in
+        free(mb6)
+    }
+  in
+    mb5, mb4)
+                          in
+                            let (smoker3, mb10) =
+                              (let mb8 =
+  new [Smoker_mb]
+in
+  let y =
+    spawn {
+      let (x, mb9) =
+        smoker(mb8, self)
+      in
+        free(mb9)
+    }
+  in
+    mb8, mb7)
+                            in
+                              let (v0, mb13) =
+                                guard mb10: Start . (*StartedSmoking) {
+                                  receive Start() from mb11 ->
+                                    let (v1, mb12) =
+                                      (notify_smoker(smoker1, smoker2, smoker3), mb11)
+                                    in
+                                      arbiter_loop(mb12, num_rounds, smoker1, smoker2, smoker3)
+                                }
+                              in
+                                (v0, mb13)
+                    }
+
+                    def notify_smoker(smoker1: Smoker_mb!, smoker2: Smoker_mb!, smoker3: Smoker_mb!): Unit {
+                      smoker1 ! Start_smoking(100)
+                    }
+
+                    def notify_smoker_exit(smoker1: Smoker_mb!, smoker2: Smoker_mb!, smoker3: Smoker_mb!): Unit {
+                      let v2 =
+                        smoker1 ! Exit()
+                      in
+                        let v3 =
+                          smoker2 ! Exit()
+                        in
+                          smoker3 ! Exit()
+                    }
+
+                    def arbiter_loop(mb14: Arbiter_mb?, num_rounds: Int, smoker1: Smoker_mb!, smoker2: Smoker_mb!, smoker3: Smoker_mb!): (Unit * Arbiter_mb?) {
+                      let (v4, mb18) =
+                        guard mb14: *StartedSmoking {
+                          empty(mb17) ->
+                            ((), mb17)
+                          receive Started_smoking() from mb15 ->
+                            let (v5, mb16) =
+                              (notify_smoker_exit(smoker1, smoker2, smoker3), mb15)
+                            in
+                              arbiter_loop(mb16, num_rounds - 1, smoker1, smoker2, smoker3)
+                        }
+                      in
+                        (v4, mb18)
+                    }
+
+                    def smoker(mb19: Smoker_mb?, arbitermb: Arbiter_mb!): (Unit * Smoker_mb?) {
+                      let (v6, mb25) =
+                        guard mb19: (*StartSmoking) . (*Exit) {
+                          receive Start_smoking(ms) from mb20 ->
+                            let (v7, mb21) =
+                              (arbitermb ! Started_smoking(), mb20)
+                            in
+                              (let mb22 =
+  new [Smoker_mb]
+in
+  let (x, mb23) =
+    smoker(mb22, arbitermb)
+  in
+    let y =
+      free(mb23)
+    in
+      x, mb21)
+                          receive Exit() from mb24 ->
+                            smoker_exit(mb24)
+                        }
+                      in
+                        (v6, mb25)
+                    }
+
+                    def smoker_exit(mb26: Smoker_mb?): (Unit * Smoker_mb?) {
+                      let (v8, mb29) =
+                        guard mb26: (*StartSmoking) . (*Exit) {
+                          receive Start_smoking(ms) from mb27 ->
+                            smoker_exit(mb27)
+                          receive Exit() from mb28 ->
+                            smoker_exit(mb28)
+                        }
+                      in
+                        (v8, mb29)
+                    }
+
+                    def main(mb30: Main_mb?): (Unit * Main_mb?) {
+                      let (arbitermb, mb33) =
+                        (let mb31 =
+  new [Arbiter_mb]
+in
+  let y =
+    spawn {
+      let (x, mb32) =
+        arbiter(mb31, 10)
+      in
+        free(mb32)
+    }
+  in
+    mb31, mb30)
+                      in
+                        (arbitermb ! Start(), mb33)
+                    }
+
+                    def main'(): Unit {
+                      let mb34 =
+                        new [Main_mb]
+                      in
+                        let (x, mb35) =
+                          main(mb34)
+                        in
+                          let y =
+                            free(mb35)
+                          in
+                            x
+                    }

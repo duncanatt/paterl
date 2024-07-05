@@ -1,0 +1,229 @@
+# Translated from philosopher.erl
+
+interface Philosopher_mb {
+  Start(),
+  Denied(),
+  Eat()
+}
+
+interface Arbiter_mb {
+  Hungry(Philosopher_mb!, Int),
+  Done(Int),
+  Exit()
+}
+
+interface Main_mb { }
+
+def philosopher(mb0: Philosopher_mb?, id: Int, num_rounds: Int, arbiter: Arbiter_mb!): (Unit * Philosopher_mb?) {
+  let (v0, mb2) =
+    guard mb0: Start {
+      receive Start() from mb1 ->
+        philosopher_loop(mb1, id, num_rounds, arbiter)
+    }
+  in
+    (v0, mb2)
+}
+
+def philosopher_loop(mb3: Philosopher_mb?, id: Int, num_rounds: Int, arbiter: Arbiter_mb!): (Unit * Philosopher_mb?) {
+  let (self, mb4) =
+    (mb3, mb3)
+  in
+    let (v1, mb5) =
+      (arbiter ! Hungry(self, id), mb4)
+    in
+      let (v2, mb11) =
+        guard mb5: Denied + Eat + 1 {
+          empty(mb10) ->
+            ((), mb10)
+          receive Denied() from mb6 ->
+            philosopher_loop(mb6, id, num_rounds, arbiter)
+          receive Eat() from mb7 ->
+            let (v3, mb8) =
+              (arbiter ! Done(id), mb7)
+            in
+              let (v4, mb9) =
+                if (num_rounds <= 0) {
+                  (arbiter ! Exit(), mb8)
+                }
+                else {
+                  philosopher_loop(mb8, id, num_rounds - 1, arbiter)
+                }
+              in
+                (v4, mb9)
+        }
+      in
+        (v2, mb11)
+}
+
+def arbiter(mb12: Arbiter_mb?, num_exited_philosophers: Int, fork1: Bool, fork2: Bool): (Unit * Arbiter_mb?) {
+  let (v5, mb37) =
+    guard mb12: *(Hungry + Done + Exit) {
+      empty(mb36) ->
+        ((), mb36)
+      receive Hungry(philosopher, philosopher_id) from mb13 ->
+        let (available, mb14) =
+          (forks_available(philosopher_id, fork1, fork2), mb13)
+        in
+          let (v6, mb25) =
+            if (available) {
+              let (v7, mb15) =
+                (philosopher ! Eat(), mb14)
+              in
+                let (v8, mb16) =
+                  (allocate_forks(philosopher_id, fork1, fork2), mb15)
+                in
+                  (let mb17 =
+  new [Arbiter_mb]
+in
+  let (x, mb18) =
+    arbiter(mb17, num_exited_philosophers, fork1, fork2)
+  in
+    let y =
+      free(mb18)
+    in
+      x, mb16)
+            }
+            else {
+              let (v9, mb22) =
+                (philosopher ! Denied(), mb14)
+              in
+                (let mb23 =
+  new [Arbiter_mb]
+in
+  let (x, mb24) =
+    arbiter(mb23, num_exited_philosophers, fork1, fork2)
+  in
+    let y =
+      free(mb24)
+    in
+      x, mb22)
+            }
+          in
+            (v6, mb25)
+      receive Done(philosopher_id) from mb26 ->
+        let (v10, mb27) =
+          (deallocate_forks(philosopher_id, fork1, fork2), mb26)
+        in
+          (let mb28 =
+  new [Arbiter_mb]
+in
+  let (x, mb29) =
+    arbiter(mb28, num_exited_philosophers, fork1, fork2)
+  in
+    let y =
+      free(mb29)
+    in
+      x, mb27)
+      receive Exit() from mb30 ->
+        let (v11, mb35) =
+          if (num_exited_philosophers <= 0) {
+            arbiter_exit(mb30)
+          }
+          else {
+            (let mb33 =
+  new [Arbiter_mb]
+in
+  let (x, mb34) =
+    arbiter(mb33, num_exited_philosophers - 1, fork1, fork2)
+  in
+    let y =
+      free(mb34)
+    in
+      x, mb30)
+          }
+        in
+          (v11, mb35)
+    }
+  in
+    (v5, mb37)
+}
+
+def forks_available(id: Int, fork1: Bool, fork2: Bool): Bool {
+  true
+}
+
+def allocate_forks(id: Int, fork1: Bool, fork2: Bool): Unit {
+  ()
+}
+
+def deallocate_forks(id: Int, fork1: Bool, fork2: Bool): Unit {
+  ()
+}
+
+def arbiter_exit(mb38: Arbiter_mb?): (Unit * Arbiter_mb?) {
+  let (v12, mb43) =
+    guard mb38: *(Hungry + Done + Exit) {
+      empty(mb42) ->
+        ((), mb42)
+      receive Hungry(philosopher, philosopher_id) from mb39 ->
+        arbiter_exit(mb39)
+      receive Done(id) from mb40 ->
+        arbiter_exit(mb40)
+      receive Exit() from mb41 ->
+        arbiter_exit(mb41)
+    }
+  in
+    (v12, mb43)
+}
+
+def main(mb44: Main_mb?, num_rounds: Int): (Unit * Main_mb?) {
+  let (arbiter, mb47) =
+    (let mb45 =
+  new [Arbiter_mb]
+in
+  let y =
+    spawn {
+      let (x, mb46) =
+        arbiter(mb45, 2, false, false)
+      in
+        free(mb46)
+    }
+  in
+    mb45, mb44)
+  in
+    let (philosopher1, mb50) =
+      (let mb48 =
+  new [Philosopher_mb]
+in
+  let y =
+    spawn {
+      let (x, mb49) =
+        philosopher(mb48, 0, num_rounds, arbiter)
+      in
+        free(mb49)
+    }
+  in
+    mb48, mb47)
+    in
+      let (v13, mb51) =
+        (philosopher1 ! Start(), mb50)
+      in
+        let (philosopher2, mb54) =
+          (let mb52 =
+  new [Philosopher_mb]
+in
+  let y =
+    spawn {
+      let (x, mb53) =
+        philosopher(mb52, 1, num_rounds, arbiter)
+      in
+        free(mb53)
+    }
+  in
+    mb52, mb51)
+        in
+          (philosopher2 ! Start(), mb54)
+}
+
+def main'(): Unit {
+  let mb55 =
+    new [Main_mb]
+  in
+    let (x, mb56) =
+      main(mb55)
+    in
+      let y =
+        free(mb56)
+      in
+        x
+}

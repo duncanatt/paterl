@@ -1,0 +1,102 @@
+                    # Translated from kfork.erl
+
+                    interface Actor_mb {
+                      Packet()
+                    }
+
+                    def actor(mb0: Actor_mb?): (Unit * Actor_mb?) {
+                      let (v0, mb6) =
+                        guard mb0: *Packet {
+                          empty(mb5) ->
+                            ((), mb5)
+                          receive Packet() from mb1 ->
+                            let (dummy, mb2) =
+                              (fact(1000), mb1)
+                            in
+                              (let mb3 =
+  new [Actor_mb]
+in
+  let (x, mb4) =
+    actor(mb3)
+  in
+    let y =
+      free(mb4)
+    in
+      x, mb2)
+                        }
+                      in
+                        (v0, mb6)
+                    }
+
+                    def fact(n: Int): Int {
+                      1
+                    }
+
+                    def flood(num_messages: Int, actor: Actor_mb!): Unit {
+                      ok
+                    }
+
+                    def main(): Unit {
+                      let actor1 =
+                        let mb7 =
+                          new [Actor_mb]
+                        in
+                          let y =
+                            spawn {
+                              let (x, mb8) =
+                                actor(mb7)
+                              in
+                                free(mb8)
+                            }
+                          in
+                            mb7
+                      in
+                        let actor2 =
+                          let mb9 =
+                            new [Actor_mb]
+                          in
+                            let y =
+                              spawn {
+                                let (x, mb10) =
+                                  actor(mb9)
+                                in
+                                  free(mb10)
+                              }
+                            in
+                              mb9
+                        in
+                          let actor3 =
+                            let mb11 =
+                              new [Actor_mb]
+                            in
+                              let y =
+                                spawn {
+                                  let (x, mb12) =
+                                    actor(mb11)
+                                  in
+                                    free(mb12)
+                                }
+                              in
+                                mb11
+                          in
+                            let v1 =
+                              flood(100, actor1)
+                            in
+                              let v2 =
+                                flood(1000, actor2)
+                              in
+                                flood(10000, actor3)
+                    }
+
+                    def main'(): Unit {
+                      let mb13 =
+                        new [Main_mb]
+                      in
+                        let (x, mb14) =
+                          main(mb13)
+                        in
+                          let y =
+                            free(mb14)
+                          in
+                            x
+                    }

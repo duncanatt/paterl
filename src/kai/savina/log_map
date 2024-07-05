@@ -1,0 +1,258 @@
+# Translated from log_map.erl
+
+interface Master_mb {
+  Start(),
+  Result(Int)
+}
+
+interface Worker_mb {
+  Next_term(),
+  Get_term(),
+  Result_worker(Int),
+  Stop()
+}
+
+interface Computer_mb {
+  Compute(Term_mb!, Int),
+  Stop_compute()
+}
+
+interface Main_mb { }
+
+def master(mb0: Master_mb?, start_rate: Int, increment: Int): (Unit * Master_mb?) {
+  let (self, mb1) =
+    (mb0, mb0)
+  in
+    let (rate1, mb2) =
+      (start_rate + 1 * increment, mb1)
+    in
+      let (computer1, mb5) =
+        (let mb3 =
+  new [Computer_mb]
+in
+  let y =
+    spawn {
+      let (x, mb4) =
+        computer(mb3, rate1)
+      in
+        free(mb4)
+    }
+  in
+    mb3, mb2)
+      in
+        let (start_term1, mb6) =
+          (1 * increment, mb5)
+        in
+          let (worker1, mb9) =
+            (let mb7 =
+  new [Worker_mb]
+in
+  let y =
+    spawn {
+      let (x, mb8) =
+        worker(mb7, 1, self, computer1, start_term1)
+      in
+        free(mb8)
+    }
+  in
+    mb7, mb6)
+          in
+            let (rate2, mb10) =
+              (start_rate + 2 * increment, mb9)
+            in
+              let (computer2, mb13) =
+                (let mb11 =
+  new [Computer_mb]
+in
+  let y =
+    spawn {
+      let (x, mb12) =
+        computer(mb11, rate2)
+      in
+        free(mb12)
+    }
+  in
+    mb11, mb10)
+              in
+                let (start_term2, mb14) =
+                  (2 * increment, mb13)
+                in
+                  let (worker2, mb17) =
+                    (let mb15 =
+  new [Worker_mb]
+in
+  let y =
+    spawn {
+      let (x, mb16) =
+        worker(mb15, 2, self, computer2, start_term2)
+      in
+        free(mb16)
+    }
+  in
+    mb15, mb14)
+                  in
+                    let (v0, mb26) =
+                      guard mb17: Start . (*Result) {
+                        receive Start() from mb18 ->
+                          let (v1, mb19) =
+                            (worker1 ! Next_term(), mb18)
+                          in
+                            let (v2, mb20) =
+                              (worker1 ! Next_term(), mb19)
+                            in
+                              let (v3, mb21) =
+                                (worker2 ! Next_term(), mb20)
+                              in
+                                let (v4, mb22) =
+                                  (worker2 ! Next_term(), mb21)
+                                in
+                                  let (v5, mb23) =
+                                    (worker2 ! Next_term(), mb22)
+                                  in
+                                    let (v6, mb24) =
+                                      (worker1 ! Get_term(), mb23)
+                                    in
+                                      let (v7, mb25) =
+                                        (worker2 ! Get_term(), mb24)
+                                      in
+                                        master_loop(mb25, 0, worker1, computer1, worker2, computer2)
+                      }
+                    in
+                      (v0, mb26)
+}
+
+def master_loop(mb27: Master_mb?, term_sum: Int, worker1: Worker_mb!, computer1: Computer_mb!, worker2: Worker_mb!, computer2: Computer_mb!): (Unit * Master_mb?) {
+  let (v8, mb30) =
+    guard mb27: *Result {
+      empty(mb29) ->
+        ((), mb29)
+      receive Result(term) from mb28 ->
+        master_loop(mb28, term_sum + term, worker1, computer1, worker2, computer2)
+    }
+  in
+    (v8, mb30)
+}
+
+def worker(mb31: Worker_mb?, id: Int, master: Master_mb!, computer: Computer_mb!, curr_term: Int): (Unit * Worker_mb?) {
+  let (v9, mb43) =
+    guard mb31: (*NextTerm) . GetTerm . Stop {
+      receive Next_term() from mb32 ->
+        let (self, mb33) =
+          (mb32, mb32)
+        in
+          let (v10, mb34) =
+            (computer ! Compute(self, curr_term), mb33)
+          in
+            let (v11, mb38) =
+              guard mb34: Done {
+                receive Done(term) from mb35 ->
+                  (let mb36 =
+  new [Worker_mb]
+in
+  let (x, mb37) =
+    worker(mb36, id, master, computer, term)
+  in
+    let y =
+      free(mb37)
+    in
+      x, mb35)
+              }
+            in
+              (v11, mb38)
+      receive Get_term() from mb39 ->
+        let (v12, mb40) =
+          (master ! Result(curr_term), mb39)
+        in
+          let (v13, mb42) =
+            guard mb40: (*NextTerm) . Stop {
+              receive Stop() from mb41 ->
+                worker_exit(mb41)
+            }
+          in
+            (v13, mb42)
+    }
+  in
+    (v9, mb43)
+}
+
+def worker_exit(mb44: Worker_mb?): (Unit * Worker_mb?) {
+  let (v14, mb47) =
+    guard mb44: *NextTerm {
+      empty(mb46) ->
+        ((), mb46)
+      receive Next_term() from mb45 ->
+        worker_exit(mb45)
+    }
+  in
+    (v14, mb47)
+}
+
+def computer(mb48: Computer_mb?, rate: Int): (Unit * Computer_mb?) {
+  let (v15, mb54) =
+    guard mb48: (*Compute) . StopCompute {
+      receive Compute(term_mb, term) from mb49 ->
+        let (v16, mb50) =
+          (term_mb ! Done(rate * term * 1 - term), mb49)
+        in
+          (let mb51 =
+  new [Computer_mb]
+in
+  let (x, mb52) =
+    computer(mb51, rate)
+  in
+    let y =
+      free(mb52)
+    in
+      x, mb50)
+      receive Stop_compute() from mb53 ->
+        computer_exit(mb53)
+    }
+  in
+    (v15, mb54)
+}
+
+def computer_exit(mb55: Computer_mb?): (Unit * Computer_mb?) {
+  let (v17, mb59) =
+    guard mb55: *Compute {
+      empty(mb58) ->
+        ((), mb58)
+      receive Compute(term_mb, term) from mb56 ->
+        let (v18, mb57) =
+          (term_mb ! Done(term), mb56)
+        in
+          computer_exit(mb57)
+    }
+  in
+    (v17, mb59)
+}
+
+def main(mb60: Main_mb?): (Unit * Main_mb?) {
+  let (master, mb63) =
+    (let mb61 =
+  new [Master_mb]
+in
+  let y =
+    spawn {
+      let (x, mb62) =
+        master(mb61, 3, 1)
+      in
+        free(mb62)
+    }
+  in
+    mb61, mb60)
+  in
+    (master ! Start(), mb63)
+}
+
+def main'(): Unit {
+  let mb64 =
+    new [Main_mb]
+  in
+    let (x, mb65) =
+      main(mb64)
+    in
+      let y =
+        free(mb65)
+      in
+        x
+}

@@ -1,0 +1,90 @@
+# Translated from future_state_passing.erl
+
+interface Future_mb {
+  Put(Int),
+  Get(User_mb!)
+}
+
+interface User_mb {
+  Reply(Int)
+}
+
+interface Main_mb { }
+
+def future(mb0: Future_mb?): (Unit * Future_mb?) {
+  let (v0, mb2) =
+    guard mb0: Put . (*Get) {
+      receive Put(x) from mb1 ->
+        resolved_future(mb1, x)
+    }
+  in
+    (v0, mb2)
+}
+
+def resolved_future(mb3: Future_mb?, value: Int): (Unit * Future_mb?) {
+  let (v1, mb7) =
+    guard mb3: *Get {
+      empty(mb6) ->
+        ((), mb6)
+      receive Get(user) from mb4 ->
+        let (v2, mb5) =
+          (user ! Reply(value), mb4)
+        in
+          resolved_future(mb5, value)
+    }
+  in
+    (v1, mb7)
+}
+
+def user(mb8: User_mb?, future: Future_mb!): (Int * User_mb?) {
+  let (self, mb9) =
+    (mb8, mb8)
+  in
+    let (v3, mb10) =
+      (future ! Get(self), mb9)
+    in
+      let (v4, mb12) =
+        guard mb10: Reply {
+          receive Reply(x) from mb11 ->
+            (x, mb11)
+        }
+      in
+        (v4, mb12)
+}
+
+def main(mb13: Main_mb?): (Unit * Main_mb?) {
+  let (futuremb, mb16) =
+    (let mb14 =
+  new [Future_mb]
+in
+  let y =
+    spawn {
+      let (x, mb15) =
+        future(mb14)
+      in
+        free(mb15)
+    }
+  in
+    mb14, mb13)
+  in
+    let (v5, mb17) =
+      (futuremb ! Put(5), mb16)
+    in
+      let (v6, mb18) =
+        ((), mb17)
+      in
+        ((), mb18)
+}
+
+def main'(): Unit {
+  let mb19 =
+    new [Main_mb]
+  in
+    let (x, mb20) =
+      main(mb19)
+    in
+      let y =
+        free(mb20)
+      in
+        x
+}

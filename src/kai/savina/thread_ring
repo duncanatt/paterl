@@ -1,0 +1,157 @@
+# Translated from thread_ring.erl
+
+interface Actor_mb {
+  Data(Actor_mb!),
+  Ping(Int),
+  Exit(Int)
+}
+
+def actor(mb0: Actor_mb?, num_actors: Int): (Unit * Actor_mb?) {
+  let (v0, mb2) =
+    guard mb0: Data . (*Ping) . (*Exit) {
+      receive Data(neighbor) from mb1 ->
+        actor_loop(mb1, num_actors, neighbor)
+    }
+  in
+    (v0, mb2)
+}
+
+def actor_loop(mb3: Actor_mb?, num_actors: Int, neighbor: Actor_mb!): (Unit * Actor_mb?) {
+  let (v1, mb11) =
+    guard mb3: (*Ping) . (*Exit) {
+      receive Ping(pings_left) from mb4 ->
+        let (v2, mb8) =
+          if (pings_left <= 0) {
+            let (v3, mb5) =
+              (neighbor ! Exit(num_actors), mb4)
+            in
+              actor_exit(mb5)
+          }
+          else {
+            let (v4, mb7) =
+              (neighbor ! Ping(pings_left - 1), mb4)
+            in
+              actor_loop(mb7, num_actors, neighbor)
+          }
+        in
+          (v2, mb8)
+      receive Exit(exits_left) from mb9 ->
+        let (v5, mb10) =
+          if (exits_left <= 0) {
+            ((), mb9)
+          }
+          else {
+            (neighbor ! Ping(exits_left - 1), mb9)
+          }
+        in
+          actor_exit(mb10)
+    }
+  in
+    (v1, mb11)
+}
+
+def actor_exit(mb12: Actor_mb?): (Unit * Actor_mb?) {
+  let (v6, mb16) =
+    guard mb12: *Ping . (*Exit) {
+      empty(mb15) ->
+        ((), mb15)
+      receive Ping(pings_left) from mb13 ->
+        actor_exit(mb13)
+      receive Exit(exits_left) from mb14 ->
+        actor_exit(mb14)
+    }
+  in
+    (v6, mb16)
+}
+
+def init_ring(num_actors: Int, main: Actor_mb!): Unit {
+  let v7 =
+    if (num_actors < 2) {
+      ()
+    }
+    else {
+      let first_actor =
+        let mb17 =
+          new [Actor_mb]
+        in
+          let y =
+            spawn {
+              let (x, mb18) =
+                actor(mb17, num_actors)
+              in
+                free(mb18)
+            }
+          in
+            mb17
+      in
+        let tail_actor =
+          create_actors(num_actors - 2, num_actors, first_actor)
+        in
+          let v8 =
+            tail_actor ! Data(first_actor)
+          in
+            main ! Data(first_actor)
+    }
+  in
+    v7
+}
+
+def create_actors(count: Int, num_actors: Int, prev_actor: Actor_mb!): Actor_mb! {
+  let actor =
+    let mb19 =
+      new [Actor_mb]
+    in
+      let y =
+        spawn {
+          let (x, mb20) =
+            actor(mb19, num_actors)
+          in
+            free(mb20)
+        }
+      in
+        mb19
+  in
+    let v9 =
+      prev_actor ! Data(actor)
+    in
+      let v10 =
+        if (count < 0) {
+          actor
+        }
+        else {
+          create_actors(count - 1, num_actors, actor)
+        }
+      in
+        v10
+}
+
+def main(mb21: Actor_mb?, num_actors: Int, num_rounds: Int): (Unit * Actor_mb?) {
+  let (self, mb22) =
+    (mb21, mb21)
+  in
+    let (v11, mb23) =
+      (init_ring(num_actors, self), mb22)
+    in
+      let (v12, mb26) =
+        guard mb23: Data + 1 {
+          empty(mb25) ->
+            ((), mb25)
+          receive Data(first_actor) from mb24 ->
+            (first_actor ! Ping(num_rounds), mb24)
+        }
+      in
+        (v12, mb26)
+}
+
+def main'(): Unit {
+  let mb27 =
+    new [Main_mb]
+  in
+    let (x, mb28) =
+      main(mb27)
+    in
+      let y =
+        free(mb28)
+      in
+        x
+}
