@@ -317,10 +317,11 @@ fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
       [Expr] = expr_seq(Body, Mb),
       pat_syntax:fun_clause(Params, Expr, pat_syntax:product_type([RetType, MbType]))
   end.
-if_clause({clause, _, _PatSeq = [], [[GuardTest]], Body}) ->
+if_clause({clause, _, _PatSeq = [], [[GuardTest]], ExprSeq}) ->
   % Erlang constrained if clause with exactly one guard and one guard test.
   ?TRACE("Translating if clause."),
-  {guard_test(GuardTest), expr_seq(Body)}.
+  [Expr0] = expr_seq(ExprSeq),
+  {guard_test(GuardTest), Expr0}.
 
 
 %% @private Translates Erlang expression sequences.
@@ -329,7 +330,7 @@ expr_seq([]) ->
 expr_seq([Expr | ExprSeq]) ->
   ?TRACE("Translating the expression ~p in sequence.", [Expr]),
   Tmp = expr(Expr, ExprSeq),
-  ?TRACE("Translated expr ~p (~p)", [Tmp, tuple_size(Tmp)]),
+%%  ?TRACE("Translated expr ~p (~p)", [Tmp, tuple_size(Tmp)]),
   {Expr0, Rest} = Tmp,
   [Expr0 | expr_seq(Rest)].
 
@@ -433,8 +434,10 @@ expr({'if', _, [Clause0, Clause1]}, ExprSeq) ->
   % all constraint. These pair of constraints emulate if and else Pat branches.
   ?TRACE("Translating if-else expression."),
   {ExprC, ExprT} = if_clause(Clause0), % If
+  ?TRACE("TRUE expression = ~p.", [ExprT]),
 %%  {"true", ExprF} = if_clause(Clause1), % Else
   {{boolean, _, true}, ExprF} = if_clause(Clause1), % Else
+  ?TRACE("FALSE expression = ~p.", [ExprF]),
   {pat_syntax:if_expr(ExprC, ExprT, ExprF), ExprSeq};
 expr(Other, ExprSeq) ->
   % Erlang unsupported expressions.
