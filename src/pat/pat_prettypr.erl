@@ -114,7 +114,6 @@ form({'fun', _, Name, Clauses}, Col)
   % Our implementation expects exactly one function clause.
   format_col("def ~s~s", [to_name(Name), fun_clauses(Clauses, Col)], Col);
 form({comment, _, Text}, Col) when is_list(Text) ->
-  % TODO: Add reference to comment text.
   format_col("# ~s", [Text], Col).
 
 
@@ -354,12 +353,10 @@ expr({'receive', _, MsgPat, RebindVar, Expr}, Col)
   when ?IS_MSG_PAT(MsgPat), ?IS_VAR(RebindVar), ?IS_EXPR(Expr) ->
   % Receive expression.
   [
-    format_col("receive ~s from ~s ->~n", [pat(MsgPat), var(RebindVar)], Col),
+    format_col("receive ~s from ~s ->", [pat(MsgPat), var(RebindVar)], Col),
+    ?SEP_EXPR,
     expr(Expr, Col + ?IND_STEP)
-  ];
-expr({comment, _, Text}, Col) when is_list(Text) ->
-  % Comment.
-  format_col("# ~s~n", [Text], Col).
+  ].
 
 %% @private Pretty prints an expression sequence.
 expr_seq(ExprSeq, Col) when is_list(ExprSeq) ->
