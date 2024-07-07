@@ -12,6 +12,7 @@
 -include("paterl.hrl").
 
 -import(io, [format/2]).
+-import(rand, [uniform/1]).
 
 %% API
 -export([main/0]).
@@ -43,7 +44,7 @@ actor() ->
   ?mb_assert_regex("*Packet"),
   receive
     {packet} ->
-      Dummy = fact(rand:uniform(100000)),
+      Dummy = fact(uniform(100000)),
       actor()
   end.
 
