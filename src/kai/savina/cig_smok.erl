@@ -12,6 +12,7 @@
 -include("paterl.hrl").
 
 -import(io, [format/2]).
+-import(rand, [uniform/1]).
 
 %% API
 -export([main/0]).
@@ -97,15 +98,16 @@ arbiter(Num_rounds) ->
 %%  }
 -spec notify_smoker(smoker_mb(), smoker_mb(), smoker_mb()) -> no_return().
 notify_smoker(Smoker1, Smoker2, Smoker3) ->
-  Smoker_id = rand:uniform(3),
-%%  TODO if-else clause doesn't work
+  Smoker_id = uniform(3),
   Sleep_time_ms = 1000,
   if Smoker_id == 1 ->
-    Smoker1 ! {start_smoking, rand:uniform(Sleep_time_ms)};
-    Smoker_id == 2 ->
-      Smoker2 ! {start_smoking, rand:uniform(Sleep_time_ms)};
+    Smoker1 ! {start_smoking, uniform(Sleep_time_ms)};
     true ->
-      Smoker3 ! {start_smoking, rand:uniform(Sleep_time_ms)}
+      if Smoker_id == 2 ->
+        Smoker2 ! {start_smoking, uniform(Sleep_time_ms)};
+        true ->
+          Smoker3 ! {start_smoking, uniform(Sleep_time_ms)}
+      end
   end.
 
 
@@ -166,8 +168,6 @@ smoker(ArbiterMb) ->
   receive
     {start_smoking, Ms} ->
       ArbiterMb ! {started_smoking},
-%%      TODO: Sleep doesn't work
-%%      timer:sleep(Ms),
       smoker(ArbiterMb);
     {exit} ->
       smoker_exit()

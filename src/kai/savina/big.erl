@@ -12,6 +12,7 @@
 -include("paterl.hrl").
 
 -import(io, [format/2]).
+-import(rand, [uniform/1]).
 
 %% API
 -export([main/0]).
@@ -182,7 +183,7 @@ send_pong(Id, Pinger_id, Actor1, Actor2) ->
 %%  }
 -spec send_ping(integer(), actor_mb(), actor_mb()) -> no_return().
 send_ping(Id, Actor1, Actor2) ->
-  PongerId = rand:uniform(2),
+  PongerId = uniform(2),
   if PongerId == 1 ->
     Actor1 ! {ping, Id};
     true ->

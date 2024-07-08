@@ -77,9 +77,8 @@ teller(Num_accounts) ->
   ?mb_assert_regex("Start"),
   receive
     {start} ->
-      Self = self(),
       ?mb_new(teller_mb),
-      spawn(?MODULE, generate_work, [Self, Num_accounts, Account1, Account2, Account3]),
+      spawn(?MODULE, generate_work, [Num_accounts, Account1, Account2, Account3]),
       teller_loop(Account1, Account3, Account2)
   end.
 
@@ -106,8 +105,11 @@ teller(Num_accounts) ->
 generate_work(Teller, Num_accounts, Account1, Account2, Account3) ->
   Source_id = uniform(Num_accounts),
   if Source_id == 1 -> choose_dst_acc(Teller, Num_accounts, Account1, Account2, Account3);
-%%    Source_id == 2 -> choose_dst_acc(Teller, Num_accounts, Account2, Account1, Account3);
-    true -> choose_dst_acc(Teller, Num_accounts, Account3, Account1, Account2)
+    true ->
+      if Source_id == 2 -> choose_dst_acc(Teller, Num_accounts, Account2, Account1, Account3);
+        true ->
+          choose_dst_acc(Teller, Num_accounts, Account3, Account1, Account2)
+      end
   end.
 
 %% def choose_dst_acc(tellerMb: TellerMb!, numAccounts: Int, srcAccountMb: AccountMb![R], dstAccountMb1: AccountMb![R], dstAccountMb2 : AccountMb![R]): Unit {
@@ -124,7 +126,7 @@ generate_work(Teller, Num_accounts, Account1, Account2, Account3) ->
 %% }
 -spec choose_dst_acc(teller_mb(), integer(), account_mb(), account_mb(), account_mb()) -> no_return().
 choose_dst_acc(Teller, Num_accounts, Src_account, Dst_account1, Dst_account2) ->
-  Dst_account_id = 1,
+  Dst_account_id = uniform(Num_accounts - 1),
   Dst_account =
     if Dst_account_id == 1 -> Dst_account1;
       true -> Dst_account2
