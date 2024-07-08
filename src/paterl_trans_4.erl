@@ -220,7 +220,7 @@ expr({'if', _, [Clause0, Clause1]}, ExprSeq, Mb) ->
   ?TRACE("(~s) Translating if-else expression.", [Mb]),
   {ExprC, ExprT} = if_clause(Clause0, Mb), % If.
 
-  ?TRACE("Translated else clause is: ~p~n~n", [if_clause(Clause1, Mb)]),
+%%  ?TRACE("Translated else clause is: ~p~n~n", [if_clause(Clause1, Mb)]),
 
 %%  {"true", ExprF} = if_clause(Clause1, Mb), % Else.
   {{boolean, _, true}, ExprF} = if_clause(Clause1, Mb), % Else.
