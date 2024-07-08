@@ -33,6 +33,8 @@
 %% Unknown Pat error.
 -define(E_PAT_NONE, e_pat_none).
 
+%%TODO: Ultimate plan: Desugar -> ANF -> CPS -> RTL -> SSA -> RTL -> ASM
+
 compile(File, Opts) when is_list(File), is_list(Opts) ->
   % Preprocess file.
   io:fwrite(color:green("[EPP] Preprocessing file ~s.~n"), [File]),
@@ -89,7 +91,8 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
                   compile:forms(Annotated),
 
                   io:fwrite(color:green("[TRANSLATE] Translating Erlang forms to Pat.~n")),
-                  PatAst = paterl_trans_4:module(Annotated),
+%%                  PatAst = paterl_trans_4:module(Annotated),
+                  PatAst = paterl_trans_5:module(Annotated),
                   io:fwrite("Pat AST: ~p~n~n", [PatAst]),
                   PatString = pat_prettypr:module(PatAst),
                   io:fwrite("Pat String:~n~n~s~n~n", [PatString]),
@@ -177,10 +180,12 @@ get_output(Port, Read) ->
   end.
 
 parse_error(Msg) ->
-  {match, Msg0} = re:run(
-    Msg, "\\[.*\\]\s(?P<A>.+)", [{capture, ['A'], list}, dotall]
-  ),
-  translate(sanitize(Msg0)).
+  case re:run(Msg, "\\[.*\\]\s(?P<A>.+)", [{capture, ['A'], list}, dotall]) of
+    {match, Msg0} ->
+      translate(sanitize(Msg0));
+    nomatch ->
+      Msg
+  end.
 
 sanitize(Msg) ->
   re:replace(

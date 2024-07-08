@@ -27,9 +27,12 @@
 %% Temporary variable name.
 -define(TEMP_VAR_NAME, v).
 
-%% TODO: Add code to normalize Erlang ASTs.
+%% TODO: Add code to normalize Erlang ASTs. Called assignment transformation.
 %% For now this only involves expanding specific Erlang expressions to match expressions.
-%% Later, I need to add calls to functions to be externalized so that values are bound to variables, which is a huge task.
+%% Later, I need to add calls to functions to be externalized so that values are bound to variables,
+%% which is a huge task and is called a-normal form.
+
+
 
 %% @doc Transforms an Erlang abstract syntax representation to its Erlang
 %% intermediate representation.
