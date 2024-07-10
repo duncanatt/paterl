@@ -33,9 +33,6 @@
 %%% Macro and record definitions.
 %%% ----------------------------------------------------------------------------
 
-%% Mailbox ID counter start.
--define(MB_IDX_START, 0).
-
 %% Default annotation value.
 -define(DEF_ANNO_VAL, 0).
 
