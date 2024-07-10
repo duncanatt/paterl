@@ -17,7 +17,7 @@
 
 %% API
 -export([module/1]).
-%%-compile(export_all).
+-compile(export_all).
 
 %%% ----------------------------------------------------------------------------
 %%% Macro and record definitions.
@@ -27,7 +27,7 @@
 -define(MB_VAR_NAME, mb).
 
 %% Checks whether the term is a type.
--define(IS_TYPE(Type), element(1, Type) =:= 'type').
+-define(IS_TYPE(Type), element(1, Type) =:= type).
 
 %% Checks whether the term is a literal type.
 -define(IS_LIT_TYPE(Type), (?IS_TYPE(Type)
@@ -39,34 +39,64 @@
 )).
 
 %% Checks whether the term is a literal.
--define(IS_LIT(Term),
-  element(1, Term) =:= boolean orelse
-    element(1, Term) =:= integer orelse
-    element(1, Term) =:= float orelse
-    element(1, Term) =:= string orelse
-    element(1, Term) =:= atom
-).
+-define(IS_LIT(Term), (element(1, Term) =:= boolean
+  orelse element(1, Term) =:= integer
+  orelse element(1, Term) =:= float
+  orelse element(1, Term) =:= string
+  orelse element(1, Term) =:= atom
+)).
 
 %%{call, _, {atom, _, format}, _}
--define(FUN_NAME, ).
+%%-define(FUN_NAME(Expr), element(3, element(3, Expr))).
 
--define(IS_CALL(Expr), element(1, Expr =:= call)).
-%%-define(IS_EXPLICIT_CALL)
+%%-define(IS_CALL(Expr), element(1, Expr) =:= call).
 
--define(HAS_BOOLEAN_RET_TYPE(Expr), true).
--define(HAS_INTEGER_RET_TYPE(Expr), true).
--define(HAS_FLOAT_RET_TYPE(Expr), true).
--define(HAS_STRING_RET_TYPE(Expr), true).
--define(HAS_ATOM_RET_TYPE(Expr), true).
--define(HAS_UNIT_RET_TYPE(Expr), (?IS_CALL
-  andalso (element(3, Expr) =:= format)
-)). %TODO -> Define a macro that says that format is unit. FILL THE REST
+%%-define(IS_IMPLICIT_CALL(Expr), (?IS_CALL(Expr)
+%%  andalso is_tuple(element(3, Expr))
+%%  andalso tuple_size(element(3, Expr)) =:= 3
+%%  andalso element(1, element(3, Expr)) =:= atom
+%%  andalso is_atom(element(3, element(3, Expr)))
+%%)).
+
+%%-define(HAS_BOOLEAN_RET_TYPE(Expr), true).
+%%-define(HAS_INTEGER_RET_TYPE(Expr), (?IS_IMPLICIT_CALL(Expr)
+%%  andalso ?FUN_NAME(Expr) =:= rand
+%%)).
+%%-define(HAS_FLOAT_RET_TYPE(Expr), true).
+%%-define(HAS_STRING_RET_TYPE(Expr), true).
+%%-define(HAS_ATOM_RET_TYPE(Expr), true).
+%%-define(HAS_UNIT_RET_TYPE(Expr), (?IS_IMPLICIT_CALL(Expr)
+%%  andalso ?FUN_NAME(Expr) =:= format
+%%)).
 
 
+%% Map of externally-defined opaque Erlang functions that can be substituted for
+%% the concrete data unit value that has the same type as that returned by the
+%% corresponding function. This scheme makes it possible to type check files
+%% that call external functions without modifying the original Pat
+%% implementation.
+-define(OPAQUE_FUNS, #{
+  format => unit,
+  uniform => integer
+}).
+
+-define(IS_UNIT_EQ_TYPE(Type), (?IS_TYPE(Type) andalso
+  (element(3, Type) =:= no_return
+    orelse element(3, Type) =:= any
+    orelse element(3, Type) =:= none)
+)).
+
+-define(GET_LIT(Term), element(3, Term)).
+
+test_type(Type) when ?IS_UNIT_EQ_TYPE(Type) ->
+  yes;
+test_type(_) ->
+  no.
 
 %%% ----------------------------------------------------------------------------
 %%% API.
 %%% ----------------------------------------------------------------------------
+%% TODO: Add typespecs.
 
 -spec module(erl_syntax:forms()) -> list().
 %% @doc Translates the specified Erlang abstract syntax representation to its
@@ -81,6 +111,7 @@ module(Forms) ->
 
 %% @private Translates the specified list of Erlang forms.
 forms(Forms) when is_list(Forms) ->
+  % Skip untranslatable forms.
   [Form0 || Form <- Forms, (Form0 = form(Form)) =/= undefined].
 
 %% @private Translates the specified Erlang form.
@@ -88,8 +119,8 @@ form({attribute, _, module, Name}) ->
   % Erlang module attribute.
   pat_syntax:comment("Translated from " ++ atom_to_list(Name) ++ ".erl");
 form({attribute, _, interface, {Name, Type, _Vars = []}}) ->
-  % Interface with message signatures.
-  ?TRACE("Translating interface ~s.", [Name]),
+  % Pat interface module attribute with message signatures.
+  ?TRACE("Translating interface '~s'.", [Name]),
   case type(Type) of
     undefined ->
       % Empty interface.
@@ -100,33 +131,28 @@ form({attribute, _, interface, {Name, Type, _Vars = []}}) ->
   end;
 form({function, _, Name, Arity, Clauses = [_]}) ->
   % Erlang function with one clause.
-  ?TRACE("Translating function ~s/~b.", [Name, Arity]),
+  ?TRACE("Translating function '~s/~b'.", [Name, Arity]),
   pat_syntax:fun_def(Name, fun_clauses(Clauses));
-form(_) ->
+form(_Form) ->
   % Erlang forms without Pat equivalent.
+  ?TRACE("Skipping form '~s'.", [element(3, _Form)]),
   undefined.
 
 %% @private Translates the specified Erlang type definition.
 type({type, _, pid, _Vars = []}) ->
-  % Erlang PID type is not translated. Clause handles the case where a mailbox
-  % interface type is just a PID. Mailbox interfaces whose type is just a PID
-  % are considered empty Pat mailbox interface definitions.
+  % Erlang PID type is not translated. The clause handles the case where a
+  % mailbox interface type is just a PID. Mailbox interfaces whose type is just
+  % a PID are treated as empty Pat mailbox interface definitions.
   undefined;
-type(Type = {type, _, Name, _Vars = []})
-  when ?IS_LIT_TYPE(Type) ->
-%%  Name =:= boolean;
-%%  Name =:= integer;
-%%  Name =:= float;
-%%  Name =:= string;
-%%  Name =:= atom ->
+type(Type = {type, _, Name, _Vars = []}) when ?IS_LIT_TYPE(Type) ->
   % Erlang literal types.
   pat_syntax:lit_type(Name);
-type({type, _, Name, _Vars = []})
-  when Name =:= no_return; Name =:= any; Name =:= none ->
+type(Type = {type, _, Name, _Vars = []}) when ?IS_UNIT_EQ_TYPE(Type) ->
   % Erlang special type translated as Pat unit type.
   pat_syntax:lit_type(unit);
-type({atom, _, ok}) -> % TODO: Will be changed removed once Pat supports it.
+type({atom, _, ok}) ->
   % Erlang atom 'ok' translated as Pat unit type.
+  % TODO: Will be changed removed once Pat supports atoms.
   pat_syntax:lit_type(unit);
 type({user_type, _, Name, _Vars = []}) ->
   % Erlang mailbox type. Mailbox types default to the write capability.
@@ -180,8 +206,7 @@ case_clause(_Clause = {clause, _, PatSeq = [_], _GuardSeq = [], Body}, _Mb) ->
 if_clause(_Clause = {clause, _, _PatSeq = [], [[GuardTest]], ExprSeq}, Mb) ->
   % Erlang constrained if clause with exactly one guard and one guard test.
   ?TRACE("(~s) Translating if clause.", [Mb]),
-  Expr0 = expr(ExprSeq, Mb),
-  {guard_test(GuardTest), Expr0}.
+  {guard_test(GuardTest), expr(ExprSeq, Mb)}.
 
 %% @private Translates the specified Erlang expression sequence into its
 %% equivalent single nested Pat let expression.
@@ -189,9 +214,11 @@ expr(ExprSeq, Mb) ->
   [Expr] = expr_seq(ExprSeq, Mb),
   Expr.
 
-
 %% @private Translates the specified Erlang expression sequence into its
 %% equivalent Pat expression sequence.
+%%
+%% The returned sequence is the singleton list whose one element consists of
+%% the equivalent single nested Pat expression.
 expr_seq([], _) ->
   [];
 expr_seq([{call, _, {atom, _, self}, _MFArgs = []} | ExprSeq], Mb) ->
@@ -199,22 +226,20 @@ expr_seq([{call, _, {atom, _, self}, _MFArgs = []} | ExprSeq], Mb) ->
   ?TRACE("(~s) Translating self expression.", [Mb]),
   MbVar = pat_syntax:var(Mb),
   [pat_syntax:tuple([MbVar, MbVar]) | expr_seq(ExprSeq, Mb)];
-%%expr_seq([Expr = {call, _, {atom, _, spawn}, _Args} | ExprSeq], Mb) ->
-%%  ?TRACE("(~s) Translating spawn expression.", [Mb]),
-%%  Expr0 = expr([Expr]),
-%%  [pat_syntax:tuple([Expr0, pat_syntax:var(Mb)]) | expr_seq(ExprSeq, Mb)];
 expr_seq([Expr = {call, Anno, {atom, _, Name}, Args} | ExprSeq], Mb) when Name =/= spawn ->
-  % Erlang explicit local function call and explicit local
-  % mailbox-annotated function call.
+  % Erlang implicitly-qualified local function call (i.e. function name is an
+  % atom) and implicitly-qualified local mailbox-annotated function call.
   %
-  % The guard 'Name =/= spawn' is only added to force the expr_seq function
-  % clause to pass the call to spawn to expr/1, making it correspond with our
-  % translation in the paper. The distinction between calls to spawn and other
-  % functions is not needed since Erlang represents these as the same AST node.
-  % The translation works identically if 'Name =/= spawn' is removed.
+  % Erlang explicit function calls (i.e. function name is an expression) are
+  % unsupported, as are remote function calls.
   %
-  % Erlang function calls where the function name is an expression are
-  % unsupported. Remote function calls are also unsupported.
+  % The guard 'Name =/= spawn' is added to force passing calls to 'spawn' to the
+  % catch-all clause, which in turn, translates it outside the mailbox context.
+  % This makes it correspond to our translation on paper, where 'spawn' is a
+  % distinguished operator in the pseudo-Erlang syntax. By contrast, Erlang
+  % treats 'spawn' as a regular function call. Such a distinction would not be
+  % needed in practice and removing 'Name =/= spawn' yields the same translated
+  % output.
   Call0 =
     case paterl_anno:interface(Anno) of
       undefined ->
@@ -249,48 +274,47 @@ expr_seq([{match, _, Pat, Expr} | ExprSeq], Mb) ->
   Mb0 = fresh_mb(),
   Binders = pat_syntax:tuple([pat(Pat), pat_syntax:var(Mb0)]),
 
-  % Rest of Erlang expression sequence is translated because let expressions
-  % induce a hierarchy of nested Pat expression contexts that does not align
-  % with Erlang match expression sequences. This means that an Erlang expression
-  % sequence is always reduced to a singleton list, which consists either of
-  % the translated Erlang expression forming the root context of the let-binding
-  % or the singleton list consisting of the expression in the pattern, when the
-  % expression is the list expression in the sequence.
+  % Rest of Erlang expression sequence is translated because Pat let expressions
+  % induce nested evaluation context rooted at this top-level let expression.
+  % This means that an Erlang expression sequence is always reduced to a
+  % singleton list of Pat expressions consisting of one let.
   Body =
     case ExprSeq of
       [] ->
-        % Empty let body. Use binders to complete let body.
+        % Empty expression sequence. Use binders to complete let body.
         Binders;
       ExprSeq ->
-        % Non-empty let body.
+        % Non-empty expression sequence.
         expr(ExprSeq, Mb0)
     end,
   [pat_syntax:let_expr(Binders, Expr0, Body)];
 expr_seq([{'if', _, [Clause0, Clause1]} | ExprSeq], Mb) ->
-  % Erlang if expression with exactly one used-defined constraint and one catch-
-  % all constraint. These pair of constraints emulate if and else Pat branches.
+  % Erlang expression sequence with exactly two clauses. This constraint pair
+  % corresponds to the 'if' and 'else' branches in Pat.
   ?TRACE("(~s) Translating if-else expression.", [Mb]),
   {ExprC, ExprT} = if_clause(Clause0, Mb), % If.
   {{boolean, _, true}, ExprF} = if_clause(Clause1, Mb), % Else.
   [pat_syntax:if_expr(ExprC, ExprT, ExprF) | expr_seq(ExprSeq, Mb)];
 expr_seq([{'receive', Anno, Clauses} | ExprSeq], Mb) ->
-  % Erlang unconstrained receive expression. Translated to Pat guard expression.
+  % Erlang unconstrained receive expression. Corresponds to a Pat guard
+  % expression.
   State = paterl_anno:state(Anno),
   ?TRACE("(~s) Translating receive expression guarding on '~s'.", [Mb, State]),
   ReceiveClauses = case_clauses(Clauses, Mb),
 
-  % Check whether a Pat empty expression is required.
+  % Check mailbox regular expression for emptiness to determine if a Pat empty
+  % expression is required.
   ReceiveClauses0 =
     case pat_regex:is_mb_empty(State) of
       true ->
-        % Regex may be empty. Add Pat empty expression.
+        % Mailbox may be empty. Add Pat empty expression.
         MbVar = pat_syntax:var(fresh_mb()),
         EmptyExpr = pat_syntax:empty_expr(
           MbVar, pat_syntax:tuple([pat_syntax:unit(), MbVar])
         ),
         [EmptyExpr | ReceiveClauses];
       false ->
-        % Regex not empty.
+        % Mailbox cannot be empty.
         ReceiveClauses
     end,
 
@@ -300,9 +324,11 @@ expr_seq([{'receive', Anno, Clauses} | ExprSeq], Mb) ->
   Guard = pat_syntax:guard_expr(pat_syntax:var(Mb), State, ReceiveClauses0),
   [Guard | expr_seq(ExprSeq, Mb)];
 expr_seq([Expr | ExprSeq], Mb) ->
-  % Erlang literals and variables.
-  % Erlang binary and unary operators.
-  % Erlang spawn expression.
+  % Pass thru to out-of-mailbox context translation:
+  %
+  % 1. Erlang literals and variables.
+  % 2. Erlang binary and unary operators.
+  % 3. Erlang spawn expression.
   _T = element(3, Expr),
   ?TRACE("(~s) Passing thru ~p expression.", [Mb,
     if (is_tuple(_T)) -> element(tuple_size(_T), _T); true -> _T end
@@ -330,13 +356,13 @@ if_clauses(Clauses) ->
 
 %% @private Translates the specified Erlang function clause.
 fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
-  % Erlang mailbox-annotated or non mailbox-annotated unconstrained function
-  % clause.
+  % Erlang unconstrained function clause or unconstrained mailbox-annotated
+  % function clause.
 
   % Translate function return type.
   RetType = type(paterl_anno:type(Anno)),
 
-  % Determine whether function is mailbox-annotated or non mailbox-annotated.
+  % Determine whether function is mailbox-annotated.
   case paterl_anno:interface(Anno) of
     undefined ->
       % Non mailbox-annotated function.
@@ -352,8 +378,8 @@ fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
         length(PatSeq)
       ]),
 
-      % Create mailbox to inject as first parameter of the mailbox-annotated
-      % function clause.
+      % Create mailbox to be injected as first parameter of the
+      % mailbox-annotated function clause.
       Mb = fresh_mb(),
       MbType = pat_syntax:mb_type(paterl_anno:interface(Anno), read),
       Params = [
@@ -371,8 +397,7 @@ fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
 if_clause({clause, _, _PatSeq = [], [[GuardTest]], ExprSeq}) ->
   % Erlang constrained if clause with exactly one guard and one guard test.
   ?TRACE("Translating if clause."),
-  Expr0 = expr(ExprSeq),
-  {guard_test(GuardTest), Expr0}.
+  {guard_test(GuardTest), expr(ExprSeq)}.
 
 %% @private Translates the specified Erlang expression sequence into its
 %% equivalent single nested Pat let expression.
@@ -382,16 +407,15 @@ expr(ExprSeq) ->
 
 %% @private Translates the specified Erlang expression sequence into its
 %% equivalent Pat expression sequence.
+%%
+%% The returned sequence is the singleton list whose one element consists of
+%% the equivalent single nested Pat expression.
 expr_seq([]) ->
   [];
 expr_seq([Lit | ExprSeq]) when ?IS_LIT(Lit) ->
-%%  element(1, Lit) =:= integer;
-%%  element(1, Lit) =:= float;
-%%  element(1, Lit) =:= string;
-%%  element(1, Lit) =:= atom ->
   % Erlang literal expressions.
-  ?TRACE("Translating literal ~s ~p.", [element(1, Lit), element(3, Lit)]),
-  [pat_syntax:lit(element(3, Lit)) | expr_seq(ExprSeq)];
+  ?TRACE("Translating literal ~s ~p.", [element(1, Lit), ?GET_LIT(Lit)]),
+  [pat_syntax:lit(?GET_LIT(Lit)) | expr_seq(ExprSeq)];
 expr_seq([{var, _, Name} | ExprSeq]) ->
   % Erlang variable expression.
   ?TRACE("Translating variable '~s'.", [Name]),
@@ -404,55 +428,66 @@ expr_seq([Expr = {call, _, {atom, _, spawn}, _MFArgs = [_, _Fun, _Args]} | ExprS
   % Erlang spawn function call expression.
   ?TRACE("Translating call to spawn ~s/~b.", [element(3, _Fun), erl_syntax:list_length(_Args)]),
   [spawn_expr(Expr) | expr_seq(ExprSeq)];
-%%expr_seq([{call, _, {atom, _, format}, _} | ExprSeq]) -> % TODO: We need to expand this so that we map functions to their returned values, eg: formatting functions return unit, rand functions return ints, etc. We need a catchall to avoid polluting pat with superfluous functions. We are only interested in their type. So we just fix the unit value, eg, () for format, 0 for rand, etc.
-%%  % Erlang format function call expression.
-%%  ?TRACE("Translating call to format."),
-%%  [pat_syntax:unit() | expr_seq(ExprSeq)];
-expr_seq([{call, _, {atom, _, format}, _} | ExprSeq]) ->
-  % Erlang format function call expression.
-  ?TRACE("Translating call to format."),
-  [pat_syntax:unit() | expr_seq(ExprSeq)];
 expr_seq([Expr = {call, Anno, _Fun = {atom, _, Name}, Args} | ExprSeq]) ->
-  % Erlang explicit local function call and explicit local
-  % mailbox-annotated function call.
-  % Internal or remote function calls with 'use' mailbox annotations are not
-  % permitted.
-  case paterl_anno:interface(Anno) of
-    undefined ->
-      % Call to function outside mailbox context.
-      [pat_syntax:call_expr(Name, args(Args)) | expr_seq(ExprSeq)];
-    _Interface ->
-      % Call to function inside mailbox context. Only the new modality is
-      % permitted at this point.
-      Modality = paterl_anno:modality(Anno),
-      ?assertEqual(Modality, new),
+  % Erlang implicitly-qualified local function call (i.e. function name is an
+  % atom). Only mailbox-annotated 'new' implicitly-qualified function calls are
+  % permitted by the translation.
+  %
+  % Erlang explicit function calls (i.e. function name is an expression) are
+  % unsupported, as are remote function calls.
 
-      ?TRACE("Translating call to ~s/~b [~s, ~s].", [
-        Name, length(Args), _Interface, Modality
-      ]),
-      [new_call_expr(Expr) | expr_seq(ExprSeq)]
+  % Check whether the function is an externally-defined opaque function that can
+  % be substituted for the concrete data unit value of its corresponding return
+  % type. This avoids catering for all possible external Erlang functions that
+  % the source code uses, replacing them by a concrete value instead.
+  case get_fun_return_unit(Expr) of
+    undefined ->
+      % Unknown externally-defined function that is translated normally.
+      case paterl_anno:interface(Anno) of
+        undefined ->
+          % Call to function outside mailbox context.
+          [pat_syntax:call_expr(Name, args(Args)) | expr_seq(ExprSeq)];
+
+        _Interface ->
+          % Call to function inside mailbox context. Only the new modality is
+          % permitted at this point.
+          Modality = paterl_anno:modality(Anno),
+          ?assertEqual(Modality, new),
+
+          ?TRACE("Translating call to ~s/~b [~s, ~s].", [
+            Name, length(Args), _Interface, Modality
+          ]),
+          [new_call_expr(Expr) | expr_seq(ExprSeq)]
+      end;
+
+    RetType ->
+      % Known externally-defined function that is replaced by a concrete unit
+      % value.
+      [RetType | expr_seq(ExprSeq)]
   end;
 expr_seq([{match, _, Pat, Expr} | ExprSeq]) ->
   % Erlang match expression.
   ?TRACE("Translating match expression."),
   Expr0 = expr([Expr]),
 
-  % Rest of Erlang expression sequence is translated because let expressions
-  % induce a hierarchy of nested Pat expression contexts that does not align
-  % with Erlang match expression sequences.
+  % Rest of Erlang expression sequence is translated because Pat let expressions
+  % induce nested evaluation context rooted at this top-level let expression.
+  % This means that an Erlang expression sequence is always reduced to a
+  % singleton list of Pat expressions consisting of one let.
   Binders = pat(Pat),
   Body =
     case ExprSeq of
       [] ->
-        % Empty let body. Use binders to complete let body.
+        % Empty expression sequence. Use binders to complete let body.
         Binders;
       ExprSeq ->
-        % Non-empty let body.
+        % Non-empty expression sequence.
         expr(ExprSeq)
     end,
   [pat_syntax:let_expr(Binders, Expr0, Body)];
-expr_seq([{op, _, Op, Expr0, Expr1} | ExprSeq]) -> %TODO: Should be changed to values eventually when we have ANF.
+expr_seq([{op, _, Op, Expr0, Expr1} | ExprSeq]) ->
   % Erlang binary operator expression.
+  % TODO: Should be changed to values eventually when we have ANF.
   ?TRACE("Translating binary operator expression ~s.", [Op]),
   ExprL = expr([Expr0]),
   ExprR = expr([Expr1]),
@@ -463,15 +498,17 @@ expr_seq([{op, _, Op, Expr} | ExprSeq]) ->
   Expr0 = expr([Expr]),
   [pat_syntax:op_expr(to_pat_op(Op), Expr0) | expr_seq(ExprSeq)];
 expr_seq([{'if', _, [Clause0, Clause1]} | ExprSeq]) ->
-  % Erlang if expression with exactly one used-defined constraint and one catch-
-  % all constraint. These pair of constraints emulate if and else Pat branches.
+  % Erlang expression sequence with exactly two clauses. This constraint pair
+  % corresponds to the 'if' and 'else' branches in Pat.
   ?TRACE("Translating if-else expression."),
   {ExprC, ExprT} = if_clause(Clause0), % If.
   {{boolean, _, true}, ExprF} = if_clause(Clause1), % Else.
   [pat_syntax:if_expr(ExprC, ExprT, ExprF) | expr_seq(ExprSeq)];
-expr_seq([_ | ExprSeq]) ->
+expr_seq([Expr | _]) ->
   % Erlang unsupported expressions.
-  [pat_syntax:unit() | expr_seq(ExprSeq)].
+  throw(lists:flatten(
+    io_lib:format("Unsupported Erlang expression ~s", [erl_pp:expr(Expr)])
+  )).
 
 %% @private Translates the specified Erlang argument expression sequence.
 args(ExprSeq) ->
@@ -493,12 +530,8 @@ guard(GuardTests) ->
 
 %% @private Translates an Erlang guard test.
 guard_test(Lit) when ?IS_LIT(Lit) ->
-%%  element(1, Lit) =:= integer;
-%%  element(1, Lit) =:= float;
-%%  element(1, Lit) =:= string;
-%%  element(1, Lit) =:= atom ->
   % Erlang literal guard tests.
-  pat_syntax:lit(element(3, Lit));
+  pat_syntax:lit(?GET_LIT(Lit));
 guard_test({var, _, Name}) ->
   % Erlang variable guard test.
   pat_syntax:var(Name);
@@ -527,12 +560,8 @@ pat_seq(PatSeq) ->
 
 %% @private Translates the specified Erlang pattern.
 pat(Lit) when ?IS_LIT(Lit) ->
-%%  element(1, Lit) =:= integer;
-%%  element(1, Lit) =:= float;
-%%  element(1, Lit) =:= string;
-%%  element(1, Lit) =:= atom ->
   % Erlang literal patterns.
-  pat_syntax:lit(element(3, Lit));
+  pat_syntax:lit(?GET_LIT(Lit));
 pat({var, _, Name}) ->
   % Erlang variable pattern.
   pat_syntax:var(Name);
@@ -661,6 +690,28 @@ main_fun_def() ->
 %% @private Returns a fresh mailbox name.
 fresh_mb() ->
   paterl_tools:fresh_var(?MB_VAR_NAME).
+
+%% @private Returns the unit data value of the type for the specified
+%% externally-defined opaque Erlang function.
+get_fun_return_unit({call, _, _Fun = {atom, _, Name}, _}) ->
+  case maps:find(Name, ?OPAQUE_FUNS) of
+    {ok, boolean} ->
+      pat_syntax:lit(true);
+    {ok, integer} ->
+      pat_syntax:lit(0);
+    {ok, float} ->
+      pat_syntax:lit(0.0);
+    {ok, string} ->
+      pat_syntax:lit("");
+    {ok, atom} ->
+      pat_syntax:lit(atom);
+    {ok, unit} ->
+      pat_syntax:unit();
+    error ->
+      undefined
+  end;
+get_fun_return_unit(_) ->
+  undefined.
 
 %% @private Returns the Pat operator equivalent to the specified Erlang
 %% operator.
