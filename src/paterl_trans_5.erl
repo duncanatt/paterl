@@ -2,7 +2,7 @@
 %%% @author duncan
 %%% @copyright (C) 2024, <COMPANY>
 %%% @doc
-%%% The Pat Erlang source-to-source translator.
+%%% The Erlang to Pat source-to-source translator.
 %%% @end
 %%% Created : 29. Jan 2024 15:22
 %%%-------------------------------------------------------------------
@@ -12,10 +12,8 @@
 %%% Includes.
 -include_lib("stdlib/include/assert.hrl").
 -include("log.hrl").
--include("errors.hrl").
--include("paterl.hrl").
 
-%% API
+%%% API.
 -export([module/1]).
 -compile(export_all).
 
@@ -46,52 +44,29 @@
   orelse element(1, Term) =:= atom
 )).
 
-%%{call, _, {atom, _, format}, _}
-%%-define(FUN_NAME(Expr), element(3, element(3, Expr))).
-
-%%-define(IS_CALL(Expr), element(1, Expr) =:= call).
-
-%%-define(IS_IMPLICIT_CALL(Expr), (?IS_CALL(Expr)
-%%  andalso is_tuple(element(3, Expr))
-%%  andalso tuple_size(element(3, Expr)) =:= 3
-%%  andalso element(1, element(3, Expr)) =:= atom
-%%  andalso is_atom(element(3, element(3, Expr)))
-%%)).
-
-%%-define(HAS_BOOLEAN_RET_TYPE(Expr), true).
-%%-define(HAS_INTEGER_RET_TYPE(Expr), (?IS_IMPLICIT_CALL(Expr)
-%%  andalso ?FUN_NAME(Expr) =:= rand
-%%)).
-%%-define(HAS_FLOAT_RET_TYPE(Expr), true).
-%%-define(HAS_STRING_RET_TYPE(Expr), true).
-%%-define(HAS_ATOM_RET_TYPE(Expr), true).
-%%-define(HAS_UNIT_RET_TYPE(Expr), (?IS_IMPLICIT_CALL(Expr)
-%%  andalso ?FUN_NAME(Expr) =:= format
-%%)).
-
-
-%% Map of externally-defined opaque Erlang functions that can be substituted for
-%% the concrete data unit value that has the same type as that returned by the
-%% corresponding function. This scheme makes it possible to type check files
-%% that call external functions without modifying the original Pat
-%% implementation.
--define(OPAQUE_FUNS, #{
-  format => unit,
-  uniform => integer
-}).
-
+%% Checks whether the Erlang type is a Pat unit equivalent.
 -define(IS_UNIT_EQ_TYPE(Type), (?IS_TYPE(Type) andalso
   (element(3, Type) =:= no_return
     orelse element(3, Type) =:= any
     orelse element(3, Type) =:= none)
 )).
 
+%% Extracts the literal element from the Erlang term.
 -define(GET_LIT(Term), element(3, Term)).
 
-test_type(Type) when ?IS_UNIT_EQ_TYPE(Type) ->
-  yes;
-test_type(_) ->
-  no.
+%% Map of externally-defined opaque Erlang functions that can be substituted for
+%% the concrete data unit value that has the same type as that returned by the
+%% corresponding function. This scheme makes it possible to type check files
+%% that call external functions without modifying the Pat implementation.
+-define(OPAQUE_FUNS, #{
+  format => unit,
+  uniform => integer
+}).
+
+%%test_type(Type) when ?IS_UNIT_EQ_TYPE(Type) ->
+%%  yes;
+%%test_type(_) ->
+%%  no.
 
 %%% ----------------------------------------------------------------------------
 %%% API.
