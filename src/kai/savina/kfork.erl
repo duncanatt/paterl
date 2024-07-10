@@ -21,6 +21,7 @@
 
 %% Mailbox interface-function associations.
 -new({actor_mb, [actor/0]}).
+-new({main_mb, [main/0]}).
 
 %% ActorMb's message types
 -type packet() :: {packet}.
@@ -29,6 +30,7 @@
 %%    Packet()
 %% }
 -type actor_mb() :: pid() | packet().
+-type main_mb() :: pid().
 
 %% def actor(self: ActorMb?): Unit {
 %%   guard self: *Packet {

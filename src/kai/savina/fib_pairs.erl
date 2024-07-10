@@ -31,6 +31,7 @@
 %%    Response(Int)
 %% }
 -type fib_actor_mb() :: pid() | request() | response().
+-type main_mb() :: pid().
 
 %% def fibActor(self: FibActor?): Unit {
 %%   guard self : Request {
