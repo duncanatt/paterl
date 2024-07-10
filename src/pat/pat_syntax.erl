@@ -15,9 +15,10 @@
 -include("pat.hrl").
 
 %%% API.
--export([lit_type/1, mb_type/1, mb_type/2, product_type/1, union_type/1]).
+-export([lit_type/1, mb_type/1, mb_type/2, product_type/1, union_type/1, msg_type/2]).
 -export([interface_def/1, interface_def/2]).
 -export([fun_def/2, fun_clause/3]).
+%%-export([msg_pat/2, param/2, var_pat/1, var_pat/2, tuple_pat/1, tuple_pat/2]).
 -export([msg_pat/2, param/2]).
 -export([var/1, lit/1, tuple/1, unit/0]).
 -export([msg_expr/2, op_expr/2, op_expr/3, call_expr/2, if_expr/3, let_expr/3]).
@@ -26,7 +27,103 @@
   receive_expr/3
 ]).
 -export([comment/1]).
--compile(export_all).
+%%-compile(export_all).
+
+
+-type anno() :: any().
+
+-type modality() :: read | write.
+
+%%-type lit() :: boolean | integer | float | string | atom | unit.
+
+-type tag() :: atom().
+
+-type forms() :: [form()].
+
+-type form() :: t_interface() | 'fun()' | comment().
+
+
+%%% Type types.
+-type types() :: [type()].
+
+-type type() :: t_lit() | t_mb() | t_product() | t_union() | t_msg().
+
+-type t_lit() :: {type, anno(), boolean | integer | float | string | atom | unit}.
+
+-type t_mb() :: {type, anno(), atom()} | {type, anno(), atom(), modality()}.
+
+-type t_product() :: {type, anno(), product, types()}.
+
+-type t_union() :: {type, anno(), union, types()}.
+
+-type t_msg() :: {type, anno(), msg, atom(), [t_lit()]}.
+
+-type t_interface() :: {t_interface, anno(), atom(), t_union()}.
+
+%%% Function definition types.
+
+-type 'fun'() :: {'fun', anno(), atom(), [fun_clause()]}.
+
+-type fun_clause() :: {fun_clause, anno(), [var_pat()], expr(), type()}.
+
+-type comment() :: {comment, anno(), string()}.
+
+%%% Pattern types.
+-type pat() :: var_pat() | var_pat_type() | tuple_pat() | tuple_pat_type().
+
+-type msg_pat() :: {pat, anno(), msg, tag(), [lit()]}.
+
+-type var_pat() :: {pat, anno(), var()}.
+
+-type var_pat_type() :: {pat, anno(), var(), t_lit() | t_mb()}.
+
+-type tuple_pat() :: {pat, anno(), tuple, [expr()]}.
+
+-type tuple_pat_type() :: {pat, anno(), tuple, [expr()], t_product()}.
+
+%%% Value types.
+-type val() :: var() | lit() | tuple() | unit().
+
+-type var() :: {var, anno(), atom()}.
+
+-type lit() :: {boolean, anno(), boolean()}
+| {integer, anno(), integer()}
+| {float, anno(), float()}
+| {string, anno(), string()}
+| {atom, anno(), atom()}.
+
+-type tuple() :: {tuple, anno(), [expr()]}.
+
+-type unit() :: {unit, anno()}.
+
+%%% Expression types.
+
+
+
+-type expr() :: msg() | op() | call() | 'if'() | 'let'() | new() | free()
+| spawn() | guard().
+
+-type msg() :: {msg, anno(), tag(), [val()]}.
+
+-type op() :: {op, anno(), atom(), expr(), expr()} | {op, anno(), expr(), expr()}.
+
+-type call() :: {call, anno(), atom(), [expr()]}.
+
+-type 'if'() :: {'if', anno(), expr(), expr(), expr()}.
+
+-type 'let'() :: {'let', anno(), pat(), expr(), expr()}.
+
+-type new() :: {new, anno(), t_mb()}.
+
+-type free() :: {free, anno(), var()}.
+
+-type spawn() :: {spawn, anno(), expr()}.
+
+-type guard() :: {guard, anno(), var(), string(), ['receive'()]}.
+
+-type empty() :: {empty, anno(), var(), expr()}.
+
+-type 'receive'() :: {'receive', anno(), msg_pat(), var(), expr()}.
 
 
 %%% ----------------------------------------------------------------------------
@@ -108,7 +205,7 @@ interface_def(Name, Type) when is_atom(Name), ?IS_UNION_TYPE(Type) ->
 
 
 %%% ----------------------------------------------------------------------------
-%%% Functions.
+%%% Functions and misc.
 %%% ----------------------------------------------------------------------------
 
 %% Examples.
@@ -123,9 +220,12 @@ fun_def(Name, Clauses) when is_atom(Name), is_list(Clauses), length(Clauses) =:=
 %% pat_syntax:fun_clause([pat_syntax:param(pat_syntax:var(x), pat_syntax:lit_type(integer))], pat_syntax:lit(5), pat_syntax:lit_type(integer)).
 %% @doc Returns a function clause node with the specified parameters, body, and
 %% return type.
-fun_clause(Params, Expr, RetType) when is_list(Params) ->
-  {fun_clause, ?DEF_ANNO_VAL, Params, Expr, RetType}.
+fun_clause(PatSeq, Expr, RetType) when is_list(PatSeq) ->
+  {fun_clause, ?DEF_ANNO_VAL, PatSeq, Expr, RetType}.
 
+%% @doc Returns a comment node.
+comment(Text) when is_list(Text) ->
+  {comment, ?DEF_ANNO_VAL, Text}.
 
 %%% ----------------------------------------------------------------------------
 %%% Patterns.
@@ -144,6 +244,19 @@ msg_pat(Tag, PatSeq) when is_atom(Tag), is_list(PatSeq) ->
 %% type.
 param(Var, Type) when ?IS_VAR(Var), ?IS_TYPE(Type) ->
   {pat, ?DEF_ANNO_VAL, Var, Type}.
+
+var_pat(Var) when ?IS_VAR(Var) ->
+  {pat, ?DEF_ANNO_VAL, Var}.
+
+var_pat(Var, Type) when ?IS_VAR(Var), ?IS_TYPE(Type) ->
+  {pat, ?DEF_ANNO_VAL, Var, Type}.
+
+tuple_pat(PatSeq) when is_list(PatSeq) ->
+  {pat, ?DEF_ANNO_VAL, tuple, PatSeq}.
+
+tuple_pat(PatSeq, Type) when is_list(PatSeq), ?IS_TYPE(Type) ->
+  {pat, ?DEF_ANNO_VAL, tuple, PatSeq, Type}.
+
 
 
 %%% ----------------------------------------------------------------------------
@@ -223,8 +336,8 @@ if_expr(ExprC, ExprT, ExprF) when ?IS_EXPR(ExprC), ?IS_EXPR(ExprT), ?IS_EXPR(Exp
 %% Examples.
 %% pat_syntax:let_expr(pat_syntax:var(x), pat_syntax:literal(1.2), pat_syntax:unit()).
 %% @doc Returns a let node with the specified binders, expression, and body.
-let_expr(Binders, Expr0, Expr1) when ?IS_EXPR(Expr0), ?IS_EXPR(Expr1) ->
-  {'let', ?DEF_ANNO_VAL, Binders, Expr0, Expr1}.
+let_expr(Pat, Expr0, Expr1) when ?IS_EXPR(Expr0), ?IS_EXPR(Expr1) ->
+  {'let', ?DEF_ANNO_VAL, Pat, Expr0, Expr1}.
 
 %% Examples.
 %% pat_syntax:new_expr(pat_syntax:mb_type(interface)).
@@ -262,11 +375,6 @@ empty_expr(RebindVar, Expr) when ?IS_VAR(RebindVar), ?IS_EXPR(Expr) ->
 %% variable name, and body.
 receive_expr(MsgPat, RebindVar, Expr) when ?IS_MSG_PAT(MsgPat), ?IS_VAR(RebindVar), ?IS_EXPR(Expr) ->
   {'receive', ?DEF_ANNO_VAL, MsgPat, RebindVar, Expr}.
-
-%% Others.
-%% @doc Returns a comment node.
-comment(Text) when is_list(Text) ->
-  {comment, ?DEF_ANNO_VAL, Text}.
 
 
 %%% ----------------------------------------------------------------------------
