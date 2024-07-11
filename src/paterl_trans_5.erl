@@ -304,10 +304,11 @@ expr_seq([Expr | ExprSeq], Mb) ->
   % 1. Erlang literals and variables.
   % 2. Erlang binary and unary operators.
   % 3. Erlang spawn expression.
-  _T = element(3, Expr),
-  ?TRACE("(~s) Passing thru ~p expression.", [Mb,
-    if (is_tuple(_T)) -> element(tuple_size(_T), _T); true -> _T end
-  ]),
+%%  _T = element(3, Expr),
+%%  ?TRACE("(~s) Passing thru ~p expression.", [Mb,
+%%    if (is_tuple(_T)) -> element(tuple_size(_T), _T); true -> _T end
+%%  ]),
+  ?TRACE("(~s) Passing thru ~p expression.", [Mb, Expr]),
   Expr0 = expr([Expr]),
   [pat_syntax:tuple([Expr0, pat_syntax:var(Mb)]) | expr_seq(ExprSeq, Mb)].
 
@@ -481,6 +482,7 @@ expr_seq([{'if', _, [Clause0, Clause1]} | ExprSeq]) ->
   [pat_syntax:if_expr(ExprC, ExprT, ExprF) | expr_seq(ExprSeq)];
 expr_seq([Expr | _]) ->
   % Erlang unsupported expressions.
+  ?ERROR("Unsupported Erlang expression: ~p", [Expr]),
   throw(lists:flatten(
     io_lib:format("Unsupported Erlang expression ~s", [erl_pp:expr(Expr)])
   )).
