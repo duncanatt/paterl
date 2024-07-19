@@ -21,21 +21,41 @@
 %%% Internal exports.
 -export([id_server/0]).
 
-%% Message types.
+
+%%% ----------------------------------------------------------------------------
+%%% Type definitions.
+%%% ----------------------------------------------------------------------------
+
+%%% Messages.
+
+%% ID server.
 -type init() :: {init, integer()}.
 -type get() :: {get, id_client_mb()}.
 -type id() :: {id, integer()}.
 
-%% Mailbox interfaces.
+%%% Interfaces.
+
+%% ID server and client.
 -type id_server_mb() :: pid() | init() | get().
 -type id_client_mb() :: pid() | id().
+
+%% Main.
 -type main_mb() :: pid().
 
-%% Interface associations.
+%%% Interface-function associations.
+
+%% ID server and client.
 -new({id_server_mb, [id_server/0]}).
 -use({id_server_mb, [id_server_loop/1]}).
 -new({id_client_mb, [id_client/1]}).
+
+%% Main.
 -new({main_mb, [main/0]}).
+
+
+%%% ----------------------------------------------------------------------------
+%%% API.
+%%% ----------------------------------------------------------------------------
 
 -spec id_server() -> no_return().
 id_server() ->
@@ -67,7 +87,8 @@ id_client(Server) ->
       Id
   end.
 
--spec main() -> ok.
+%% @doc Launcher.
+-spec main() -> any().
 main() ->
   ?mb_new(id_server_mb),
   Server = spawn(?MODULE, id_server, []),
@@ -76,4 +97,5 @@ main() ->
   Id = id_client(Server),
   format("Id: ~p~n", [Id]).
 
-%%./src/paterl src/examples/id_server_demo.erl -v all -I include
+
+%%./src/paterl src/examples/erlang/codebeam/id_server_demo.erl -v all -I include
