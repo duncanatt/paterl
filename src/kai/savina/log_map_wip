@@ -1,0 +1,256 @@
+# Translated from log_map.erl
+
+interface Term_mb {
+  Done(Int)
+}
+
+interface Master_mb {
+  Start(),
+  Result(Int)
+}
+
+interface Worker_mb {
+  Next_term(),
+  Get_term(),
+  Result_worker(Int),
+  Stop()
+}
+
+interface Computer_mb {
+  Compute(Term_mb!, Int),
+  Stop_compute()
+}
+
+interface Main_mb { }
+
+def master(mb0: Master_mb?, startrate: Int, increment: Int): (Unit * Master_mb?) {
+  let (self, mb1) =
+    (mb0, mb0)
+  in
+    let (rate1, mb2) =
+      (startrate + 1 * increment, mb1)
+    in
+      let (computer1, mb5) =
+        (let mb3 =
+          new [Computer_mb]
+        in
+          let y =
+            spawn {
+              let (x, mb4) =
+                computer(mb3, rate1)
+              in
+                free(mb4)
+            }
+          in
+            mb3, mb2)
+      in
+        let (startterm1, mb6) =
+          (1 * increment, mb5)
+        in
+          let (worker1, mb9) =
+            (let mb7 =
+              new [Worker_mb]
+            in
+              let y =
+                spawn {
+                  let (x, mb8) =
+                    worker(mb7, 1, self, computer1, startterm1)
+                  in
+                    free(mb8)
+                }
+              in
+                mb7, mb6)
+          in
+            let (rate2, mb10) =
+              (startrate + 2 * increment, mb9)
+            in
+              let (computer2, mb13) =
+                (let mb11 =
+                  new [Computer_mb]
+                in
+                  let y =
+                    spawn {
+                      let (x, mb12) =
+                        computer(mb11, rate2)
+                      in
+                        free(mb12)
+                    }
+                  in
+                    mb11, mb10)
+              in
+                let (startterm2, mb14) =
+                  (2 * increment, mb13)
+                in
+                  let (worker2, mb17) =
+                    (let mb15 =
+                      new [Worker_mb]
+                    in
+                      let y =
+                        spawn {
+                          let (x, mb16) =
+                            worker(mb15, 2, self, computer2, startterm2)
+                          in
+                            free(mb16)
+                        }
+                      in
+                        mb15, mb14)
+                  in
+                    guard mb17: Start . *Result {
+                      receive Start() from mb18 ->
+                        let (v0, mb19) =
+                          (worker1 ! Next_term(), mb18)
+                        in
+                          let (v1, mb20) =
+                            (worker1 ! Next_term(), mb19)
+                          in
+                            let (v2, mb21) =
+                              (worker2 ! Next_term(), mb20)
+                            in
+                              let (v3, mb22) =
+                                (worker2 ! Next_term(), mb21)
+                              in
+                                let (v4, mb23) =
+                                  (worker2 ! Next_term(), mb22)
+                                in
+                                  let (v5, mb24) =
+                                    (worker1 ! Get_term(), mb23)
+                                  in
+                                    let (v6, mb25) =
+                                      (worker2 ! Get_term(), mb24)
+                                    in
+                                      master_loop(mb25, 0, worker1, computer1, worker2, computer2, 5, 0)
+                    }
+}
+
+def master_loop(mb26: Master_mb?, termsum: Int, worker1: Worker_mb!, computer1: Computer_mb!, worker2: Worker_mb!, computer2: Computer_mb!, numworkrequests: Int, numworkreceived: Int): (Unit * Master_mb?) {
+  guard mb26: *Result {
+    empty(mb27) ->
+      let (v7, mb28) =
+        (worker1 ! Stop(), mb27)
+      in
+        let (v8, mb29) =
+          (worker2 ! Stop(), mb28)
+        in
+          let (v9, mb30) =
+            (computer1 ! Stop_compute(), mb29)
+          in
+            let (v10, mb31) =
+              (computer2 ! Stop_compute(), mb30)
+            in
+              ((), mb31)
+    receive Result(term) from mb27 ->
+      master_loop(mb27, termsum, worker1, computer1, worker2, computer2, 9, 9)
+  }
+}
+
+def worker(mb33: Worker_mb?, id: Int, master: Master_mb!, computer: Computer_mb!, currterm: Int): (Unit * Worker_mb?) {
+  worker_loop(mb33, id, master, computer, currterm)
+}
+
+def worker_loop(mb34: Worker_mb?, id: Int, master: Master_mb!, computer: Computer_mb!, currterm: Int): (Unit * Worker_mb?) {
+  guard mb34: Get_term . *Next_term . Stop {
+    receive Next_term() from mb35 ->
+
+      let mbx =
+        new [Term_mb]
+      in
+        let (term0, term_mb) =
+          compute_term(mbx, computer, currterm)
+        in
+          let y =
+            free(term_mb)
+          in
+            worker_loop(mb35, id, master, computer, 0)
+    receive Get_term() from mb36 ->
+      let (v11, mb37) =
+        (master ! Result(currterm), mb36)
+      in
+        guard mb37: Stop . *Next_term {
+          receive Stop() from mb38 ->
+            worker_exit(mb38)
+        }
+  }
+}
+
+def worker_exit(mb39: Worker_mb?): (Unit * Worker_mb?) {
+  guard mb39: *Next_term {
+    empty(mb41) ->
+      ((), mb41)
+    receive Next_term() from mb40 ->
+      worker_exit(mb40)
+  }
+}
+
+def compute_term(mb42: Term_mb?, computer: Computer_mb!, currterm: Int): (Int * Term_mb?) {
+  let (self, mb43) =
+    (mb42, mb42)
+  in
+    let (v12, mb44) =
+      (computer ! Compute(self, currterm), mb43)
+    in
+      guard mb44: Done {
+        receive Done(term) from mb45 ->
+          (term, mb45)
+      }
+}
+
+def computer(mb46: Computer_mb?, rate: Int): (Unit * Computer_mb?) {
+  computer_loop(mb46, rate)
+}
+
+def computer_loop(mb47: Computer_mb?, rate: Int): (Unit * Computer_mb?) {
+  guard mb47: *Compute . Stop_compute {
+    empty(mb51) ->
+      ((), mb51)
+    receive Compute(term_mb, term) from mb48 ->
+      let (v13, mb49) =
+        (term_mb ! Done(rate * term * 1 - term), mb48)
+      in
+        computer_loop(mb49, rate)
+    receive Stop_compute() from mb50 ->
+      computer_exit(mb50)
+  }
+}
+
+def computer_exit(mb52: Computer_mb?): (Unit * Computer_mb?) {
+  guard mb52: *Compute {
+    empty(mb55) ->
+      ((), mb55)
+    receive Compute(term_mb, term) from mb53 ->
+      let (v14, mb54) =
+        (term_mb ! Done(term), mb53)
+      in
+        computer_exit(mb54)
+  }
+}
+
+def main(mb56: Main_mb?): (Unit * Main_mb?) {
+  let (master, mb59) =
+    (let mb57 =
+  new [Master_mb]
+in
+  let y =
+    spawn {
+      let (x, mb58) =
+        master(mb57, 3, 1)
+      in
+        free(mb58)
+    }
+  in
+    mb57, mb56)
+  in
+    (master ! Start(), mb59)
+}
+
+def main'(): Unit {
+  let mb60 =
+    new [Main_mb]
+  in
+    let (x, mb61) =
+      main(mb60)
+    in
+      let y =
+        free(mb61)
+      in
+        x
+}

@@ -1,13 +1,18 @@
 %%%-------------------------------------------------------------------
 %%% @author duncan
-%%% @copyright (C) 2023, <COMPANY>
+%%% @copyright (C) 2024, <COMPANY>
 %%% @doc
+%%% Adapted from Savina/fib
 %%%
+%%% Server that calculates the Fibonacci number sent in client requests.
 %%% @end
-%%% Created : 04. Dec 2023 09:48
+%%% Created : 14. May 2024 18:02
 %%%-------------------------------------------------------------------
 -module(fib).
 -author("duncan").
+
+%%% Includes.
+-include("paterl.hrl").
 
 %%% Imports.
 -import(io, [format/2]).
@@ -18,114 +23,77 @@
 %%% Internal exports.
 -export([fib/0]).
 
+
+%%% ----------------------------------------------------------------------------
 %%% Type definitions.
+%%% ----------------------------------------------------------------------------
 
-%% Fib interface.
-%% interface FibMb { Req(FibMb!, Int), Resp(Int) }
-%% @type fib_mb() :: {req, fib_mb(), integer()} | {resp, integer()} (reference to mailbox is always ! because ? cannot be delegated)
+%%% Messages.
 
-%%% API.
+%% Fib.
+-type req() :: {req, fib_mb(), integer()}.
+-type resp() :: {resp, integer()}.
 
-%% def fib(self: FibMb?): Unit {
-%%   guard self: Req {
-%%     receive Req(replyTo, n) from self ->
-%%       let term =
-%%         if (n <= 2) {
-%%           # Base case.
-%%           free(self);
-%%           1
-%%         }
-%%         else {
-%%           # Inductive case (n - 1) and (n - 2). Delegate computation of (n - 1)st
-%%           # and (n - 2)nd term to fib process replicas.
-%%           let fib1Mb = new [FibMb] in
-%%           spawn { fib(fib1Mb) };
-%%
-%%           let fib2Mb = new [FibMb] in
-%%           spawn { fib(fib2Mb) };
-%%
-%%           fib1Mb ! Req(self, n - 1);
-%%           fib2Mb ! Req(self, n - 2);
-%%
-%%           # Combine results computed for the (n - 1)st and (n - 2)nd terms.
-%%           guard self: Resp . Resp {
-%%             receive Resp(f1) from self ->
-%%               guard self: Resp {
-%%                 receive Resp(f2) from self ->
-%%                   free(self);
-%%                   f1 + f2
-%%               }
-%%           }
-%%         } in
-%%       replyTo ! Resp(term)
-%%   }
-%% }
-%% @spec fib() -> none()
-%% @new fib_mb()
+%%% Interfaces.
+
+%% Fib.
+-type fib_mb() :: pid() | req() | resp().
+
+%%% Interface-function associations.
+
+%% Fib.
+-new({fib_mb, [fib/0, main/0]}).
+
+%% @doc Fibonacci process computing the (n - 1)st and (n - 2)nd terms.
+-spec fib() -> no_return().
 fib() ->
-  %% @mb fib_mb()
-  %% @assert req
+  ?mb_assert_regex("Req"),
   receive
     {req, ReplyTo, N} ->
       Term =
         if N =< 2 ->
+          % Base case.
           1;
-        true ->
-          FibPid1 =
-            %% @new fib_mb()
-            spawn(?MODULE, fib, []),
-          FibPid2 =
-            %% @new fib_mb()
-            spawn(?MODULE, fib, []),
+          true ->
+            % Inductive case (n - 1) and (n - 2). Delegate computation of the
+            % (n - 1)st and (n - 2)nd term to fib process replicas.
+            ?mb_new(fib_mb),
+            FibPid1 = spawn(?MODULE, fib, []),
+            ?mb_new(fib_mb),
+            FibPid2 = spawn(?MODULE, fib, []),
 
-          Self =
-            %% @mb fib_mb()
-            self(),
-          FibPid1 ! {req, Self, N - 1},
-          FibPid2 ! {req, Self, N - 2},
+            Self = self(),
+            FibPid1 ! {req, Self, N - 1},
+            FibPid2 ! {req, Self, N - 2},
 
-          %% @mb fib_mb()
-          %% @assert resp.resp
-          receive
-            {resp, Term1} ->
-              %% @mb fib_mb()
-              %% @assert resp
-              receive
-                {resp, Term2} ->
-                  Term1 + Term2
-              end
-          end
+            % Combine results computed for the (n - 1)st and (n - 2)nd terms.
+            ?mb_assert_regex("Resp.Resp"),
+            receive
+              {resp, Term1} ->
+                ?mb_assert_regex("Resp"),
+                receive
+                  {resp, Term2} ->
+                    Term1 + Term2
+                end
+            end
         end,
       ReplyTo ! {resp, Term}
   end.
 
-%% def main(): Unit {
-%%   let fibMb = new [FibMb] in
-%%   spawn { fib(fibMb) };
-%%
-%%   let self = new [FibMb] in
-%%   fibMb ! Req(self, 5);
-%%   guard self: Resp {
-%%     receive Resp(f) from self ->
-%%     free(self);
-%%     print(concat("Result: ", intToString(f)))
-%%   }
-%% }
-%% @spec main() -> none()
-%% @new fib_mb()
+%% @doc Launcher.
+-spec main() -> no_return().
 main() ->
-  FibPid1 =
-    %% @new fib_mb()
-    spawn(?MODULE, fib, []),
+  ?mb_new(fib_mb),
+  FibPid1 = spawn(?MODULE, fib, []),
 
-  Self =
-    %% @mb fib_mb()
-    self(),
+  Self = self(),
   FibPid1 ! {req, Self, 16},
 
-  %% @mb fib_mb()
-  %% @assert Resp
+  ?mb_assert_regex("Resp"),
   receive
     {resp, Term} ->
       format("Result: ~p~n", [Term])
   end.
+
+
+%% ./src/paterl src/examples/erlang/savina/fib.erl -v all -I include

@@ -1,15 +1,13 @@
 %%%-------------------------------------------------------------------
-%%% @author walker
-%%% @copyright (C) 2024, <COMPANY>
+%%% @author duncan
+%%% @copyright (C) 2023, <COMPANY>
 %%% @doc
 %%%
 %%% @end
-%%% Created : 04. 7月 2024 17:38
+%%% Created : 04. Dec 2023 09:48
 %%%-------------------------------------------------------------------
 -module(fib).
--author("walker").
-
--include("paterl.hrl").
+-author("duncan").
 
 %%% Imports.
 -import(io, [format/2]).
@@ -20,21 +18,11 @@
 %%% Internal exports.
 -export([fib/0]).
 
-%%% Mailbox interface-function associations.
--new({fib_mb, [main/0]}).
--use({fib_mb, [fib/0]}).
-
 %%% Type definitions.
 
--type req() :: {req, fib_mb(), integer()}.
--type resp() :: {resp, integer()}.
-
-%% interface FibMb {
-%%  Req(FibMb!, Int),
-%%  Resp(Int)
-%% }
--type fib_mb() :: pid() | req() | resp().
-
+%% Fib interface.
+%% interface FibMb { Req(FibMb!, Int), Resp(Int) }
+%% @type fib_mb() :: {req, fib_mb(), integer()} | {resp, integer()} (reference to mailbox is always ! because ? cannot be delegated)
 
 %%% API.
 
@@ -72,33 +60,41 @@
 %%       replyTo ! Resp(term)
 %%   }
 %% }
--spec fib() -> no_return().
+%% @spec fib() -> none()
+%% @new fib_mb()
 fib() ->
-  ?mb_assert_regex("Req"),
+  %% @mb fib_mb()
+  %% @assert req
   receive
     {req, ReplyTo, N} ->
       Term =
         if N =< 2 ->
           1;
-          true ->
-            ?mb_new(fib_mb),
-            FibPid1 = spawn(?MODULE, fib, []),
-            ?mb_new(fib_mb),
-            FibPid2 = spawn(?MODULE, fib, []),
+        true ->
+          FibPid1 =
+            %% @new fib_mb()
+            spawn(?MODULE, fib, []),
+          FibPid2 =
+            %% @new fib_mb()
+            spawn(?MODULE, fib, []),
 
-            Self = self(),
-            FibPid1 ! {req, Self, N - 1},
-            FibPid2 ! {req, Self, N - 2},
+          Self =
+            %% @mb fib_mb()
+            self(),
+          FibPid1 ! {req, Self, N - 1},
+          FibPid2 ! {req, Self, N - 2},
 
-            ?mb_assert_regex("Resp"),
-            receive
-              {resp, Term1} ->
-                ?mb_assert_regex("Resp"),
-                receive
-                  {resp, Term2} ->
-                    Term1 + Term2
-                end
-            end
+          %% @mb fib_mb()
+          %% @assert resp.resp
+          receive
+            {resp, Term1} ->
+              %% @mb fib_mb()
+              %% @assert resp
+              receive
+                {resp, Term2} ->
+                  Term1 + Term2
+              end
+          end
         end,
       ReplyTo ! {resp, Term}
   end.
@@ -115,15 +111,20 @@ fib() ->
 %%     print(concat("Result: ", intToString(f)))
 %%   }
 %% }
--spec main() -> no_return().
+%% @spec main() -> none()
+%% @new fib_mb()
 main() ->
-  ?mb_new(fib_mb),
-  FibPid1 = spawn(?MODULE, fib, []),
+  FibPid1 =
+    %% @new fib_mb()
+    spawn(?MODULE, fib, []),
 
-  Self = self(),
-  FibPid1 ! {req, Self, 5},
+  Self =
+    %% @mb fib_mb()
+    self(),
+  FibPid1 ! {req, Self, 16},
 
-  ?mb_assert_regex("Resp"),
+  %% @mb fib_mb()
+  %% @assert Resp
   receive
     {resp, Term} ->
       format("Result: ~p~n", [Term])
