@@ -230,6 +230,9 @@ annotate_function({function, Anno, Name, Arity, Clauses},
   ?assert(maps:is_key(Sig, SpecsCtx)),
   {spec, _, Types} = maps:get(Sig, SpecsCtx),
 
+  ?INFO("Clauses length ~p", [length(Clauses)]),
+  ?INFO("Types length ~p", [Types]),
+
   % Only one function clause and spec anno permitted.
   ?assert(length(Clauses) == 1 andalso length(Types) == 1),
 
