@@ -143,4 +143,4 @@ main() ->
   format("Ts: ~p~n", [Ts]).
 
 
-%%./src/paterl src/examples/erlang/codebeam/id_ts_server_demo.erl -v all -I include
+%% ./src/paterl src/examples/erlang/codebeam/id_ts_server_demo.erl -v all -I include

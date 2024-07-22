@@ -98,4 +98,4 @@ main() ->
   format("Id: ~p~n", [Id]).
 
 
-%%./src/paterl src/examples/erlang/codebeam/id_server_demo.erl -v all -I include
+%% ./src/paterl src/examples/erlang/codebeam/id_server_demo.erl -v all -I include
