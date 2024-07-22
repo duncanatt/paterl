@@ -136,5 +136,3 @@ main() ->
 
 
 %% ./src/paterl src/examples/erlang/savina/count.erl -v all -I include
-% TODO: Limitation: The counter/1 function had to be split into counter_loop/1 due to the limitation of associating a
-% TODO: function that uses the same mailbox with new and use.

@@ -44,6 +44,11 @@
 %% Fib.
 -new({fib_mb, [fib/0, main/0]}).
 
+
+%%% ----------------------------------------------------------------------------
+%%% API.
+%%% ----------------------------------------------------------------------------
+
 %% @doc Fibonacci process computing the (n - 1)st and (n - 2)nd terms.
 -spec fib() -> no_return().
 fib() ->
@@ -81,7 +86,7 @@ fib() ->
   end.
 
 %% @doc Launcher.
--spec main() -> no_return().
+-spec main() -> any().
 main() ->
   ?mb_new(fib_mb),
   FibPid1 = spawn(?MODULE, fib, []),

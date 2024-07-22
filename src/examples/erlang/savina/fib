@@ -1,0 +1,104 @@
+# Translated from fib.erl
+
+interface Fib_mb {
+  Req(Fib_mb!, Int),
+  Resp(Int)
+}
+
+def fib(mb0: Fib_mb?): (Unit * Fib_mb?) {
+  guard mb0: Req {
+    receive Req(replyto, n) from mb1 ->
+      let (term, mb13) =
+        if (n <= 2) {
+          (1, mb1)
+        }
+        else {
+          let (fibpid1, mb4) =
+            (let mb2 =
+  new [Fib_mb]
+in
+  let y =
+    spawn {
+      let (x, mb3) =
+        fib(mb2)
+      in
+        free(mb3)
+    }
+  in
+    mb2, mb1)
+          in
+            let (fibpid2, mb7) =
+              (let mb5 =
+  new [Fib_mb]
+in
+  let y =
+    spawn {
+      let (x, mb6) =
+        fib(mb5)
+      in
+        free(mb6)
+    }
+  in
+    mb5, mb4)
+            in
+              let (self, mb8) =
+                (mb7, mb7)
+              in
+                let (v0, mb9) =
+                  (fibpid1 ! Req(self, n - 1), mb8)
+                in
+                  let (v1, mb10) =
+                    (fibpid2 ! Req(self, n - 2), mb9)
+                  in
+                    guard mb10: Resp.Resp {
+                      receive Resp(term1) from mb11 ->
+                        guard mb11: Resp {
+                          receive Resp(term2) from mb12 ->
+                            (term1 + term2, mb12)
+                        }
+                    }
+        }
+      in
+        (replyto ! Resp(term), mb13)
+  }
+}
+
+def main(mb14: Fib_mb?): (Unit * Fib_mb?) {
+  let (fibpid1, mb17) =
+    (let mb15 =
+  new [Fib_mb]
+in
+  let y =
+    spawn {
+      let (x, mb16) =
+        fib(mb15)
+      in
+        free(mb16)
+    }
+  in
+    mb15, mb14)
+  in
+    let (self, mb18) =
+      (mb17, mb17)
+    in
+      let (v2, mb19) =
+        (fibpid1 ! Req(self, 16), mb18)
+      in
+        guard mb19: Resp {
+          receive Resp(term) from mb20 ->
+            ((), mb20)
+        }
+}
+
+def main'(): Unit {
+  let mb21 =
+    new [Fib_mb]
+  in
+    let (x, mb22) =
+      main(mb21)
+    in
+      let y =
+        free(mb22)
+      in
+        x
+}

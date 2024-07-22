@@ -165,7 +165,7 @@ create_actors(Count, NumActors, PrevActor) ->
   end.
 
 %% @doc Launcher
--spec main() -> no_return().
+-spec main() -> any().
 main() ->
   NumActors = 5,
   NumRounds = 5,
@@ -180,4 +180,5 @@ main() ->
       First_actor ! {ping, NumRounds}
   end.
 
-% TODO: Limitation: We need to manually flush the mailbox.
+
+%% ./src/paterl src/examples/erlang/savina/thread_ring.erl -v all -I include

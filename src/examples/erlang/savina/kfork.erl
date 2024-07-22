@@ -83,7 +83,7 @@ flood(Num_messages, Actor) ->
   end.
 
 %% @doc Launcher.
--spec main() -> no_return().
+-spec main() -> any().
 main() ->
   ?mb_new(actor_mb),
   Actor1 = spawn(?MODULE, actor, []),
