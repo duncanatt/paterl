@@ -18,14 +18,13 @@
 
 -define(VAR__ID, '@var_id').
 
-%%-doc "Returns a fresh variable name".
+%% @doc "Returns a fresh variable name".
 fresh_var(Name) when is_atom(Name) ->
   list_to_atom(
     string:to_lower(atom_to_list(Name)) ++ integer_to_list(next_var_id(Name))
   ).
 
-%%-doc "Returns the next ID for the specified name".
-%%-doc hidden.
+%% @private "Returns the next ID for the specified name".
 next_var_id(Name) when is_atom(Name) ->
   Key = {?VAR__ID, Name},
   case get(Key) of
