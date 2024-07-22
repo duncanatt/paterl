@@ -60,7 +60,9 @@
 %% that call external functions without modifying the Pat implementation.
 -define(OPAQUE_FUNS, #{
   format => unit,
-  uniform => integer
+  uniform => integer,
+  system_time => integer,
+  sleep => unit
 }).
 
 %%test_type(Type) when ?IS_UNIT_EQ_TYPE(Type) ->
@@ -77,7 +79,8 @@
 %% @doc Translates the specified Erlang abstract syntax representation to its
 %% equivalent Pat abstract syntax representation.
 module(Forms) ->
-  forms(Forms ++ [main_fun_def()]).
+%%  forms(Forms ++ [main_fun_def()]).
+  forms(Forms).
 
 
 %%% ----------------------------------------------------------------------------
@@ -285,7 +288,7 @@ expr_seq([{'receive', Anno, Clauses} | ExprSeq], Mb) ->
         % Mailbox may be empty. Add Pat empty expression.
         MbVar = pat_syntax:var(fresh_mb()),
         EmptyExpr = pat_syntax:empty_expr(
-          MbVar, pat_syntax:tuple([pat_syntax:unit(), MbVar])
+          MbVar, pat_syntax:tuple([pat_syntax:unit(), MbVar]) %TODO: This cannot be unit but must be the datatype of the return type of the function.
         ),
         [EmptyExpr | ReceiveClauses];
       false ->
@@ -298,6 +301,8 @@ expr_seq([{'receive', Anno, Clauses} | ExprSeq], Mb) ->
   ]),
   Guard = pat_syntax:guard_expr(pat_syntax:var(Mb), State, ReceiveClauses0),
   [Guard | expr_seq(ExprSeq, Mb)];
+%%expr_seq([{atom, _, ok} | ExprSeq], Mb) ->
+%%  [pat_syntax:tuple([pat_syntax:unit(), pat_syntax:var(Mb)]) | expr_seq(ExprSeq, Mb)];
 expr_seq([Expr | ExprSeq], Mb) ->
   % Pass thru to out-of-mailbox context translation:
   %
@@ -388,6 +393,8 @@ expr(ExprSeq) ->
 %% the equivalent single nested Pat expression.
 expr_seq([]) ->
   [];
+expr_seq([{atom, _, ok} | ExprSeq]) ->
+  [pat_syntax:unit() | expr_seq(ExprSeq)];
 expr_seq([Lit | ExprSeq]) when ?IS_LIT(Lit) ->
   % Erlang literal expressions.
   ?TRACE("Translating literal ~s ~p.", [element(1, Lit), ?GET_LIT(Lit)]),
@@ -639,30 +646,30 @@ spawn_expr({call, Anno, {atom, _, spawn}, _MFArgs = [_, Fun, Args]}) ->
 
 %% @private Creates the auxiliary main function that is added to the Pat file
 %% to complete it.
-main_fun_def() ->
-  Type = erl_syntax:revert(
-    erl_syntax:type_application(erl_syntax:atom(any), [])
-  ),
-
-  Call =
-    erl_syntax:set_pos(
-      erl_syntax:application(erl_syntax:atom(main), []),
-      paterl_anno:set_modality(new, paterl_anno:set_interface(main_mb, erl_anno:new(0)))
-    ),
-
-  Clause =
-    erl_syntax:revert(
-      erl_syntax:set_pos(
-        erl_syntax:clause([], [Call]),
-        paterl_anno:set_type(Type, erl_anno:new(0))
-
-      )),
-
-  erl_syntax:revert(
-    erl_syntax:set_pos(
-      erl_syntax:function(erl_syntax:atom('main\''), [Clause]),
-      paterl_anno:set_type(Type, erl_anno:new(0))
-    )).
+%%main_fun_def() ->
+%%  Type = erl_syntax:revert(
+%%    erl_syntax:type_application(erl_syntax:atom(any), [])
+%%  ),
+%%
+%%  Call =
+%%    erl_syntax:set_pos(
+%%      erl_syntax:application(erl_syntax:atom(main), []),
+%%      paterl_anno:set_modality(new, paterl_anno:set_interface(main_mbx, erl_anno:new(0)))
+%%    ),
+%%
+%%  Clause =
+%%    erl_syntax:revert(
+%%      erl_syntax:set_pos(
+%%        erl_syntax:clause([], [Call]),
+%%        paterl_anno:set_type(Type, erl_anno:new(0))
+%%
+%%      )),
+%%
+%%  erl_syntax:revert(
+%%    erl_syntax:set_pos(
+%%      erl_syntax:function(erl_syntax:atom('main\''), [Clause]),
+%%      paterl_anno:set_type(Type, erl_anno:new(0))
+%%    )).
 
 %% @private Returns a fresh mailbox name.
 fresh_mb() ->

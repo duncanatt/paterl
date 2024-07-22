@@ -52,7 +52,7 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
           errors:show_warnings(Warnings0),
 
           io:fwrite(color:green("[IR] IRing.~n")),
-          Desugared = paterl_ir_2:module(Forms),
+          Desugared = paterl_ir_3:module(Forms),
           io:format("~n~n~n D E S U G A R E D~n~n~n~n", []),
           pp_forms(Desugared),
           io:format("~n~n~n~p~n", [Desugared]),
@@ -76,10 +76,26 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
               io:format("MbNames: ~p~n", [MbNames]),
               io:format("~s SIGS & TINFO ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
 
+              {Desugared0, TInfo0} = paterl_bootstrap:forms(Desugared, TInfo),
+
+              io:format("~n~s TINFO BOOTSTRAPPED~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
+              io:format("Types: ~p~n", [TInfo0#t_info.types]),
+              io:format("Specs: ~p~n", [TInfo0#t_info.specs]),
+              io:format("MbDefs: ~p~n", [TInfo0#t_info.mb_defs]),
+              io:format("MbNames: ~p~n", [TInfo0#t_info.mb_names]),
+              io:format("~s SIGS & TINFO BOOTSTRAPPED ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
+
+
+              io:format("~n~n~n D E S U G A R E D 2~n~n~n~n", []),
+              pp_forms(Desugared0),
+              io:format("~n~n~n~p~n", [Desugared0]),
+              io:format("~n~n~n E N D D E S U G A R E D 2~n~n~n~n", []),
+
+
               % Annotate forms using type table.
               io:fwrite(color:green("[ANNOTATE] Annotating Erlang forms.~n")),
 %%              case paterl_anno:annotate(Forms, TInfo) of
-              case paterl_anno:annotate(Desugared, TInfo) of
+              case paterl_anno:annotate(Desugared0, TInfo0) of
 
                 {ok, Annotated} ->
                   % Forms annotated.
@@ -91,15 +107,17 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
                   compile:forms(Annotated),
 
                   io:fwrite(color:green("[TRANSLATE] Translating Erlang forms to Pat.~n")),
-%%                  PatAst = paterl_trans_4:module(Annotated),
+%%                  PatAstTmp = paterl_trans_4:module(Annotated),
+                  erase(),
                   PatAst = paterl_trans_5:module(Annotated),
+
+%%                  PatAst = PatAstTmp,
                   io:fwrite("Pat AST: ~p~n~n", [PatAst]),
                   PatString = pat_prettypr:module(PatAst),
                   io:fwrite("Pat String:~n~n~s~n~n", [PatString]),
 
 %%                  init:stop(),
 
-%%                  Pat = pat_prettypr:indent(paterl_trans_4:module(Annotated)),
                   io:format("~n~n~nOutput Pat:~n~n~n~s~n", [number(PatString)]),
 
                   PatFile = filename:rootname(File),
