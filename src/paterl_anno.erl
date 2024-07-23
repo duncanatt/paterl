@@ -63,6 +63,10 @@
 %% Expected receive mailbox annotation.
 -define(E_RECEIVE_ANNO, e_receive_anno).
 
+%% Receive expression lives in an undefined (i.e. outside a) mailbox scope.
+%% May have to be moved to a prior pass, such as the paterl_types pass.
+-define(E_RECEIVE_MB_SCOPE_UNDEF, e_receive_mb_scope_undef).
+
 
 %%% ----------------------------------------------------------------------------
 %%% Public API.
@@ -636,6 +640,13 @@ annotate_expr(_Expr = {match, Anno, Pat, Expr}, MbTypeAnno, MbScope, TInfo, Erro
   ),
   {Expr1, Error0};
 
+annotate_expr(Expr = {'receive', Anno, Clauses}, _, MbScope = undefined, TInfo, Error) ->
+  % Receive expression outside a mailbox scope.
+  Receive = erl_syntax:set_pos(erl_syntax:receive_expr([]), Anno),
+  Error0 = ?pushError(?E_RECEIVE_MB_SCOPE_UNDEF, Receive, Error),
+  {_, Error1} = annotate_clauses(Clauses, MbScope, TInfo, Error0),
+  {Expr, Error1};
+
 annotate_expr({'receive', Anno, Clauses}, {state, Regex}, MbScope, TInfo, Error) ->
   % Mailbox-annotated blocking receive expression. Mailbox name can be inferred
   % from enclosing mailbox scope.
@@ -651,7 +662,6 @@ annotate_expr(Expr = {'receive', Anno, Clauses}, undefined, MbScope, TInfo, Erro
   Receive = erl_syntax:set_pos(erl_syntax:receive_expr([]), Anno),
   Error0 = ?pushError(?E_RECEIVE_ANNO, Receive, Error),
   {_, Error1} = annotate_clauses(Clauses, MbScope, TInfo, Error0),
-
   {Expr, Error1};
 
 %% The following expressions are not annotated:
@@ -822,6 +832,11 @@ format_error({?E_SPAWN_ANNO, Node}) ->
 format_error({?E_RECEIVE_ANNO, Node}) ->
   io_lib:format(
     "expected ?assert annotation before '~s'",
+    [erl_prettypr:format(Node)]
+  );
+format_error({?E_RECEIVE_MB_SCOPE_UNDEF, Node}) ->
+  io_lib:format(
+    "function enclosing expression '~s' is not mailbox annotated",
     [erl_prettypr:format(Node)]
   ).
 
