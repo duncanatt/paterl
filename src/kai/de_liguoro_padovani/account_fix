@@ -1,0 +1,123 @@
+# Translated from account.erl
+
+interface Account_mb {
+  Debit(Int, Barrier_mb!),
+  Credit(Int, Account_mb!, Barrier_mb!),
+  Stop()
+}
+
+interface Barrier_mb {
+  Reply()
+}
+
+interface Main_mb { }
+
+def notify(barrier: Barrier_mb!): Unit {
+  barrier ! Reply()
+}
+
+def await(mb0: Barrier_mb?): (Unit * Barrier_mb?) {
+  guard mb0: Reply {
+    receive Reply() from mb1 ->
+      ((), mb1)
+  }
+}
+
+def account(mb2: Account_mb?, balance: Int): (Unit * Account_mb?) {
+  account_loop(mb2, balance)
+}
+
+def account_loop(mb3: Account_mb?, balance: Int): (Unit * Account_mb?) {
+  guard mb3: *Debit . *Credit {
+    empty(mb13) ->
+      ((), mb13)
+    receive Debit(amount, ack) from mb4 ->
+      let (v0, mb5) =
+        (notify(ack), mb4)
+      in
+        account_loop(mb5, balance - amount)
+    receive Credit(amount, payer, ack) from mb6 ->
+      let (self, mb7) =
+        (mb6, mb6)
+      in
+        let (v1, mb8) =
+          (payer ! Debit(amount, self), mb7)
+        in
+          let (v2, mb11) =
+            (let mb9 =
+              new [Barrier_mb]
+            in
+              let (x, mb10) =
+                await(mb9)
+              in
+                let y =
+                  free(mb10)
+                in
+                  x, mb8)
+          in
+            let (v3, mb12) =
+              (notify(ack), mb11)
+            in
+              account_loop(mb12, balance + amount)
+  }
+}
+
+def main(mb14: Main_mb?): (Unit * Main_mb?) {
+  let (alice, mb17) =
+    (let mb15 =
+      new [Account_mb]
+    in
+      let y =
+        spawn {
+          let (x, mb16) =
+            account(mb15, 10)
+          in
+            free(mb16)
+        }
+      in
+        mb15, mb14)
+  in
+    let (bob, mb20) =
+      (let mb18 =
+        new [Account_mb]
+      in
+        let y =
+          spawn {
+            let (x, mb19) =
+              account(mb18, 15)
+            in
+              free(mb19)
+          }
+        in
+          mb18, mb17)
+    in
+      let (self, mb21) =
+        (mb20, mb20)
+      in
+        let (v4, mb22) =
+          (alice ! Credit(10, bob, self), mb21)
+        in
+          (let mb23 =
+            new [Barrier_mb]
+          in
+            let (x, mb24) =
+              await(mb23)
+            in
+              let y =
+                free(mb24)
+              in
+                x, mb22)
+}
+
+def main'(): Unit {
+  let mb25 =
+    new [Main_mb]
+  in
+    let (x, mb26) =
+      main(mb25)
+    in
+      let y =
+        free(mb26)
+      in
+        x
+}
