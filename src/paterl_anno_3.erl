@@ -411,7 +411,7 @@ annotate_pat(Pat, _Type = {Qualifier, _, Type, _}, _MbScope, _TInfo)
 %% the expression that follows the match expression in the expression list.
 %% Otherwise, the AST of the match expression remains unmodified and its RHS
 %% AST is annotated.
--spec annotate_expr_seq([erl_syntax:syntaxTree()], Signature:: paterl_anno:signature(), MbScope :: atom(), paterl_types:t_info(), errors:error()) ->
+-spec annotate_expr_seq([erl_syntax:syntaxTree()], Signature :: paterl_anno:signature(), MbScope :: atom(), paterl_types:t_info(), errors:error()) ->
   {[erl_syntax:syntaxTree()], errors:error()}.
 annotate_expr_seq([], _, _, _, Error = #error{}) ->
   ?TRACE("Empty expression sequence."),
@@ -646,14 +646,20 @@ annotate_expr(Expr = {'receive', Anno, Clauses}, _, Signature, MbScope = undefin
   % Receive expression outside a mailbox scope.
   Receive = erl_syntax:set_pos(erl_syntax:receive_expr([]), Anno),
   Error0 = ?pushError(?E_RECEIVE_MB_SCOPE_UNDEF, Receive, Error),
-  {_, Error1} = annotate_clauses(Clauses, Signature, MbScope, TInfo, Error0),
+  {_, Error1} = annotate_clauses(Clauses, Signature, MbScope, TInfo, Error0), % Find other errors.
   {Expr, Error1};
 
-annotate_expr({'receive', Anno, Clauses}, _MbAnno = {state, Regex}, Signature, MbScope, TInfo, Error) ->
+annotate_expr({'receive', Anno, Clauses}, _MbAnno = {state, Regex}, Signature, MbScope, TInfo = #t_info{specs = Specs}, Error) ->
   % Mailbox-annotated blocking receive expression. Mailbox name can be inferred
   % from enclosing mailbox scope.
   {Clauses0, Error0} = annotate_clauses(Clauses, Signature, MbScope, TInfo, Error),
-  Anno0 = set_state(Regex, set_interface(MbScope, Anno)),
+
+  ?TRACE("Annotating receive with return spec in '~s/~b'.", [element(1, Signature), element(2, Signature)]),
+
+  % This must always succeed since every signature has a type spec associated with it.
+  Spec = {spec, _, [{type, _, 'fun', [_ParamTypes, ReturnType]}]} = maps:get(Signature, Specs),
+
+  Anno0 = set_type(ReturnType, set_state(Regex, set_interface(MbScope, Anno))),
   Expr0 = erl_syntax:revert(
     erl_syntax:set_pos(erl_syntax:receive_expr(Clauses0), Anno0)
   ),
@@ -663,7 +669,7 @@ annotate_expr(Expr = {'receive', Anno, Clauses}, undefined, Signature, MbScope, 
   % Non-annotated blocking receive expression.
   Receive = erl_syntax:set_pos(erl_syntax:receive_expr([]), Anno),
   Error0 = ?pushError(?E_RECEIVE_ANNO, Receive, Error),
-  {_, Error1} = annotate_clauses(Clauses, Signature, MbScope, TInfo, Error0),
+  {_, Error1} = annotate_clauses(Clauses, Signature, MbScope, TInfo, Error0), % Find other errors.
   {Expr, Error1};
 
 %% The following expressions are not annotated:

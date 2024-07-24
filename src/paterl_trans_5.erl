@@ -287,9 +287,18 @@ expr_seq([{'receive', Anno, Clauses} | ExprSeq], Mb) ->
       true ->
         % Mailbox may be empty. Add Pat empty expression.
         MbVar = pat_syntax:var(fresh_mb()),
+
+        % BEGIN HACK: Determine unit datum to return based on the return type of the
+        % enclosing function.
+        {type, _, Type, _} = paterl_anno:type(Anno),
+        Unit = get_unit_value(Type),
+        ?TRACE("(~s) HACK: Generating unit value ~p for type ~p", [Mb, Unit, Type]),
+
         EmptyExpr = pat_syntax:empty_expr(
-          MbVar, pat_syntax:tuple([pat_syntax:unit(), MbVar]) %TODO: This cannot be unit but must be the datatype of the return type of the function.
+          MbVar, pat_syntax:tuple([Unit, MbVar]) %TODO: This cannot be unit but must be the datatype of the return type of the function.
         ),
+
+        % END HACK.
         [EmptyExpr | ReceiveClauses];
       false ->
         % Mailbox cannot be empty.
@@ -679,23 +688,42 @@ fresh_mb() ->
 %% externally-defined opaque Erlang function.
 get_fun_return_unit({call, _, _Fun = {atom, _, Name}, _}) ->
   case maps:find(Name, ?OPAQUE_FUNS) of
-    {ok, boolean} ->
-      pat_syntax:lit(true);
-    {ok, integer} ->
-      pat_syntax:lit(0);
-    {ok, float} ->
-      pat_syntax:lit(0.0);
-    {ok, string} ->
-      pat_syntax:lit("");
-    {ok, atom} ->
-      pat_syntax:lit(atom);
-    {ok, unit} ->
-      pat_syntax:unit();
+%%    {ok, boolean} ->
+%%      pat_syntax:lit(true);
+%%    {ok, integer} ->
+%%      pat_syntax:lit(0);
+%%    {ok, float} ->
+%%      pat_syntax:lit(0.0);
+%%    {ok, string} ->
+%%      pat_syntax:lit("");
+%%    {ok, atom} ->
+%%      pat_syntax:lit(atom);
+%%    {ok, unit} ->
+%%      pat_syntax:unit();
+    {ok, Type} ->
+      get_unit_value(Type);
     error ->
       undefined
   end;
 get_fun_return_unit(_) ->
   undefined.
+
+%% @private Returns the unit data value of the type.
+get_unit_value(boolean) ->
+  pat_syntax:lit(true);
+get_unit_value(integer) ->
+  pat_syntax:lit(0);
+get_unit_value(float) ->
+  pat_syntax:lit(0.0);
+get_unit_value(string) ->
+  pat_syntax:lit("");
+get_unit_value(atom) ->
+  pat_syntax:lit(atom);
+get_unit_value(unit) ->
+  pat_syntax:unit();
+get_unit_value(_) ->
+  pat_syntax:unit().
+
 
 %% @private Returns the Pat operator equivalent to the specified Erlang
 %% operator.

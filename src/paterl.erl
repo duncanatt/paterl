@@ -23,7 +23,8 @@
 %%% Generic constants.
 
 %% Mailbox annotation primitive type.
--define(EXEC, "/Users/duncan/Dropbox/Postdoc/Development/mbcheck/mbcheck").
+%%-define(EXEC, "/Users/duncan/Dropbox/Postdoc/Development/mbcheck/mbcheck").
+-define(EXEC, "/Users/duncan/Downloads/mbcheck/mbcheck -qj").
 
 %%% Error types.
 
@@ -95,7 +96,9 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
               % Annotate forms using type table.
               io:fwrite(color:green("[ANNOTATE] Annotating Erlang forms.~n")),
 %%              case paterl_anno:annotate(Forms, TInfo) of
-              case paterl_anno:annotate(Desugared0, TInfo0) of
+%%              case paterl_anno:annotate(Desugared0, TInfo0) of
+              paterl_anno:annotate(Desugared0, TInfo0) == paterl_anno_3:annotate(Desugared0, TInfo0),
+              case paterl_anno_3:annotate(Desugared0, TInfo0) of
 
                 {ok, Annotated} ->
                   % Forms annotated.
@@ -218,13 +221,25 @@ translate(Msg) ->
     Msg,
     "^(?P<A>.*) is not included in (?P<B>.*)$", [{capture, ['A', 'B'], list}]) of
     {match, ["1", B]} ->
+      % This was already a decent error message.
+%%      io_lib:format(
+%%        "Inferred omitted message send but expected user-asserted message pattern '~s'",
+%%        [B]
+%%      );
+      % This is a better error message.
       io_lib:format(
-        "Inferred omitted message send but expected user-asserted message pattern '~s'",
+        "Inferred an empty mailbox but expecting a missing message send that produces the message pattern '~s'",
         [B]
       );
     {match, [A, "1"]} ->
+      % This was already a decent error message.
+%%      io_lib:format(
+%%        "Inferred omitted message receive but expected user-asserted message pattern '~s'",
+%%        [A]
+%%      );
+      % This is a better error message.
       io_lib:format(
-        "Inferred omitted message receive but expected user-asserted message pattern '~s'",
+        "Expecting an empty mailbox but inferred a missing message receive that consumes the message pattern '~s'",
         [A]
       );
     {match, [A, B]} ->
