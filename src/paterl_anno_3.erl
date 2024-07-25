@@ -656,8 +656,9 @@ annotate_expr({'receive', Anno, Clauses}, _MbAnno = {state, Regex}, Signature, M
 
   ?TRACE("Annotating receive with return spec in '~s/~b'.", [element(1, Signature), element(2, Signature)]),
 
-  % This must always succeed since every signature has a type spec associated with it.
-  Spec = {spec, _, [{type, _, 'fun', [_ParamTypes, ReturnType]}]} = maps:get(Signature, Specs),
+  % This pattern match must always succeed since every signature has a type spec
+  % associated with it.
+  {spec, _, [{type, _, 'fun', [_ParamTypes, ReturnType]}]} = maps:get(Signature, Specs),
 
   Anno0 = set_type(ReturnType, set_state(Regex, set_interface(MbScope, Anno))),
   Expr0 = erl_syntax:revert(
