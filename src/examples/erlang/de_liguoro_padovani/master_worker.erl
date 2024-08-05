@@ -17,12 +17,19 @@
 -export([main/0]).
 
 %% Internal exports
--export([master/0, worker/0, farm/3, harvest/2, client/2]).
+-export([master/0, worker/0, farm/3, harvest/3, client/2]).
 
 %% Mailbox interface-function associations
 -new({master_mb, [master/0]}).
--new({pool_mb, [harvest/2]}).
+-use({master_mb, [master_loop/0]}).
+
+-new({pool_mb, [pool/1]}).
+-use({pool_mb, [harvest/3, harvest_exit/0]}).
+
+
 -new({worker_mb, [worker/0]}).
+
+
 -new({client_mb, [client/2]}).
 -new({main_mb, [main/0]}).
 
@@ -74,16 +81,27 @@
 %% }
 -spec master() -> no_return().
 master() ->
+  master_loop().
+
+-spec master_loop() -> no_return().
+master_loop() ->
   ?mb_assert_regex("*Task"),
   receive
     {task, ReplyTo, N} ->
-      Pool = self(),
-      ?mb_new(pool_mb),
-      spawn(?MODULE, farm, [0, N, Pool]),
-      Result = harvest(0, Pool),
+      Result = pool(N),
       ReplyTo ! {result, Result},
-      master()
+      master_loop()
   end.
+
+% New
+-spec pool(integer()) -> integer().
+pool(Chunks) ->
+  Self = self(),
+  farm(0, Chunks, Self),
+%%  Self = self(),
+  harvest(0, Chunks, 0).
+
+
 
 %% def worker(self: WorkerMb?): Unit {
 %%   guard self: Work {
@@ -96,8 +114,9 @@ master() ->
 worker() ->
   ?mb_assert_regex("Work"),
   receive
-    {work, ReplyTo, N} ->
-      ReplyTo ! {result, compute(N)}
+    {work, ReplyTo, Task} ->
+      Result = compute(Task),
+      ReplyTo ! {result, Result}
   end.
 
 %% def farm(count: Int, chunks: Int, pool: PoolMb!): Unit {
@@ -134,12 +153,29 @@ farm(Count, Chunks, Pool) ->
 %%       harvest(acc + n, pool)
 %%   }
 %% }
--spec harvest(integer(), pool_mb()) -> integer().
-harvest(Acc, Pool) ->
+-spec harvest(integer(), integer(), integer()) -> integer().
+harvest(Count, Chunks, Acc) ->
+  if (Count == Chunks) ->
+    harvest_exit(), % To consume the possibly unconsumed Result messages and balance out the mailbox.
+    % Note that this matches the pattern in the other branch, which seems to be key, in this simple case.
+    % What about having something like ?garbage_collect("*Result") which generates the draining
+    % function automatically in Pat?
+    Acc;
+  true ->
+    ?mb_assert_regex("*Result"),
+    receive
+      {result, Result} ->
+        Count0 = Count + 1,
+        harvest(Count0, Chunks, Acc + Result)
+    end
+  end.
+
+-spec harvest_exit() -> no_return().
+harvest_exit() ->
   ?mb_assert_regex("*Result"),
   receive
-    {result, N} ->
-      harvest(Acc + N, Pool)
+    {result, Result} ->
+      harvest_exit()
   end.
 
 %% def compute(n: Int): Int {
@@ -164,7 +200,7 @@ client(N, MasterMb) ->
   ?mb_assert_regex("Result"),
   receive
     {result, Result} ->
-      io:format("~p~n", [Result])
+      format("~p~n", [Result])
   end.
 
 %% def main(): Unit {
@@ -177,7 +213,7 @@ client(N, MasterMb) ->
 %%   let client2 = new[ClientMb] in
 %%   spawn { client(10, client2, masterMb) }
 %% }
--spec main() -> no_return().
+-spec main() -> any().
 main() ->
   ?mb_new(master_mb),
   MasterMb = spawn(?MODULE, master, []),
@@ -186,4 +222,5 @@ main() ->
   Client1 = spawn(?MODULE, client, [5, MasterMb]),
 
   ?mb_new(client_mb),
-  Client2 = spawn(?MODULE, client, [10, MasterMb]).
+  Client2 = spawn(?MODULE, client, [10, MasterMb]),
+  ok.

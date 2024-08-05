@@ -231,7 +231,11 @@ expr({'if', Anno, Clauses}, true) ->
   );
 expr({'if', Anno, Clauses}, false) ->
   erl_syntax:set_pos(erl_syntax:if_expr(if_clauses(Clauses)), Anno);
-expr({'receive', Anno, Clauses}, true) ->
+expr(Expr, true) when element(1, Expr) =:= 'receive' ->
+  % Receive and receive with timeout expressions.
+  Anno = erl_syntax:get_pos(Expr),
+  Clauses = erl_syntax:receive_expr_clauses(Expr),
+
   % Erlang receive expression.
   Var = erl_syntax:set_pos(
     erl_syntax:variable(fresh_var()), Anno
@@ -241,8 +245,17 @@ expr({'receive', Anno, Clauses}, true) ->
     erl_syntax:match_expr(Var, Receive),
     Anno
   );
-expr({'receive', Anno, Clauses}, false) ->
+expr(Expr, false) when element(1, Expr) =:= 'receive' ->
+  % Receive and receive with timeout expressions.
+  Anno = erl_syntax:get_pos(Expr),
+  Clauses = erl_syntax:receive_expr_clauses(Expr),
   erl_syntax:set_pos(erl_syntax:receive_expr(case_clauses(Clauses)), Anno).
+
+
+
+%%HERE: Modify this receive to include after as well but generate a normal receive for Pat consumption.
+
+%%{'receive', Anno, Clauses, Expr, _ExprSeq}
 
 %%% ----------------------------------------------------------------------------
 %%% Helpers.
