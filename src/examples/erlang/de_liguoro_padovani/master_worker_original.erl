@@ -10,7 +10,7 @@
 %%% that the pool mailbox is shared and does not extend over different function
 %%% invocations.
 %%%-------------------------------------------------------------------
--module(master_worker).
+-module(master_worker_original).
 -author("duncan").
 
 %% API
