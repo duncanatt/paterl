@@ -41,17 +41,77 @@
 
 -define(anno(Expr), element(2, Expr)).
 
+-define(litValue(Expr), element(3, Expr)).
+
 -define(isLit(Expr), ?synCat(Expr) =:= integer
   orelse ?synCat(Expr) =:= float
   orelse ?synCat(Expr) =:= string
   orelse ?synCat(Expr) =:= atom
 ).
 
+-define(isInteger(Expr), ?synCat(Expr) =:= integer).
+
+-define(isFloat(Expr), ?synCat(Expr) =:= float).
+
+-define(isString(Expr), ?synCat(Expr) =:= string).
+
+-define(isAtom(Expr), ?synCat(Expr) =:= atom).
+
 -define(isVar(Expr), ?synCat(Expr) =:= var).
 
 -define(isTuple(Expr), ?synCat(Expr) =:= tuple).
 
+-define(isReceive(Expr), ?synCat(Expr) =:= 'receive').
+
+-define(isOp(Expr), ?synCat(Expr) =:= op).
+
+-define(isIf(Expr), ?synCat(Expr) =:= 'if').
+
+-define(isCase(Expr), ?synCat(Expr) =:= 'case').
+
+-define(isMatch(Expr), ?synCat(Expr) =:= match).
+
+-define(isCall(Expr), ?synCat(Expr) =:= call).
+
 -define(isVal(Expr), ?isLit(Expr) andalso ?isVar(Expr) andalso ?isTuple(Expr)).
+
+-define(isMsg(Expr), ?isTuple(Expr)
+  andalso length(element(3, Expr)) >= 1
+  andalso ?isAtom(hd(element(3, Expr)))
+).
+
+-define(isMbAnno(Expr), ?isTuple(Expr)
+  andalso length(element(3, Expr)) =:= 2
+  andalso ?isAtom(hd(element(3, Expr)))
+  andalso (?litValue(hd(element(3, Expr))) =:= new
+    orelse ?litValue(hd(element(3, Expr))) =:= use
+    orelse ?litValue(hd(element(3, Expr))) =:= state
+  )
+).
+
+-define(isImplicitCall(Expr), ?isCall(Expr)
+  andalso ?isAtom(element(3, Expr))
+  andalso is_list(element(4, Expr))
+).
+
+-define(isExplicitCall(Expr), ?isCall(Expr)
+  andalso not(?isAtom(element(3, Expr)))
+  andalso is_list(element(4, Expr))
+).
+
+
+
+test_expr_cat(Expr) when ?isMbAnno(Expr) ->
+  io:format("Is MB annotation ~p.~n", [Expr]);
+test_expr_cat(Expr) when ?isMsg(Expr) ->
+  io:format("Is message ~p.~n", [Expr]);
+test_expr_cat(Expr) when ?isImplicitCall(Expr) ->
+  io:format("Is implicit call ~p.~n", [Expr]);
+test_expr_cat(Expr) when ?isExplicitCall(Expr) ->
+  io:format("Is explicit call ~p.~n", [Expr]);
+test_expr_cat(Expr) ->
+  io:format("Unrecognized expression ~p.~n", [Expr]).
+
 
 
 %% TODO: Add code to normalize Erlang ASTs. Called assignment transformation.
@@ -119,7 +179,7 @@ expr_seq([]) ->
   [];
 %%expr_seq([Expr])
 %%  when element(1, Expr) =:= 'receive'; element(1, Expr) =:= 'if'; element(1, Expr) =:= match ->
-  % Singleton expression sequence that are not values. Transform.
+% Singleton expression sequence that are not values. Transform.
 %%  [expr(Expr)];
 %%expr_seq([Expr]) when ?isVal(Expr) ->
 %%  % Singleton expression sequence where the expression is a value.
@@ -133,94 +193,92 @@ expr_seq([Expr | ExprSeq]) ->
 % Assign flag true = make the expression in a match; false = do not make the expression in a match but do make its body.
 %% @private Transforms Erlang values and expressions.
 expr(Lit, true) when ?isLit(Lit) ->
-%%  element(1, Lit) =:= integer;
-%%  element(1, Lit) =:= float;
-%%  element(1, Lit) =:= string;
-%%  element(1, Lit) =:= atom ->
   % Literal expressions.
-%%  Anno = element(2, Lit),
   Anno = erl_syntax:get_pos(Lit),
   Var = erl_syntax:set_pos(
     erl_syntax:variable(fresh_var()), Anno
   ),
   erl_syntax:set_pos(erl_syntax:match_expr(Var, Lit), Anno);
 expr(Lit, false) when ?isLit(Lit) ->
+  % Literal expressions.
   Lit;
-expr(Expr = {var, Anno, _}, true) ->
+expr(Expr, true) when ?isVar(Expr) ->
   % Variable expression.
+  Anno = erl_syntax:get_pos(Expr),
+
   Var = erl_syntax:set_pos(
     erl_syntax:variable(fresh_var()), Anno
   ),
   erl_syntax:set_pos(
     erl_syntax:match_expr(Var, Expr), Anno
   );
-expr(Expr = {var, Anno, _}, false) ->
+expr(Expr, false) when ?isVar(Expr) ->
+  % Variable expression.
   Expr;
-expr(Expr = {tuple, _, [{atom, _, Name}, _]}, _)
-  when Name =:= new; Name =:= use; Name =:= state ->
+expr(Expr, _) when ?isMbAnno(Expr) ->
   % Erlang mailbox-annotation expression remains unchanged.
   Expr;
-expr(Expr = {tuple, Anno, [_Tag = {atom, _, _Name} | _Args]}, true) ->
+expr(Expr, true) when ?isMsg(Expr) ->
   % Erlang Pat message expression. The tuple expression itself is not translated
   % since its arguments are assumed to be values and not expressions.
   % TODO: ANF.
+  Anno = erl_syntax:get_pos(Expr),
+
   Var = erl_syntax:set_pos(erl_syntax:variable(
     fresh_var()), Anno
   ),
   erl_syntax:set_pos(
     erl_syntax:match_expr(Var, Expr), Anno
   );
-expr(Expr = {tuple, Anno, [_Tag = {atom, _, _Name} | _Args]}, false) ->
+%%expr(Expr = {tuple, Anno, [_Tag = {atom, _, _Name} | _Args]}, false) ->
+expr(Expr, false) when ?isMsg(Expr) ->
   Expr;
-expr(Expr = {call, Anno, _Fun = {atom, _, _Name}, _Args}, true) ->
+%%expr(Expr = {call, Anno, _Fun = {atom, _, _Name}, _Args}, true) ->
+expr(Expr, true) when ?isImplicitCall(Expr) ->
   % Erlang call expression. The call expression itself is not translated since
   % its arguments are assumed to be values and not expressions.
   % TODO: ANF.
+  Anno = erl_syntax:get_pos(Expr),
+
   Var = erl_syntax:set_pos(
     erl_syntax:variable(fresh_var()), Anno
   ),
   erl_syntax:set_pos(
     erl_syntax:match_expr(Var, Expr), Anno
   );
-expr(Expr = {call, Anno, _Fun = {atom, _, _Name}, _Args}, false) ->
+%%expr(Expr = {call, Anno, _Fun = {atom, _, _Name}, _Args}, false) ->
+expr(Expr, false) when ?isImplicitCall(Expr) ->
   Expr;
-expr({match, Anno, Pat, Expr}, _) ->
+expr(Expr, _) when ?isMatch(Expr) ->
   % Erlang match expression. Retain pattern and transform RHS expression only if
-  % not a value.
-%%  ?TRACE("Body = ~p", [Expr]),
-%%  ExprSeq0 = expr(Expr),
-%%  ?TRACE("ExprSeq0 = ~p", [ExprSeq0]),
-
-%%  Expr0 = if ?isVal(Expr) -> Expr; true -> expr(Expr) end,
+  % RHS is not a value.
+  Anno = erl_syntax:get_pos(Expr),
+  Pat = erl_syntax:match_expr_pattern(Expr),
+  Body = erl_syntax:match_expr_body(Expr),
 
   erl_syntax:set_pos(
-%%    erl_syntax:match_expr(Pat, Expr0), Anno
-    erl_syntax:match_expr(Pat, expr(Expr, false)), Anno
+    erl_syntax:match_expr(Pat, expr(Body, false)), Anno
   );
-expr(Expr = {op, Anno, _, _, _}, true) ->
-  % Erlang binary operator expression. The expression itself is not translated
-  % since its operands are assumed to be values and not expressions.
+expr(Expr, true) when ?isOp(Expr) ->
+  % Erlang binary and unary operator expressions. The expressions themselves are
+  % not translated since its operands are assumed to be values, not expressions.
+  Anno = erl_syntax:get_pos(Expr),
+
   Var = erl_syntax:set_pos(
     erl_syntax:variable(fresh_var()), Anno
   ),
   erl_syntax:set_pos(
     erl_syntax:match_expr(Var, Expr), Anno
   );
-expr(Expr = {op, Anno, _, _, _}, false) ->
+expr(Expr, false) when ?isOp(Expr) ->
+  % Erlang binary and unary operator expressions.
   Expr;
-expr(Expr = {op, Anno, _, _}, true) ->
-  % Erlang unary operator expression. The expression itself is not translated
-  % since its operand is assumed to be a value and not an expression.
-  Var = erl_syntax:set_pos(
-    erl_syntax:variable(fresh_var()), Anno
-  ),
-  erl_syntax:set_pos(
-    erl_syntax:match_expr(Var, Expr), Anno
-  );
-expr(Expr = {op, Anno, _, _}, false) ->
-  Expr;
-expr({'if', Anno, Clauses}, true) ->
+%%expr({'if', Anno, Clauses}, true) ->
+expr(Expr, true) when ?isIf(Expr) ->
   % Erlang if expression.
+  Anno = erl_syntax:get_pos(Expr),
+  Clauses = erl_syntax:if_expr_clauses(Expr),
+
   Var = erl_syntax:set_pos(
     erl_syntax:variable(fresh_var()), Anno
   ),
@@ -229,9 +287,13 @@ expr({'if', Anno, Clauses}, true) ->
     erl_syntax:match_expr(Var, If),
     Anno
   );
-expr({'if', Anno, Clauses}, false) ->
+expr(Expr, false) when ?isIf(Expr) ->
+  % Erlang if expression.
+  Anno = erl_syntax:get_pos(Expr),
+  Clauses = erl_syntax:if_expr_clauses(Expr),
+
   erl_syntax:set_pos(erl_syntax:if_expr(if_clauses(Clauses)), Anno);
-expr(Expr, true) when element(1, Expr) =:= 'receive' ->
+expr(Expr, true) when ?isReceive(Expr) ->
   % Receive and receive with timeout expressions.
   Anno = erl_syntax:get_pos(Expr),
   Clauses = erl_syntax:receive_expr_clauses(Expr),
@@ -245,17 +307,12 @@ expr(Expr, true) when element(1, Expr) =:= 'receive' ->
     erl_syntax:match_expr(Var, Receive),
     Anno
   );
-expr(Expr, false) when element(1, Expr) =:= 'receive' ->
+expr(Expr, false) when ?isReceive(Expr) ->
   % Receive and receive with timeout expressions.
   Anno = erl_syntax:get_pos(Expr),
   Clauses = erl_syntax:receive_expr_clauses(Expr),
   erl_syntax:set_pos(erl_syntax:receive_expr(case_clauses(Clauses)), Anno).
 
-
-
-%%HERE: Modify this receive to include after as well but generate a normal receive for Pat consumption.
-
-%%{'receive', Anno, Clauses, Expr, _ExprSeq}
 
 %%% ----------------------------------------------------------------------------
 %%% Helpers.
