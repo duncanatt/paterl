@@ -228,7 +228,7 @@ translate(Msg) ->
 %%      );
       % This is a better error message.
       io_lib:format(
-        "Inferred an empty mailbox but expecting a missing message send that produces the message pattern '~s'",
+        "Inferred an empty mailbox but expecting a missing message send that should produce the message pattern '~s'",
         [B]
       );
     {match, [A, "1"]} ->
@@ -239,7 +239,7 @@ translate(Msg) ->
 %%      );
       % This is a better error message.
       io_lib:format(
-        "Expecting an empty mailbox but inferred a missing message receive that consumes the message pattern '~s'",
+        "Expecting an empty mailbox but inferred a missing message receive that should consume the message pattern '~s'",
         [A]
       );
     {match, [A, B]} ->
