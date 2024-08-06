@@ -124,6 +124,8 @@ actor_exit() ->
       actor_exit();
     {exit, ExitsLeft} ->
       actor_exit()
+  after 0 ->
+    format("~p actor exited.~n", [self()])
   end.
 
 %% @doc Initializes ring of actors. The number of participants in the ring is

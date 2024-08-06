@@ -153,6 +153,8 @@ allocate_forks(Id, Fork1, Fork2) ->
 %% are relinquished by the philosopher with the specified ID.
 -spec deallocate_forks(integer(), boolean(), boolean()) -> any().
 deallocate_forks(Id, Fork1, Fork2) ->
+  % Cannot express because I need to return a tuple, which is currently not
+  % supported in Erlang and Pat.
   ok.
 
 %% @doc Arbiter process exit procedure flushing potential residual messages.
@@ -166,7 +168,11 @@ arbiter_exit() ->
       arbiter_exit();
     {exit} ->
       arbiter_exit()
+  after 0 ->
+    format("Arbiter exited.~n", [])
   end.
+
+
 
 %% @doc Launcher.
 -spec main() -> any().

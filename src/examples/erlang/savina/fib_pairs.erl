@@ -90,7 +90,7 @@ main() ->
   ?mb_assert_regex("Response"),
   receive
     {response, X} ->
-      format("~p~n", [X])
+      format("Result: ~p.~n", [X])
   end.
 
 

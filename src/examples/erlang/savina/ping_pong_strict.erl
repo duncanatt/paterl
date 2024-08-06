@@ -106,7 +106,7 @@ pong() ->
   pong_loop().
 
 %% @doc Pong process loop issuing pong replies.
--spec pong_loop() -> no_return().
+-spec pong_loop() -> any().
 pong_loop() ->
   ?mb_assert_regex("Ping + Stop"),
   receive

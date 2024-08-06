@@ -156,6 +156,7 @@ smoker_loop(ArbiterMb) ->
   receive
     {start_smoking, Ms} ->
       ArbiterMb ! {started_smoking},
+      format("Smoker sleeping for ~b ms.~n", [Ms]),
       sleep(Ms),
       smoker_loop(ArbiterMb);
     {exit} ->
@@ -171,6 +172,8 @@ smoker_exit() ->
       smoker_exit();
     {exit} ->
       smoker_exit()
+    after 0 ->
+     format("~p exited.~n", [self()])
   end.
 
 %% @doc Launcher.

@@ -71,6 +71,8 @@ actor_loop() ->
     {packet} ->
       format("~p Received packet.~n", [self()]),
       actor_loop()
+  after 0 ->
+    format("Actor exited.~n", [])
   end.
 
 %% @doc Sends the given number of messages to the specified actor mailbox.

@@ -126,6 +126,8 @@ pong_exit() ->
       pong_exit();
     {stop} ->
       pong_exit()
+    after 0 ->
+      format("Ponger exited.~n", [])
   end.
 
 %% @doc Launcher.
