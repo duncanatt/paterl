@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 15. May 2024 10:32
 %%%-------------------------------------------------------------------
--module(paterl_ir_3).
+-module(paterl_ir).
 -author("duncan").
 
 %%% Includes.

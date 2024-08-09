@@ -53,7 +53,7 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
           errors:show_warnings(Warnings0),
 
           io:fwrite(color:green("[IR] IRing.~n")),
-          Desugared = paterl_ir_3:module(Forms),
+          Desugared = paterl_ir:module(Forms),
           io:format("~n~n~n D E S U G A R E D~n~n~n~n", []),
           pp_forms(Desugared),
           io:format("~n~n~n~p~n", [Desugared]),
@@ -98,7 +98,7 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
 %%              case paterl_anno:annotate(Forms, TInfo) of
 %%              case paterl_anno:annotate(Desugared0, TInfo0) of
 %%              paterl_anno:annotate(Desugared0, TInfo0) == paterl_anno_3:annotate(Desugared0, TInfo0),
-              case paterl_anno_3:annotate(Desugared0, TInfo0) of
+              case paterl_anno:annotate(Desugared0, TInfo0) of
 
                 {ok, Annotated} ->
                   % Forms annotated.
@@ -112,7 +112,7 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
                   io:fwrite(color:green("[TRANSLATE] Translating Erlang forms to Pat.~n")),
 %%                  PatAstTmp = paterl_trans_4:module(Annotated),
                   erase(),
-                  PatAst = paterl_trans_5:module(Annotated),
+                  PatAst = paterl_trans:module(Annotated),
 
 %%                  PatAst = PatAstTmp,
                   io:fwrite("Pat AST: ~p~n~n", [PatAst]),

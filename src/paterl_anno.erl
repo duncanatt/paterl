@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 29. Jan 2024 15:20
 %%%-------------------------------------------------------------------
--module(paterl_anno_3).
+-module(paterl_anno).
 -feature(maybe_expr, enable).
 -author("duncan").
 
@@ -411,7 +411,7 @@ annotate_pat(Pat, _Type = {Qualifier, _, Type, _}, _MbScope, _TInfo)
 %% the expression that follows the match expression in the expression list.
 %% Otherwise, the AST of the match expression remains unmodified and its RHS
 %% AST is annotated.
--spec annotate_expr_seq([erl_syntax:syntaxTree()], Signature :: paterl_anno:signature(), MbScope :: atom(), paterl_types:t_info(), errors:error()) ->
+-spec annotate_expr_seq([erl_syntax:syntaxTree()], Signature :: paterl_types:signature(), MbScope :: atom(), paterl_types:t_info(), errors:error()) ->
   {[erl_syntax:syntaxTree()], errors:error()}.
 annotate_expr_seq([], _, _, _, Error = #error{}) ->
   ?TRACE("Empty expression sequence."),
