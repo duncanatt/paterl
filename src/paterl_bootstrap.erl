@@ -92,7 +92,7 @@ bs_fun_def(BsFunName, Interface) ->
   erl_syntax:revert(
     erl_syntax:set_pos(
       erl_syntax:function(erl_syntax:atom(BsFunName), [Clause]),
-      paterl_anno:set_type(Type, erl_anno:new(0))
+      paterl_anno_3:set_type(Type, erl_anno:new(0))
     )).
 
 

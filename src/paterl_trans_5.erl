@@ -219,7 +219,7 @@ expr_seq([Expr = {call, Anno, {atom, _, Name}, Args} | ExprSeq], Mb) when Name =
   % needed in practice and removing 'Name =/= spawn' yields the same translated
   % output.
   Call0 =
-    case paterl_anno:interface(Anno) of
+    case paterl_anno_3:interface(Anno) of
       undefined ->
         % Call to function call outside mailbox context.
         ?TRACE("(~s) Translating call to ~s/~b.", [Mb, Name, length(Args)]),
@@ -228,7 +228,7 @@ expr_seq([Expr = {call, Anno, {atom, _, Name}, Args} | ExprSeq], Mb) when Name =
 
       _Interface ->
         % Call to function call inside mailbox context.
-        Modality = paterl_anno:modality(Anno),
+        Modality = paterl_anno_3:modality(Anno),
         ?TRACE("(~s) Translating call to ~s/~b [~s, ~s].", [
           Mb, Name, length(Args), _Interface, Modality
         ]),
@@ -276,7 +276,7 @@ expr_seq([{'if', _, [Clause0, Clause1]} | ExprSeq], Mb) ->
 expr_seq([{'receive', Anno, Clauses} | ExprSeq], Mb) ->
   % Erlang unconstrained receive expression. Corresponds to a Pat guard
   % expression.
-  State = paterl_anno:state(Anno),
+  State = paterl_anno_3:state(Anno),
   ?TRACE("(~s) Translating receive expression guarding on '~s'.", [Mb, State]),
   ReceiveClauses = case_clauses(Clauses, Mb),
 
@@ -290,7 +290,7 @@ expr_seq([{'receive', Anno, Clauses} | ExprSeq], Mb) ->
 
         % BEGIN HACK: Determine unit datum to return based on the return type of the
         % enclosing function.
-        {type, _, Type, _} = paterl_anno:type(Anno),
+        {type, _, Type, _} = paterl_anno_3:type(Anno),
         Unit = get_unit_value(Type),
         ?TRACE("(~s) HACK: Generating unit value ~p for type ~p", [Mb, Unit, Type]),
 
@@ -350,10 +350,10 @@ fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
   % function clause.
 
   % Translate function return type.
-  RetType = type(paterl_anno:type(Anno)),
+  RetType = type(paterl_anno_3:type(Anno)),
 
   % Determine whether function is mailbox-annotated.
-  case paterl_anno:interface(Anno) of
+  case paterl_anno_3:interface(Anno) of
     undefined ->
       % Non mailbox-annotated function.
       ?TRACE("Translating NON mailbox-annotated function clause */~b.", [
@@ -371,7 +371,7 @@ fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
       % Create mailbox to be injected as first parameter of the
       % mailbox-annotated function clause.
       Mb = fresh_mb(),
-      MbType = pat_syntax:mb_type(paterl_anno:interface(Anno), read),
+      MbType = pat_syntax:mb_type(paterl_anno_3:interface(Anno), read),
       Params = [
         pat_syntax:param(pat_syntax:var(Mb), MbType) |
         params(PatSeq)
@@ -435,7 +435,7 @@ expr_seq([Expr = {call, Anno, _Fun = {atom, _, Name}, Args} | ExprSeq]) ->
   case get_fun_return_unit(Expr) of
     undefined ->
       % Unknown externally-defined function that is translated normally.
-      case paterl_anno:interface(Anno) of
+      case paterl_anno_3:interface(Anno) of
         undefined ->
           % Call to function outside mailbox context.
           [pat_syntax:call_expr(Name, args(Args)) | expr_seq(ExprSeq)];
@@ -443,7 +443,7 @@ expr_seq([Expr = {call, Anno, _Fun = {atom, _, Name}, Args} | ExprSeq]) ->
         _Interface ->
           % Call to function inside mailbox context. Only the new modality is
           % permitted at this point.
-          Modality = paterl_anno:modality(Anno),
+          Modality = paterl_anno_3:modality(Anno),
           ?assertEqual(Modality, new),
 
           ?TRACE("Translating call to ~s/~b [~s, ~s].", [
@@ -542,7 +542,7 @@ guard_test({op, _, Op, GuardTest}) ->
 params(PatSeq) ->
   Translate =
     fun(Pat) ->
-      Type = paterl_anno:type(_Anno = element(2, Pat)),
+      Type = paterl_anno_3:type(_Anno = element(2, Pat)),
       pat_syntax:param(pat(Pat), type(Type))
     end,
   [Translate(Pat) || Pat <- PatSeq].
@@ -571,13 +571,13 @@ pat({tuple, _, [_Tag = {atom, _, Name} | Args]}) ->
 %% the mailbox once the function goes out of scope.
 new_call_expr({call, Anno, Fun = {atom, _, _}, Args}) ->
   % Only function calls with new mailbox-annotation modality are permitted.
-  ?assertEqual(new, paterl_anno:modality(Anno)),
+  ?assertEqual(new, paterl_anno_3:modality(Anno)),
 
   % Create Erlang syntax of function to be called. The created function must be
   % annotated with the use modality.
   Expr = erl_syntax:revert(
     erl_syntax:set_pos(
-      erl_syntax:application(Fun, Args), paterl_anno:set_modality(use, Anno))
+      erl_syntax:application(Fun, Args), paterl_anno_3:set_modality(use, Anno))
   ),
 
   % Create local mailbox IDs.
@@ -603,7 +603,7 @@ new_call_expr({call, Anno, Fun = {atom, _, _}, Args}) ->
   ),
 
   % Let with new mailbox creation.
-  Interface = paterl_anno:interface(Anno),
+  Interface = paterl_anno_3:interface(Anno),
   pat_syntax:let_expr(
     MbVarNew, pat_syntax:new_expr(pat_syntax:mb_type(Interface)), LetCall
   ).
@@ -612,14 +612,14 @@ new_call_expr({call, Anno, Fun = {atom, _, _}, Args}) ->
 %% the mailbox once the function goes out of scope.
 spawn_expr({call, Anno, {atom, _, spawn}, _MFArgs = [_, Fun, Args]}) ->
   % Only function calls with new mailbox-annotation modality are permitted.
-  ?assertEqual(new, paterl_anno:modality(Anno)),
+  ?assertEqual(new, paterl_anno_3:modality(Anno)),
 
   % Create Erlang syntax of function to be spawned. The created function must be
   % annotated with the use modality.
   Expr = erl_syntax:revert(
     erl_syntax:set_pos(
       erl_syntax:application(Fun, erl_syntax:list_elements(Args)),
-      paterl_anno:set_modality(use, Anno))
+      paterl_anno_3:set_modality(use, Anno))
   ),
 
   % Create local mailbox IDs.
@@ -649,7 +649,7 @@ spawn_expr({call, Anno, {atom, _, spawn}, _MFArgs = [_, Fun, Args]}) ->
   % Let with new mailbox creation.
   pat_syntax:let_expr(
     MbVarNew,
-    pat_syntax:new_expr(pat_syntax:mb_type(paterl_anno:interface(Anno))),
+    pat_syntax:new_expr(pat_syntax:mb_type(paterl_anno_3:interface(Anno))),
     LetSpawn
   ).
 

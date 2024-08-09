@@ -97,7 +97,7 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
               io:fwrite(color:green("[ANNOTATE] Annotating Erlang forms.~n")),
 %%              case paterl_anno:annotate(Forms, TInfo) of
 %%              case paterl_anno:annotate(Desugared0, TInfo0) of
-              paterl_anno:annotate(Desugared0, TInfo0) == paterl_anno_3:annotate(Desugared0, TInfo0),
+%%              paterl_anno:annotate(Desugared0, TInfo0) == paterl_anno_3:annotate(Desugared0, TInfo0),
               case paterl_anno_3:annotate(Desugared0, TInfo0) of
 
                 {ok, Annotated} ->
