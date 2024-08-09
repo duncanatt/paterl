@@ -12,10 +12,10 @@
 %%% Includes.
 -include_lib("stdlib/include/assert.hrl").
 -include("log.hrl").
--include("errors.hrl").
--include("paterl.hrl").
+%%-include("errors.hrl").
+-include("paterl_syntax.hrl").
 
-%%% API
+%%% API.
 -export([module/1]).
 -compile(export_all).
 
@@ -27,91 +27,6 @@
 %% Temporary variable name.
 -define(TEMP_VAR_NAME, v).
 
-%%-define(IS_LIT(Expr), true).
-%%
-%%-define(IS_VAR(Expr), true).
-%%
-%%-define(IS_TUPLE(Expr), true).
-%%
-%%-define(IS_VAL(Expr), ?IS_LIT(Expr)
-%%  orelse ?IS_VAR(Expr)
-%%  orelse ?IS_TUPLE(Expr)).
-
--define(synCat(Expr), element(1, Expr)).
-
--define(anno(Expr), element(2, Expr)).
-
--define(litValue(Expr), element(3, Expr)).
-
--define(isLit(Expr), ?synCat(Expr) =:= integer
-  orelse ?synCat(Expr) =:= float
-  orelse ?synCat(Expr) =:= string
-  orelse ?synCat(Expr) =:= atom
-).
-
--define(isInteger(Expr), ?synCat(Expr) =:= integer).
-
--define(isFloat(Expr), ?synCat(Expr) =:= float).
-
--define(isString(Expr), ?synCat(Expr) =:= string).
-
--define(isAtom(Expr), ?synCat(Expr) =:= atom).
-
--define(isVar(Expr), ?synCat(Expr) =:= var).
-
--define(isTuple(Expr), ?synCat(Expr) =:= tuple).
-
--define(isReceive(Expr), ?synCat(Expr) =:= 'receive').
-
--define(isOp(Expr), ?synCat(Expr) =:= op).
-
--define(isIf(Expr), ?synCat(Expr) =:= 'if').
-
--define(isCase(Expr), ?synCat(Expr) =:= 'case').
-
--define(isMatch(Expr), ?synCat(Expr) =:= match).
-
--define(isCall(Expr), ?synCat(Expr) =:= call).
-
--define(isVal(Expr), ?isLit(Expr) andalso ?isVar(Expr) andalso ?isTuple(Expr)).
-
--define(isMsg(Expr), ?isTuple(Expr)
-  andalso length(element(3, Expr)) >= 1
-  andalso ?isAtom(hd(element(3, Expr)))
-).
-
--define(isMbAnno(Expr), ?isTuple(Expr)
-  andalso length(element(3, Expr)) =:= 2
-  andalso ?isAtom(hd(element(3, Expr)))
-  andalso (?litValue(hd(element(3, Expr))) =:= new
-    orelse ?litValue(hd(element(3, Expr))) =:= use
-    orelse ?litValue(hd(element(3, Expr))) =:= state
-  )
-).
-
--define(isImplicitCall(Expr), ?isCall(Expr)
-  andalso ?isAtom(element(3, Expr))
-  andalso is_list(element(4, Expr))
-).
-
--define(isExplicitCall(Expr), ?isCall(Expr)
-  andalso not(?isAtom(element(3, Expr)))
-  andalso is_list(element(4, Expr))
-).
-
-
-
-test_expr_cat(Expr) when ?isMbAnno(Expr) ->
-  io:format("Is MB annotation ~p.~n", [Expr]);
-test_expr_cat(Expr) when ?isMsg(Expr) ->
-  io:format("Is message ~p.~n", [Expr]);
-test_expr_cat(Expr) when ?isImplicitCall(Expr) ->
-  io:format("Is implicit call ~p.~n", [Expr]);
-test_expr_cat(Expr) when ?isExplicitCall(Expr) ->
-  io:format("Is explicit call ~p.~n", [Expr]);
-test_expr_cat(Expr) ->
-  io:format("Unrecognized expression ~p.~n", [Expr]).
-
 
 
 %% TODO: Add code to normalize Erlang ASTs. Called assignment transformation.
@@ -119,22 +34,28 @@ test_expr_cat(Expr) ->
 %% Later, I need to add calls to functions to be externalized so that values are bound to variables,
 %% which is a huge task and is called a-normal form.
 
+%%% ----------------------------------------------------------------------------
+%%% API.
+%%% ----------------------------------------------------------------------------
 
-%% @doc Transforms an Erlang abstract syntax representation to its Erlang
-%% intermediate representation.
+%% @doc Rewrites an Erlang abstract syntax representation to its equivalent
+%% Erlang A-normal form representation.
+-spec module(erl_syntax:forms()) -> erl_syntax:forms().
 module(Forms) ->
   erl_syntax:revert_forms(forms(Forms)).
 
 
 %%% ----------------------------------------------------------------------------
-%%% Translation on forms and types.
+%%% Rewriting on forms and types.
 %%% ----------------------------------------------------------------------------
 
-%% @private Transforms Erlang forms.
+%% @private Rewrites Erlang forms.
+-spec forms(erl_syntax:forms()) -> erl_syntax:forms().
 forms(Forms) ->
   [form(Form) || Form <- Forms].
 
-%% @private Transforms Erlang functions.
+%% @private Rewrites Erlang functions.
+-spec form(erl_syntax:syntaxTree()) -> erl_syntax:syntaxTree().
 form({function, Anno, Name, _, Clauses}) ->
   erl_syntax:set_pos(
     erl_syntax:function(erl_syntax:atom(Name), fun_clauses(Clauses)),
@@ -144,37 +65,45 @@ form(Form) ->
   % Other Erlang forms.
   Form.
 
-%% @private Generic function to transform Erlang clauses.
+%% @private Generic function to rewrite Erlang clauses.
+-spec clauses(function(), [erl_syntax:syntaxTree()]) -> [erl_syntax:syntaxTree()].
 clauses(Fun, Clauses) when is_function(Fun, 1), is_list(Clauses) ->
   [Fun(Clause) || Clause <- Clauses].
 
-%% @private Transforms Erlang function clauses.
+%% @private Rewrites Erlang function clauses.
+-spec fun_clauses([erl_syntax:syntaxTree()]) -> [erl_syntax:syntaxTree()].
 fun_clauses(Clauses) ->
   clauses(fun fun_clause/1, Clauses).
 
-%% @private Transforms Erlang case and receive clauses.
+%% @private Rewrites Erlang case and receive clauses.
+-spec case_clauses([erl_syntax:syntaxTree()]) -> [erl_syntax:syntaxTree()].
 case_clauses(Clauses) ->
   clauses(fun case_clause/1, Clauses).
 
-%% @private Transforms Erlang if clauses.
+%% @private Rewrites Erlang if clauses.
+-spec if_clauses([erl_syntax:syntaxTree()]) -> [erl_syntax:syntaxTree()].
 if_clauses(Clauses) ->
   clauses(fun if_clause/1, Clauses).
 
-%% @private Transforms Erlang function clause.
+%% @private Rewrites Erlang function clause.
+-spec fun_clause(erl_syntax:syntaxTree()) -> erl_syntax:syntaxTree().
 fun_clause({clause, Anno, PatSeq, GuardSeq, Body}) ->
   erl_syntax:set_pos(erl_syntax:clause(PatSeq, GuardSeq, expr_seq(Body)), Anno).
 
-%% @private Transforms Erlang case and receive clause.
+%% @private Rewrites Erlang case and receive clause.
+-spec case_clause(erl_syntax:syntaxTree()) -> erl_syntax:syntaxTree().
 case_clause({clause, Anno, [Pat], GuardSeq, Body}) ->
   % Receive and case clause.
   erl_syntax:set_pos(erl_syntax:clause([Pat], GuardSeq, expr_seq(Body)), Anno).
 
-%% @private Transforms Erlang if clause.
+%% @private Rewrites Erlang if clause.
+-spec if_clause(erl_syntax:syntaxTree()) -> erl_syntax:syntaxTree().
 if_clause({clause, Anno, [], GuardSeq, Body}) ->
   % If clause.
   erl_syntax:set_pos(erl_syntax:clause(GuardSeq, expr_seq(Body)), Anno).
 
-%% @private Transforms Erlang expression sequences.
+%% @private Rewrites Erlang expression sequences.
+-spec expr_seq([erl_syntax:syntaxTree()]) -> [erl_syntax:syntaxTree()].
 expr_seq([]) ->
   [];
 %%expr_seq([Expr])
@@ -190,8 +119,12 @@ expr_seq([Expr]) ->
 expr_seq([Expr | ExprSeq]) ->
   [expr(Expr, true) | expr_seq(ExprSeq)].
 
-% Assign flag true = make the expression in a match; false = do not make the expression in a match but do make its body.
-%% @private Transforms Erlang values and expressions.
+%% @private Rewrites the specified Erlang AST expression node in A-normal form.
+%% @param RewriteNode Rewrites the AST expression node to a match expression
+%%        node if true, otherwise does not rewrite the node but rewrites the
+%%        expressions in its body.
+%% @returns Rewritten Erlang AST node in A-normal form.
+-spec expr(Expr :: erl_syntax:syntaxTree(), RewriteNode :: boolean()) -> erl_syntax:syntaxTree().
 expr(Lit, true) when ?isLit(Lit) ->
   % Literal expressions.
   Anno = erl_syntax:get_pos(Lit),
@@ -319,26 +252,29 @@ expr(Expr, false) when ?isReceive(Expr) ->
 %%% ----------------------------------------------------------------------------
 
 %% @private Returns a fresh variable name.
+-spec fresh_var() -> paterl_tools:name().
 fresh_var() ->
   paterl_tools:fresh_var(?TEMP_VAR_NAME).
 
-%%is_val(Expr)
-%%  when ?synCat(Expr) =:= integer;
-%%  ?synCat(Expr) =:= float;
-%%  ?synCat(Expr) =:= string;
-%%  ?synCat(Expr) =:= atom ->
-%%  true;
-%%is_val(Expr) when ?synCat(Expr) =:= var ->
-%%  true;
-%%is_val(Expr) when ?synCat(Expr) =:= tuple ->
-%%  true;
-%%is_val(_) ->
-%%  false.
 
+%%% ----------------------------------------------------------------------------
+%%% Inline tests.
+%%% ----------------------------------------------------------------------------
 
--spec fib2() -> integer().
-fib2() ->
-%%  T = U = V = 50,
-  U = 50,
-  60,
-  T = if 1 == 1 -> 10; true -> Y = 20, 30, 40, ?mb_assert_regex("Resp"), receive {a, X} -> X end end.
+%%-spec fib2() -> integer().
+%%fib2() ->
+%%%%  T = U = V = 50,
+%%  U = 50,
+%%  60,
+%%  T = if 1 == 1 -> 10; true -> Y = 20, 30, 40, ?mb_assert_regex("Resp"), receive {a, X} -> X end end.
+
+test_expr_cat(Expr) when ?isMbAnno(Expr) ->
+  io:format("Is MB annotation ~p.~n", [Expr]);
+test_expr_cat(Expr) when ?isMsg(Expr) ->
+  io:format("Is message ~p.~n", [Expr]);
+test_expr_cat(Expr) when ?isImplicitCall(Expr) ->
+  io:format("Is implicit call ~p.~n", [Expr]);
+test_expr_cat(Expr) when ?isExplicitCall(Expr) ->
+  io:format("Is explicit call ~p.~n", [Expr]);
+test_expr_cat(Expr) ->
+  io:format("Unrecognized expression ~p.~n", [Expr]).

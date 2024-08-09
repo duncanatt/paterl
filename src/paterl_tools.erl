@@ -12,7 +12,10 @@
 %% API
 -export([fresh_var/1]).
 
+-export_type([name/0]).
 %%-compile(export_all).
+
+-type name() :: atom().
 
 -define(VAR__ID_START, 0).
 

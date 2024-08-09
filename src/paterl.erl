@@ -36,6 +36,16 @@
 
 %%TODO: Ultimate plan: Desugar -> ANF -> CPS -> RTL -> SSA -> RTL -> ASM
 
+%% Current flow:
+%% 1. epp:parse_file
+%% 2. erl_lint:module
+%% 3. paterl_ir:module/anf
+%% 4. paterl_types:table
+%% 5. paterl_bootstrap:forms
+%% 6. paterl_anno:annotate
+%% 7. paterl_trans:module
+%% 8. pat_prettypr:module
+
 compile(File, Opts) when is_list(File), is_list(Opts) ->
   % Preprocess file.
   io:fwrite(color:green("[EPP] Preprocessing file ~s.~n"), [File]),
@@ -131,7 +141,7 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
                       case exec(?EXEC ++ " " ++ PatFile) of
                         {0, _} ->
                           % Generated Pat file type-checked successfully.
-                          ok;
+                          io:fwrite(color:green("[PAT] Successfully type-checked ~s.erl.~n"), [PatFile]);
                         {_, Bytes} ->
                           % Generated Pat file contains errors.
                           Msg = parse_error(Bytes),

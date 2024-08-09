@@ -12,7 +12,7 @@
 %%% Includes.
 -include_lib("stdlib/include/assert.hrl").
 -include("log.hrl").
--include("pat.hrl").
+-include("pat_syntax.hrl").
 
 %%% API.
 -export([lit_type/1, mb_type/1, mb_type/2, product_type/1, union_type/1, msg_type/2]).
