@@ -11,11 +11,11 @@ jobs:
       image: erlang:22.1.5
 
     env:
-      CMD: ./src/paterl
-      BIN: paterl/ebin
-      INCLUDE: paterl/include
-      SRC: paterl/src
-      TEST: paterl/test
+      CMD: /src/paterl
+      BIN: ebin
+      INCLUDE: include
+      SRC: src
+      TEST: test
 
     steps:
       - uses: actions/checkout@v1
