@@ -1,24 +1,21 @@
 name: Build
 
-on:
-  push:
-    branches:
-      - master
-
+on: workflow_dispatch
+        
 jobs:
   build:
 
     runs-on: ubuntu-latest
 
     container:
-      image: erlang:22.1.5
+      image: erlang:26.2.5
 
     env:
-      CMD: ./src/paterl
-      BIN: paterl/ebin
-      INCLUDE: paterl/include
-      SRC: paterl/src
-      TEST: paterl/test
+      CMD: /src/paterl
+      BIN: ebin
+      INCLUDE: include
+      SRC: src
+      TEST: test
 
     steps:
       - uses: actions/checkout@v1
@@ -26,8 +23,9 @@ jobs:
         run: |
           rm -rf $BIN/*.beam erl_crash.dump
           mkdir -p $BIN
-          erlc -DTEST -pa $BIN +debug_info -I $INCLUDE -o $BIN $SRC/*.erl $SRC/**/*.erl
-          erlc -DTEST -pa $BIN +debug_info -I $INCLUDE -o $BIN $TEST/**/*.erl
+          pwd
+          erlc -DTEST -pa ebin +debug_info -W0 -I include -o ebin src/*.erl src/**/*.erl
+          # erlc -DTEST -pa $BIN +debug_info -I $INCLUDE -o $BIN $TEST/**/*.erl
       - name: List
         run: |
           ls -lart $BIN
