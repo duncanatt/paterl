@@ -133,8 +133,16 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
 
                   io:format("~n~n~nOutput Pat:~n~n~n~s~n", [number(PatString)]),
 
-                  PatFile = filename:rootname(File),
+%%                  PatFile = filename:rootname(File),
+                  OutDir = proplists:get_value(out, Opts),
+                  io:format("Ensuring that the directory exists: ~p.~n", [OutDir]),
+                  filelib:ensure_path(OutDir),
+
+%%                  PatFile = filename:join(OutDir, filename:rootname(File)),
+                  PatFile = filename:join(OutDir, filename:basename(File, ".erl")),
                   io:fwrite(color:green("[WRITE] Writing temporary Pat file ~s.~n"), [PatFile]),
+
+
                   case file:write_file(PatFile, PatString) of
                     ok ->
                       io:fwrite(color:green("[PAT] Pat'ting ~s.~n"), [PatFile]),
