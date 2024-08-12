@@ -14,6 +14,7 @@ jobs:
       image: erlang:22.1.5
 
     env:
+      CMD: ./src/paterl
       BIN: paterl/ebin
       INCLUDE: paterl/include
       SRC: paterl/src
@@ -33,6 +34,6 @@ jobs:
       - name: Test
         run: |
           echo "CodeBEAM/ID server test"
-	      $(CMD) $(SRC)/examples/erlang/codebeam/id_server_demo.erl -v all -I include -O $(BIN)
+	      $CMD $(SRC)/examples/erlang/codebeam/id_server_demo.erl -v all -I include -O $(BIN)
 	      diff $(BIN)/id_server_demo $(TEST)/generated/codebeam/id_server_demo_ref
           
