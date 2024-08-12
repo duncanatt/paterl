@@ -1,14 +1,6 @@
 name: Build
 
-on:
-  push:
-    branches:
-      - master
-  workflow_dispatch:
-    tags:
-      description: 'Test scenario tags'
-      required: false
-      type: boolean
+on: workflow_dispatch
         
 jobs:
   build:
