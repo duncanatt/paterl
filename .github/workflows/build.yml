@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     container:
-      image: erlang:22.1.5
+      image: erlang:26.2.5
 
     env:
       CMD: /src/paterl
