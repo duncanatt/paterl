@@ -23,6 +23,7 @@ jobs:
         run: |
           rm -rf $BIN/*.beam erl_crash.dump
           mkdir -p $BIN
+          pwd
           erlc -DTEST -pa ebin +debug_info -I include -o ebin src/**/*.erl
           # erlc -DTEST -pa $BIN +debug_info -I $INCLUDE -o $BIN $TEST/**/*.erl
       - name: List
