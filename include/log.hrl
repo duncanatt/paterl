@@ -24,7 +24,9 @@
 %%% ----------------------------------------------------------------------------
 
 %% Comment the line below to disable logging.
+-ifndef(log).
 -define(log, log).
+-endif.
 
 %% -----------------------------------------------------------------------------
 %% The macro log_level controls the logging level. It can be set to a value

@@ -12,6 +12,7 @@
 %%% Includes.
 -include_lib("stdlib/include/assert.hrl").
 -include("log.hrl").
+-include("paterl_syntax.hrl").
 
 %%% API.
 -export([module/1]).
@@ -25,34 +26,39 @@
 -define(MB_VAR_NAME, mb).
 
 %% Checks whether the term is a type.
--define(IS_TYPE(Type), element(1, Type) =:= type).
+%%-define(IS_TYPE(Type), element(1, Type) =:= type).
 
 %% Checks whether the term is a literal type.
--define(IS_LIT_TYPE(Type), (?IS_TYPE(Type)
-  andalso (element(3, Type) =:= boolean
-    orelse element(3, Type) =:= integer
-    orelse element(3, Type) =:= float
-    orelse element(3, Type) =:= string
-    orelse element(3, Type) =:= atom)
-)).
+%%-define(IS_LIT_TYPE(Type), (?IS_TYPE(Type)
+%%  andalso (element(3, Type) =:= boolean
+%%    orelse element(3, Type) =:= integer
+%%    orelse element(3, Type) =:= float
+%%    orelse element(3, Type) =:= string
+%%    orelse element(3, Type) =:= atom)
+%%)).
 
 %% Checks whether the term is a literal.
--define(IS_LIT(Term), (element(1, Term) =:= boolean
-  orelse element(1, Term) =:= integer
-  orelse element(1, Term) =:= float
-  orelse element(1, Term) =:= string
-  orelse element(1, Term) =:= atom
-)).
+%%-define(IS_LIT(Term), (element(1, Term) =:= boolean
+%%  orelse element(1, Term) =:= integer
+%%  orelse element(1, Term) =:= float
+%%  orelse element(1, Term) =:= string
+%%  orelse element(1, Term) =:= atom
+%%)).
 
 %% Checks whether the Erlang type is a Pat unit equivalent.
--define(IS_UNIT_EQ_TYPE(Type), (?IS_TYPE(Type) andalso
-  (element(3, Type) =:= no_return
-    orelse element(3, Type) =:= any
-    orelse element(3, Type) =:= none)
+%%-define(IS_UNIT_EQ_TYPE(Type), (?IS_TYPE(Type) andalso
+%%  (element(3, Type) =:= no_return
+%%    orelse element(3, Type) =:= any
+%%    orelse element(3, Type) =:= none)
+%%)).
+-define(isUnitEqType(Type), (?isType(Type) andalso
+  (?litValue(Type) =:= no_return
+    orelse ?litValue(Type) =:= any
+    orelse ?litValue(Type) =:= none)
 )).
 
 %% Extracts the literal element from the Erlang term.
--define(GET_LIT(Term), element(3, Term)).
+%%-define(GET_LIT(Term), element(3, Term)).
 
 %% Map of externally-defined opaque Erlang functions that can be substituted for
 %% the concrete data unit value that has the same type as that returned by the
@@ -79,7 +85,6 @@
 %% @doc Translates the specified Erlang abstract syntax representation to its
 %% equivalent Pat abstract syntax representation.
 module(Forms) ->
-%%  forms(Forms ++ [main_fun_def()]).
   forms(Forms).
 
 
@@ -122,10 +127,10 @@ type({type, _, pid, _Vars = []}) ->
   % mailbox interface type is just a PID. Mailbox interfaces whose type is just
   % a PID are treated as empty Pat mailbox interface definitions.
   undefined;
-type(Type = {type, _, Name, _Vars = []}) when ?IS_LIT_TYPE(Type) ->
+type(Type = {type, _, Name, _Vars = []}) when ?isLitType(Type) ->
   % Erlang literal types.
   pat_syntax:lit_type(Name);
-type(Type = {type, _, Name, _Vars = []}) when ?IS_UNIT_EQ_TYPE(Type) ->
+type(Type = {type, _, Name, _Vars = []}) when ?isUnitEqType(Type) ->
   % Erlang special type translated as Pat unit type.
   pat_syntax:lit_type(unit);
 type({atom, _, ok}) ->
@@ -404,10 +409,10 @@ expr_seq([]) ->
   [];
 expr_seq([{atom, _, ok} | ExprSeq]) ->
   [pat_syntax:unit() | expr_seq(ExprSeq)];
-expr_seq([Lit | ExprSeq]) when ?IS_LIT(Lit) ->
+expr_seq([Lit | ExprSeq]) when ?isLit(Lit) ->
   % Erlang literal expressions.
-  ?TRACE("Translating literal ~s ~p.", [element(1, Lit), ?GET_LIT(Lit)]),
-  [pat_syntax:lit(?GET_LIT(Lit)) | expr_seq(ExprSeq)];
+  ?TRACE("Translating literal ~s ~p.", [element(1, Lit), ?litValue(Lit)]),
+  [pat_syntax:lit(?litValue(Lit)) | expr_seq(ExprSeq)];
 expr_seq([{var, _, Name} | ExprSeq]) ->
   % Erlang variable expression.
   ?TRACE("Translating variable '~s'.", [Name]),
@@ -522,9 +527,9 @@ guard(GuardTests) ->
   [guard_test(GuardTest) || GuardTest <- GuardTests].
 
 %% @private Translates an Erlang guard test.
-guard_test(Lit) when ?IS_LIT(Lit) ->
+guard_test(Lit) when ?isLit(Lit) ->
   % Erlang literal guard tests.
-  pat_syntax:lit(?GET_LIT(Lit));
+  pat_syntax:lit(?litValue(Lit));
 guard_test({var, _, Name}) ->
   % Erlang variable guard test.
   pat_syntax:var(Name);
@@ -552,9 +557,9 @@ pat_seq(PatSeq) ->
   [pat(Pat) || Pat <- PatSeq].
 
 %% @private Translates the specified Erlang pattern.
-pat(Lit) when ?IS_LIT(Lit) ->
+pat(Lit) when ?isLit(Lit) ->
   % Erlang literal patterns.
-  pat_syntax:lit(?GET_LIT(Lit));
+  pat_syntax:lit(?litValue(Lit));
 pat({var, _, Name}) ->
   % Erlang variable pattern.
   pat_syntax:var(Name);
