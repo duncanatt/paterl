@@ -13,6 +13,7 @@
 -include("paterl.hrl").
 
 -import(io, [format/2]).
+-import(rand, [uniform/0]).
 
 %%% API.
 -export([main/0]).
@@ -44,6 +45,8 @@ future() ->
   receive
     {put, X} ->
       resolved_future(X)
+%%    {put, X} ->
+%%      resolved_future(X)
   end.
 
 -spec resolved_future(integer()) -> no_return().
@@ -75,19 +78,21 @@ main() ->
   Future_mb = spawn(?MODULE, future, []),
   Future_mb ! {put, 5}, % Comment out for "missing Put".
 %%  Future_mb ! {put, 5}, % Uncomment for "extra Put".
+  Boolean = true,
   A = user(Future_mb),
   5 + 6,
   T1 = format("~s", [A]),
   format("~s", [A]),
   a_non_annotated_fun("hello", 6 + 8, 900),
-  if 5 == 2 -> K = "five_is_two"; true -> X = "five_is_not_two", Y = "but two is not" end,
-  if 5 == 2 -> "five_is_two"; true -> "five_is_not_two", "but two is not" end,
+  if 5 =< 2 -> K = "five_is_two"; true -> X = "five_is_not_two", Y = "but two is not" end,
+  if 5 == 2 -> "five_is_two"; true -> "five_is_not_two", "but two is not", "and third line" end,
+  if 5 == 1 -> "TRUE"; true -> "FALSE" end,
   10,
   20,
   30,
   40,
   50,
-
+  B = uniform(),
   T1.
 
 
@@ -108,6 +113,10 @@ a_non_annotated_fun(Var, A, B) ->
 %%  end,
   T = true,
   Last = a_non_annotated_fun(Var, 1, 2 + 3).
+
+-spec send_ping(integer(), any(), any()) -> string().
+send_ping(Id, Actor1, Actor2) ->
+  if Id == 1 -> "TRUE"; true -> "FALSE" end.
 
 %%-spec simple() -> integer().
 %%simple() ->
