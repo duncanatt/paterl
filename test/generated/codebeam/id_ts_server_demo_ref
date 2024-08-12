@@ -1,0 +1,152 @@
+# Translated from id_ts_server_demo.erl
+
+interface Id_client_mb {
+  Id(Int)
+}
+
+interface Ts_client_mb {
+  Ts(Int)
+}
+
+interface Id_server_mb {
+  Init(Int),
+  Get(Id_client_mb!)
+}
+
+interface Ts_server_mb {
+  Now(Ts_client_mb!)
+}
+
+def id_server(mb0: Id_server_mb?): (Unit * Id_server_mb?) {
+  guard mb0: Init.*Get {
+    receive Init(n) from mb1 ->
+      id_server_loop(mb1, n)
+  }
+}
+
+def id_server_loop(mb2: Id_server_mb?, n: Int): (Unit * Id_server_mb?) {
+  guard mb2: *Get {
+    empty(mb5) ->
+      ((), mb5)
+    receive Get(client) from mb3 ->
+      let (v0, mb4) =
+        (client ! Id(n), mb3)
+      in
+        id_server_loop(mb4, n + 1)
+  }
+}
+
+def ts_server(mb6: Ts_server_mb?): (Unit * Ts_server_mb?) {
+  ts_server_loop(mb6)
+}
+
+def ts_server_loop(mb7: Ts_server_mb?): (Unit * Ts_server_mb?) {
+  guard mb7: *Now {
+    empty(mb11) ->
+      ((), mb11)
+    receive Now(client) from mb8 ->
+      let (ts, mb9) =
+        (0, mb8)
+      in
+        let (v1, mb10) =
+          (client ! Ts(ts), mb9)
+        in
+          ts_server_loop(mb10)
+  }
+}
+
+def id_rpc(mb12: Id_client_mb?, server: Id_server_mb!): (Int * Id_client_mb?) {
+  let (self, mb13) =
+    (mb12, mb12)
+  in
+    let (v2, mb14) =
+      (server ! Get(self), mb13)
+    in
+      guard mb14: Id {
+        receive Id(id) from mb15 ->
+          (id, mb15)
+      }
+}
+
+def ts_asy(mb16: Ts_client_mb?, server: Ts_server_mb!): (Unit * Ts_client_mb?) {
+  let (self, mb17) =
+    (mb16, mb16)
+  in
+    (server ! Now(self), mb17)
+}
+
+def ts_get(mb18: Ts_client_mb?): (Int * Ts_client_mb?) {
+  guard mb18: Ts {
+    receive Ts(ts) from mb19 ->
+      (ts, mb19)
+  }
+}
+
+def main(mb20: Ts_client_mb?): (Unit * Ts_client_mb?) {
+  let (idserver, mb23) =
+    (let mb21 =
+  new [Id_server_mb]
+in
+  let y =
+    spawn {
+      let (x, mb22) =
+        id_server(mb21)
+      in
+        free(mb22)
+    }
+  in
+    mb21, mb20)
+  in
+    let (tsserver, mb26) =
+      (let mb24 =
+  new [Ts_server_mb]
+in
+  let y =
+    spawn {
+      let (x, mb25) =
+        ts_server(mb24)
+      in
+        free(mb25)
+    }
+  in
+    mb24, mb23)
+    in
+      let (v3, mb27) =
+        (idserver ! Init(5), mb26)
+      in
+        let (v4, mb28) =
+          ts_asy(mb27, tsserver)
+        in
+          let (id, mb31) =
+            (let mb29 =
+  new [Id_client_mb]
+in
+  let (x, mb30) =
+    id_rpc(mb29, idserver)
+  in
+    let y =
+      free(mb30)
+    in
+      x, mb28)
+          in
+            let (ts, mb32) =
+              ts_get(mb31)
+            in
+              let (v5, mb33) =
+                ((), mb32)
+              in
+                ((), mb33)
+}
+
+def main'(): Unit {
+  let mb34 =
+    new [Ts_client_mb]
+  in
+    let (x, mb35) =
+      main(mb34)
+    in
+      let y =
+        free(mb35)
+      in
+        x
+}

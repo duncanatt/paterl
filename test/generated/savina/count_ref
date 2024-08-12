@@ -1,0 +1,117 @@
+# Translated from count.erl
+
+interface Producer_mb {
+  Inc(),
+  Total(Int)
+}
+
+interface Counter_mb {
+  Inc(),
+  Get(Producer_mb!)
+}
+
+interface Main_mb { }
+
+def producer(mb0: Producer_mb?, counter: Counter_mb!, nummessages: Int): (Unit * Producer_mb?) {
+  guard mb0: Inc {
+    receive Inc() from mb1 ->
+      producer_loop(mb1, counter, nummessages)
+  }
+}
+
+def producer_loop(mb2: Producer_mb?, counter: Counter_mb!, nummessages: Int): (Unit * Producer_mb?) {
+  if (nummessages <= 0) {
+    let (self, mb3) =
+      (mb2, mb2)
+    in
+      let (v0, mb4) =
+        (counter ! Get(self), mb3)
+      in
+        producer_exit(mb4)
+  }
+  else {
+    let (v1, mb5) =
+      (counter ! Inc(), mb2)
+    in
+      producer_loop(mb5, counter, nummessages - 1)
+  }
+}
+
+def producer_exit(mb6: Producer_mb?): (Unit * Producer_mb?) {
+  guard mb6: Total {
+    receive Total(total) from mb7 ->
+      ((), mb7)
+  }
+}
+
+def counter(mb8: Counter_mb?, total: Int): (Unit * Counter_mb?) {
+  counter_loop(mb8, total)
+}
+
+def counter_loop(mb9: Counter_mb?, total: Int): (Unit * Counter_mb?) {
+  guard mb9: *Inc . Get {
+    empty(mb13) ->
+      ((), mb13)
+    receive Inc() from mb10 ->
+      counter_loop(mb10, total + 1)
+    receive Get(producer) from mb11 ->
+      let (v2, mb12) =
+        (producer ! Total(total), mb11)
+      in
+        counter_exit(mb12)
+  }
+}
+
+def counter_exit(mb14: Counter_mb?): (Unit * Counter_mb?) {
+  guard mb14: *Inc {
+    empty(mb16) ->
+      ((), mb16)
+    receive Inc() from mb15 ->
+      counter_exit(mb15)
+  }
+}
+
+def main(mb17: Main_mb?): (Unit * Main_mb?) {
+  let (counter, mb20) =
+    (let mb18 =
+  new [Counter_mb]
+in
+  let y =
+    spawn {
+      let (x, mb19) =
+        counter(mb18, 0)
+      in
+        free(mb19)
+    }
+  in
+    mb18, mb17)
+  in
+    let (producer, mb23) =
+      (let mb21 =
+  new [Producer_mb]
+in
+  let y =
+    spawn {
+      let (x, mb22) =
+        producer(mb21, counter, 16)
+      in
+        free(mb22)
+    }
+  in
+    mb21, mb20)
+    in
+      (producer ! Inc(), mb23)
+}
+
+def main'(): Unit {
+  let mb24 =
+    new [Main_mb]
+  in
+    let (x, mb25) =
+      main(mb24)
+    in
+      let y =
+        free(mb25)
+      in
+        x
+}

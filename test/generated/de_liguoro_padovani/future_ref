@@ -1,0 +1,105 @@
+# Translated from future.erl
+
+interface User_mb {
+  Reply(Int)
+}
+
+interface Future_mb {
+  Put(Int),
+  Get(User_mb!)
+}
+
+interface Main_mb { }
+
+def future(mb0: Future_mb?): (Unit * Future_mb?) {
+  guard mb0: Put . *Get {
+    receive Put(value) from mb1 ->
+      resolved_future(mb1, value)
+  }
+}
+
+def resolved_future(mb2: Future_mb?, value: Int): (Unit * Future_mb?) {
+  guard mb2: *Get {
+    empty(mb5) ->
+      ((), mb5)
+    receive Get(userpid) from mb3 ->
+      let (v0, mb4) =
+        (userpid ! Reply(value), mb3)
+      in
+        resolved_future(mb4, value)
+  }
+}
+
+def user(mb6: User_mb?, futurepid: Future_mb!): (Int * User_mb?) {
+  let (self, mb7) =
+    (mb6, mb6)
+  in
+    let (v1, mb8) =
+      (futurepid ! Get(self), mb7)
+    in
+      guard mb8: Reply {
+        receive Reply(value) from mb9 ->
+          (value, mb9)
+      }
+}
+
+def main(mb10: Main_mb?): (Unit * Main_mb?) {
+  let (futurepid, mb13) =
+    (let mb11 =
+  new [Future_mb]
+in
+  let y =
+    spawn {
+      let (x, mb12) =
+        future(mb11)
+      in
+        free(mb12)
+    }
+  in
+    mb11, mb10)
+  in
+    let (v2, mb14) =
+      (futurepid ! Put(5), mb13)
+    in
+      let (get1, mb17) =
+        (let mb15 =
+  new [User_mb]
+in
+  let (x, mb16) =
+    user(mb15, futurepid)
+  in
+    let y =
+      free(mb16)
+    in
+      x, mb14)
+      in
+        let (v3, mb18) =
+          ((), mb17)
+        in
+          let (get2, mb21) =
+            (let mb19 =
+  new [User_mb]
+in
+  let (x, mb20) =
+    user(mb19, futurepid)
+  in
+    let y =
+      free(mb20)
+    in
+      x, mb18)
+          in
+            ((), mb21)
+}
+
+def main'(): Unit {
+  let mb22 =
+    new [Main_mb]
+  in
+    let (x, mb23) =
+      main(mb22)
+    in
+      let y =
+        free(mb23)
+      in
+        x
+}

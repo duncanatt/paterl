@@ -1,0 +1,90 @@
+# Translated from id_server_demo.erl
+
+interface Id_client_mb {
+  Id(Int)
+}
+
+interface Id_server_mb {
+  Init(Int),
+  Get(Id_client_mb!)
+}
+
+interface Main_mb { }
+
+def id_server(mb0: Id_server_mb?): (Unit * Id_server_mb?) {
+  guard mb0: Init.*Get {
+    receive Init(n) from mb1 ->
+      id_server_loop(mb1, n)
+  }
+}
+
+def id_server_loop(mb2: Id_server_mb?, n: Int): (Unit * Id_server_mb?) {
+  guard mb2: *Get {
+    empty(mb5) ->
+      ((), mb5)
+    receive Get(client) from mb3 ->
+      let (v0, mb4) =
+        (client ! Id(n), mb3)
+      in
+        id_server_loop(mb4, n + 1)
+  }
+}
+
+def id_client(mb6: Id_client_mb?, server: Id_server_mb!): (Int * Id_client_mb?) {
+  let (self, mb7) =
+    (mb6, mb6)
+  in
+    let (v1, mb8) =
+      (server ! Get(self), mb7)
+    in
+      guard mb8: Id {
+        receive Id(id) from mb9 ->
+          (id, mb9)
+      }
+}
+
+def main(mb10: Main_mb?): (Unit * Main_mb?) {
+  let (server, mb13) =
+    (let mb11 =
+  new [Id_server_mb]
+in
+  let y =
+    spawn {
+      let (x, mb12) =
+        id_server(mb11)
+      in
+        free(mb12)
+    }
+  in
+    mb11, mb10)
+  in
+    let (v2, mb14) =
+      (server ! Init(5), mb13)
+    in
+      let (id, mb17) =
+        (let mb15 =
+  new [Id_client_mb]
+in
+  let (x, mb16) =
+    id_client(mb15, server)
+  in
+    let y =
+      free(mb16)
+    in
+      x, mb14)
+      in
+        ((), mb17)
+}
+
+def main'(): Unit {
+  let mb18 =
+    new [Main_mb]
+  in
+    let (x, mb19) =
+      main(mb18)
+    in
+      let y =
+        free(mb19)
+      in
+        x
+}

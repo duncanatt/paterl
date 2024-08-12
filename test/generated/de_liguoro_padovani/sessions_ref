@@ -1,0 +1,205 @@
+# Translated from sessions.erl
+
+interface Arbiter_mb {
+  A_send1(Int, Alice_mb!),
+  A_send2(Int, Alice_mb!),
+  A_receive(Alice_mb!),
+  C_receive1(Carol_mb!),
+  C_receive2(Carol_mb!),
+  C_send(Int, Carol_mb!)
+}
+
+interface Alice_mb {
+  A_reply1(Arbiter_mb!),
+  A_reply2(Arbiter_mb!),
+  A_reply3(Int)
+}
+
+interface Carol_mb {
+  C_reply1(Int, Arbiter_mb!),
+  C_reply2(Int, Arbiter_mb!),
+  C_reply3()
+}
+
+def alice(mb0: Alice_mb?, arb: Arbiter_mb!): (Unit * Alice_mb?) {
+  let (self, mb1) =
+    (mb0, mb0)
+  in
+    let (v0, mb2) =
+      (arb ! A_send1(4, self), mb1)
+    in
+      let (v1, mb8) =
+        guard mb2: A_reply1 {
+          receive A_reply1(arb) from mb3 ->
+            let (self, mb4) =
+              (mb3, mb3)
+            in
+              let (v2, mb5) =
+                (arb ! A_send2(2, self), mb4)
+              in
+                guard mb5: A_reply2 {
+                  receive A_reply2(arb) from mb6 ->
+                    let (self, mb7) =
+                      (mb6, mb6)
+                    in
+                      (arb ! A_receive(self), mb7)
+                }
+        }
+      in
+        guard mb8: A_reply3 {
+          receive A_reply3(res) from mb9 ->
+            ((), mb9)
+        }
+}
+
+def carol(mb10: Carol_mb?, arb: Arbiter_mb!): (Unit * Carol_mb?) {
+  let (self, mb11) =
+    (mb10, mb10)
+  in
+    let (v3, mb12) =
+      (arb ! C_receive1(self), mb11)
+    in
+      let (v4, mb18) =
+        guard mb12: C_reply1 {
+          receive C_reply1(x, arb) from mb13 ->
+            let (self, mb14) =
+              (mb13, mb13)
+            in
+              let (v5, mb15) =
+                (arb ! C_receive2(self), mb14)
+              in
+                guard mb15: C_reply2 {
+                  receive C_reply2(y, arb) from mb16 ->
+                    let (self, mb17) =
+                      (mb16, mb16)
+                    in
+                      (arb ! C_send(x + y, self), mb17)
+                }
+        }
+      in
+        guard mb18: C_reply3 {
+          receive C_reply3() from mb19 ->
+            ((), mb19)
+        }
+}
+
+def arbiter(mb20: Arbiter_mb?): (Unit * Arbiter_mb?) {
+  let (self, mb21) =
+    (mb20, mb20)
+  in
+    let (v6, mb29) =
+      guard mb21: A_send1 . C_receive1 {
+        receive A_send1(price1, alicemb) from mb22 ->
+          let (v7, mb23) =
+            ((), mb22)
+          in
+            guard mb23: C_receive1 {
+              receive C_receive1(carolmb) from mb24 ->
+                let (v8, mb25) =
+                  ((), mb24)
+                in
+                  let (self, mb26) =
+                    (mb25, mb25)
+                  in
+                    let (v9, mb27) =
+                      (alicemb ! A_reply1(self), mb26)
+                    in
+                      let (v10, mb28) =
+                        (carolmb ! C_reply1(price1, self), mb27)
+                      in
+                        ((), mb28)
+            }
+      }
+    in
+      let (v11, mb37) =
+        guard mb29: A_send2 . C_receive2 {
+          receive A_send2(price2, alicemb) from mb30 ->
+            let (v12, mb31) =
+              ((), mb30)
+            in
+              guard mb31: C_receive2 {
+                receive C_receive2(carolmb) from mb32 ->
+                  let (v13, mb33) =
+                    ((), mb32)
+                  in
+                    let (self, mb34) =
+                      (mb33, mb33)
+                    in
+                      let (v14, mb35) =
+                        (alicemb ! A_reply2(self), mb34)
+                      in
+                        let (v15, mb36) =
+                          (carolmb ! C_reply2(price2, self), mb35)
+                        in
+                          ((), mb36)
+              }
+        }
+      in
+        guard mb37: C_send . A_receive {
+          receive C_send(res, carolmb) from mb38 ->
+            let (v16, mb39) =
+              ((), mb38)
+            in
+              guard mb39: A_receive {
+                receive A_receive(alicemb) from mb40 ->
+                  let (v17, mb41) =
+                    ((), mb40)
+                  in
+                    let (v18, mb42) =
+                      (alicemb ! A_reply3(res), mb41)
+                    in
+                      let (v19, mb43) =
+                        (carolmb ! C_reply3(), mb42)
+                      in
+                        ((), mb43)
+              }
+        }
+}
+
+def main(mb44: Arbiter_mb?): (Unit * Arbiter_mb?) {
+  let (arbitermb, mb45) =
+    (mb44, mb44)
+  in
+    let (v20, mb48) =
+      (let mb46 =
+  new [Alice_mb]
+in
+  let y =
+    spawn {
+      let (x, mb47) =
+        alice(mb46, arbitermb)
+      in
+        free(mb47)
+    }
+  in
+    mb46, mb45)
+    in
+      let (v21, mb51) =
+        (let mb49 =
+  new [Carol_mb]
+in
+  let y =
+    spawn {
+      let (x, mb50) =
+        carol(mb49, arbitermb)
+      in
+        free(mb50)
+    }
+  in
+    mb49, mb48)
+      in
+        arbiter(mb51)
+}
+
+def main'(): Unit {
+  let mb52 =
+    new [Arbiter_mb]
+  in
+    let (x, mb53) =
+      main(mb52)
+    in
+      let y =
+        free(mb53)
+      in
+        x
+}
