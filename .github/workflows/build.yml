@@ -37,3 +37,6 @@ jobs:
           echo "CodeBEAM/ID TS server test"
           $CMD $SRC/examples/erlang/codebeam/id_ts_server_demo.erl -v all -I include -o $BIN
           diff $BIN/id_ts_server_demo $TEST/generated/codebeam/id_ts_server_demo_ref
+          echo "De'Liguoro & Padovani/Future test"
+          $CMD $SRC/examples/erlang/de_liguoro_padovani/future.erl -v all -I include -o $BIN
+          diff $BIN/future $TEST/generated/de_liguoro_padovani/future_ref
