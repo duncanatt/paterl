@@ -33,7 +33,7 @@ jobs:
         run: |
           echo "CodeBEAM/ID server test"
           $CMD $SRC/examples/erlang/codebeam/id_server_demo.erl -v all -I include -o $BIN
-          diff $BIN/id_server_demo $TEST/generated/codebeam/id_ts_server_demo_ref
+          diff $BIN/id_server_demo $TEST/generated/codebeam/id_server_demo_ref
           echo "CodeBEAM/ID TS server test"
           $CMD $SRC/examples/erlang/codebeam/id_ts_server_demo.erl -v all -I include -o $BIN
           diff $BIN/id_ts_server_demo $TEST/generated/codebeam/id_ts_server_demo_ref
