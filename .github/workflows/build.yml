@@ -11,7 +11,7 @@ jobs:
       image: erlang:26.2.5
 
     env:
-      CMD: /src/paterl
+      CMD: src/paterl
       BIN: ebin
       INCLUDE: include
       SRC: src
@@ -24,11 +24,13 @@ jobs:
           rm -rf $BIN/*.beam erl_crash.dump
           mkdir -p $BIN
           pwd
-          erlc -DTEST -pa ebin +debug_info -W0 -I include -o ebin src/*.erl src/**/*.erl
-          # erlc -DTEST -pa $BIN +debug_info -I $INCLUDE -o $BIN $TEST/**/*.erl
+          erlc -DTEST +debug_info -W0 -I include -o $BIN $SRC/*.erl $SRC/**/*.erl
+          erlc -DTEST -pa $BIN +debug_info -W0 -I $INCLUDE -o $BIN $TEST/*.erl
       - name: List
         run: |
           ls -lart $BIN
       - name: Test
         run: |
           echo "CodeBEAM/ID server test"
+          $CMD $SRC/examples/erlang/codebeam/id_server_demo.erl -v all -I include -O $BIN
+          diff $BIN/id_server_demo $TEST/generated/codebeam/id_server_demo_ref
