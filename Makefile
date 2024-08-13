@@ -31,7 +31,7 @@ compile: clean
 
 compile-test: clean
 	mkdir -p $(BIN)
-	erlc -DTEST -Dlog -pa $(BIN) +debug_info -W0 -I $(INCLUDE) -W0 -o $(BIN) $(call recursive,$(SRC),erl)
+	erlc -DTEST -Dlog -pa $(BIN) +debug_info -W0 -I $(INCLUDE) -o $(BIN) $(call recursive,$(SRC),erl)
 	erlc -DTEST -Dlog -pa $(BIN) -I $(INCLUDE) -W0 -o $(BIN) $(call recursive,$(TEST),erl)
 
 test: compile-test
