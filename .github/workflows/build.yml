@@ -2,18 +2,7 @@ name: Build
 
 on: 
   workflow_dispatch:
-    inputs:
-      log_level:
-        description: 'Log level'
-        required: true
-        default: '2'
-        type: choice
-        options:
-          - 1
-          - 2
-          - 3
-          - 4
-          - 5
+    
   push:
     branches:    
       - 'main'
