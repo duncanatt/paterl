@@ -21,7 +21,7 @@ cli() ->
       },
       #{name => out,
         long => "-out",
-        short => $O,
+        short => $o,
         type => string,
         default => "ebin"
       },
