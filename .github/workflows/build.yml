@@ -3,7 +3,7 @@ name: Build
 on: 
   workflow_dispatch:
     inputs:
-      logLevel:
+      log_level:
         description: 'Log level'
         required: true
         default: '2'
@@ -44,6 +44,7 @@ jobs:
           erlc -DTEST -Dlog -pa $BIN +debug_info -W0 -I $INCLUDE -o $BIN $TEST/*.erl
       - name: List
         run: |
+          echo ${{ inputs.log_level }}
           ls -lart $BIN
       - name: Test
         run: |
