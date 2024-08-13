@@ -90,7 +90,6 @@ ping_loop(Pong, Pings_left) ->
     ?mb_assert_regex("Pong + 1"),
     receive
       {pong} ->
-        ?mb_use(ping_mb),
         ping_loop(Pong, Pings_left - 1)
     end;
     true ->
