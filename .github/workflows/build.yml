@@ -40,3 +40,6 @@ jobs:
           echo "De'Liguoro & Padovani/Future test"
           $CMD $SRC/examples/erlang/de_liguoro_padovani/future.erl -v all -I include -o $BIN
           diff $BIN/future $TEST/generated/de_liguoro_padovani/future_ref
+          echo "De'Liguoro & Padovani/Master-worker test"
+          $(CMD) $(SRC)/examples/erlang/de_liguoro_padovani/master_worker.erl -v all -I include -o $(BIN)
+          diff $(BIN)/master_worker $(TEST)/generated/de_liguoro_padovani/master_worker_ref
