@@ -40,8 +40,8 @@ jobs:
           rm -rf $BIN/*.beam erl_crash.dump
           mkdir -p $BIN
           pwd
-          erlc -DTEST +debug_info -W0 -I include -o $BIN $SRC/*.erl $SRC/**/*.erl
-          erlc -DTEST -pa $BIN +debug_info -W0 -I $INCLUDE -o $BIN $TEST/*.erl
+          erlc -DTEST -Dlog +debug_info -W0 -I include -o $BIN $SRC/*.erl $SRC/**/*.erl
+          erlc -DTEST -Dlog -pa $BIN +debug_info -W0 -I $INCLUDE -o $BIN $TEST/*.erl
       - name: List
         run: |
           ls -lart $BIN
