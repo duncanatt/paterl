@@ -35,5 +35,5 @@ jobs:
           $CMD $SRC/examples/erlang/codebeam/id_server_demo.erl -v all -I include -o $BIN
           diff $BIN/id_server_demo $TEST/generated/codebeam/id_ts_server_demo_ref
           echo "CodeBEAM/ID TS server test"
-	  $CMD $SRC/examples/erlang/codebeam/id_ts_server_demo.erl -v all -I include -o $BIN
+          $CMD $SRC/examples/erlang/codebeam/id_ts_server_demo.erl -v all -I include -o $BIN
           diff $BIN/id_ts_server_demo $TEST/generated/codebeam/id_ts_server_demo_ref
