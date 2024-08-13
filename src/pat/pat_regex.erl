@@ -16,8 +16,15 @@
 %% TODO: Implement parser and the regular expression simplification functions.
 %% TODO: To implement these functions just chuck them as part of the parser file as includes.
 
+%%% ----------------------------------------------------------------------------
+%%% Public API.
+%%% ----------------------------------------------------------------------------
 
-%% @private Checks whether a mailbox can become potentially empty.
+%% @doc Checks whether a mailbox can become potentially empty.
+%%
+%% @param Regex commutative regular expression to check.
+%%
+%% @returns true if the mailbox can become potentially empty, false otherwise.
 is_mb_empty(Regex) ->
 %%  case re:run(Regex, "^(\\*.[A-Z][a-z]*|1\s*\\+.*|[A-Z][a-z]+1|[A-Z][a-z]+)$") of
   case re:run(trim(Regex), "^(\\*.*|1\\+.*|.*\\+1)$") of
@@ -31,6 +38,11 @@ is_mb_empty(Regex) ->
 simplify([]) ->
   ok.
 
+%% @private Removes all the spaces from the specified regular rexpression.
+%%
+%% @param Regex commutative regular expressions to trim.
+%%
+%% @returns trimmed regular expression.
 trim(Regex) ->
   re:replace(Regex, "\s+", "", [global, {return, list}]).
 
