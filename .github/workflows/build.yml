@@ -34,7 +34,6 @@ jobs:
       - name: List
         run: |
           ls -lart $BIN
-          echo Log level is: ${{ inputs.log_level }}
       - name: Test
         run: |
           echo "CodeBEAM/ID server test"
