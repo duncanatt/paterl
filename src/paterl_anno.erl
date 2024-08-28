@@ -593,7 +593,7 @@ annotate_expr({call, Anno, Operator = {atom, _, Name}, Exprs}, MbAnno, Signature
           {Modality, MbName} ->
             % Explicit mailbox-annotations correspond to inferred annotations.
             {set_modality(Modality, set_interface(MbName, Anno)), Error};
-          {_, _} ->
+          {_, _} -> % TODO: Modify here.
             % Explicit mailbox-annotations conflict with inferred annotations.
             {Anno, ?pushError(?E_MISMATCH_ANNO, {Modality, Anno, MbName}, Error)} % e_mismatch_anno
         end;
