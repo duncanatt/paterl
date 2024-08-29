@@ -50,10 +50,11 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
   % Preprocess file.
   io:fwrite(color:green("[EPP] Preprocessing file ~s.~n"), [File]),
 
-  io:fwrite(color:green("[SYNTAX] Sub-syntax checking.~n")),
-
   case epp:parse_file(File, Opts) of
     {ok, Forms} ->
+
+      io:fwrite(color:green("[SYNTAX] Sub-syntax checking.~n")),
+
       % File preprocessed.
       io:fwrite(color:green("[LINT] Linting.~n")),
 

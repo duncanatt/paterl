@@ -1,8 +1,26 @@
-# paterl
-Erlang to Pat transpiler
+# paterl - Erlang to Pat transpiler
 
-## Basic usage
+The current type-checking pipeline consists of these stages:
+
+1. `epp:parse_file`: Erlang preprocessor (parsing and macro expansion)
+2. `paterl_syntax:module`: Rule out unsupported Erlang syntactic subset
+3. `erl_lint:module`: Erlang linting
+4. `paterl_ir:module`: Assignment transformation which expands Erlang expressions to match; will properly implement ANF in the future
+5. `paterl_types:table`: Extract Erlang `typespec` annotations into a table
+6. `paterl_bootstrap:forms`: Modifies the Erlang syntax tree to insert an auxiliary bootstrapping `main` function
+7. `paterl_anno:annotate`: Annotates the Erlang syntax tree using the type information in the table obtained from step 5
+8. `paterl_trans:module`: Translates the annotated Erlang syntax tree to a Pat syntax tree
+9. `pat_prettypr:module`: Prints the Pat syntax tree
+
+## Using from the Erlang shell
 
 ```erlang
-paterl:compile("src/examples/id_echo.erl", [{includes, ["include"]}]).
+paterl:compile("src/examples/future_relaxed.erl", [{includes, ["include"]}, {out, "out"}]).
 ```
+
+## Using from command line
+
+```shell
+./src/paterl src/examples/erlang/codebeam/id_server_demo.erl -v all -I include
+```
+
