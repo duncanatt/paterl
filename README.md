@@ -15,7 +15,7 @@ The current type-checking pipeline consists of these stages:
 ## Using from the Erlang shell
 
 ```erlang
-paterl:compile("src/examples/future_relaxed.erl", [{includes, ["include"]}, {out, "out"}]).
+paterl:compile("src/examples/erlang/codebeam/id_server_demo.erl", [{includes, ["include"]}, {out, "out"}]).
 ```
 
 ## Using from command line
