@@ -202,6 +202,8 @@ account(Id, Balance) ->
       account_exit()
   end.
 
+% TODO: Add account loop.
+
 %%  def account_exit(self: AccountMb?): Unit {
 %%    guard self: *(Debit + Credit)  {
 %%      free -> ()

@@ -126,20 +126,37 @@ def master_loop(mb26: Master_mb?, termsum: Int, worker1: Worker_mb!, computer1: 
   guard mb26: *Result {
     empty(mb27) ->
       let (v7, mb28) =
-        (worker1 ! Stop(), mb27)
-      in
-        let (v8, mb29) =
-          (worker2 ! Stop(), mb28)
+          (worker1 ! Stop(), mb27)
         in
-          let (v9, mb30) =
-            (computer1 ! Stop_compute(), mb29)
+          let (v8, mb29) =
+            (worker2 ! Stop(), mb28)
           in
-            let (v10, mb31) =
-              (computer2 ! Stop_compute(), mb30)
+            let (v9, mb30) =
+              (computer1 ! Stop_compute(), mb29)
             in
-              ((), mb31)
+              let (v10, mb31) =
+                (computer2 ! Stop_compute(), mb30)
+              in
+                ((), mb31)
     receive Result(term) from mb27 ->
-      master_loop(mb27, termsum, worker1, computer1, worker2, computer2, 9, 9)
+      if (1 == 1) {
+
+        #Continue from here!
+        #master_exit(mb27)
+        master_loop(mb27, termsum, worker1, computer1, worker2, computer2, 9, 9)
+      }
+      else {
+        master_loop(mb27, termsum, worker1, computer1, worker2, computer2, 9, 9)
+      }
+
+  }
+}
+
+def master_exit(self: Master_mb?): (Unit * Master_mb?)  {
+  guard self: *Result {
+    empty(self) -> ((), self)
+    receive Result(term) from self ->
+      master_exit(self)
   }
 }
 
@@ -149,6 +166,7 @@ def worker(mb33: Worker_mb?, id: Int, master: Master_mb!, computer: Computer_mb!
 
 def worker_loop(mb34: Worker_mb?, id: Int, master: Master_mb!, computer: Computer_mb!, currterm: Int): (Unit * Worker_mb?) {
   guard mb34: Get_term . *Next_term . Stop {
+    empty(self) -> ((), self)
     receive Next_term() from mb35 ->
 
       let mbx =
@@ -165,7 +183,7 @@ def worker_loop(mb34: Worker_mb?, id: Int, master: Master_mb!, computer: Compute
       let (v11, mb37) =
         (master ! Result(currterm), mb36)
       in
-        guard mb37: Stop . *Next_term {
+        guard mb37: Stop . *Next_term  {
           receive Stop() from mb38 ->
             worker_exit(mb38)
         }
@@ -178,6 +196,8 @@ def worker_exit(mb39: Worker_mb?): (Unit * Worker_mb?) {
       ((), mb41)
     receive Next_term() from mb40 ->
       worker_exit(mb40)
+      receive Stop() from mb38 ->
+                  worker_exit(mb38)
   }
 }
 
@@ -199,7 +219,7 @@ def computer(mb46: Computer_mb?, rate: Int): (Unit * Computer_mb?) {
 }
 
 def computer_loop(mb47: Computer_mb?, rate: Int): (Unit * Computer_mb?) {
-  guard mb47: *Compute . Stop_compute {
+  guard mb47: *Compute . (Stop_compute + 1) {
     empty(mb51) ->
       ((), mb51)
     receive Compute(term_mb, term) from mb48 ->

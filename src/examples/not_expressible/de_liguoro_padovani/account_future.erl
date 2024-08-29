@@ -17,13 +17,17 @@
 -export([main/0]).
 
 %% Internal exports
--export([account/1, await/2]).
+-export([account/1, await/2, debit/2]).
 
 %% Mailbox interface-function associations
 -new({account_mb, [account/1]}).
--use({account_mb, [flush/2]}).
--new({future_mb, [resume/0]}).
--new({main_mb, [main/0]}).
+-use({account_mb, [account_loop/1, flush/2]}).
+
+%%-new({main_mb, [main/0]}).
+
+-new({future_mb, [await/2, main/0]}).
+%%-use({future_mb, [debit/2, resume/0]}).
+-use({future_mb, [debit/2]}).
 
 %% Account's message types
 -type debit() :: {debit, integer(), future_mb()}.
@@ -55,11 +59,26 @@
 -spec await(integer(), account_mb()) -> future_mb().
 await(Amount, Recipient) ->
   Self = self(),
-  ?mb_new(future_mb),
-  Future = spawn(fun() ->
-    Recipient ! {debit, Amount, Self}
-                 end),
-  Future.
+%%  ?mb_new(future_mb),
+%%  Future.
+%%  Future = spawn(?MODULE, debit, [Amount, Recipient]),
+%%  Self = self(),
+  Recipient ! {debit, Amount, Self}.
+%%  Self.
+%%  ?mb_assert_regex("Reply + 1"),
+%%  receive
+%%    {reply} ->
+%%      ok
+%%  end.
+
+
+
+-spec debit(integer(), account_mb()) -> future_mb().
+debit(Amount, Recipient) ->
+  Self = self(),
+  Recipient ! {debit, Amount, Self},
+  Self.
+
 
 %% def resume(future: FutureMb?): Unit {
 %%   guard future: Reply + 1 {
@@ -69,8 +88,8 @@ await(Amount, Recipient) ->
 %%         free(future)
 %%   }
 %% }
--spec resume() -> no_return().
-resume() ->
+-spec resume(future_mb()) -> no_return().
+resume(Future) ->
 %%  TODO Not sure about free
   ?mb_assert_regex("Reply + 1"),
   receive
@@ -90,7 +109,7 @@ resume() ->
 -spec flush(account_mb(), integer()) -> integer().
 flush(Account, Stale) ->
   %%  TODO Not sure about free
-  ?mb_assert_regex("(*Debit) . (*Credit)"),
+  ?mb_assert_regex("*Debit . *Credit"),
   receive
     {debit, Amount, Sender} ->
       flush(Account, Stale + 1);
@@ -123,26 +142,31 @@ flush(Account, Stale) ->
 %% }
 -spec account(integer()) -> no_return().
 account(Balance) ->
+  account_loop(Balance).
+
+-spec account_loop(integer()) -> no_return().
+account_loop(Balance) ->
   ?mb_assert_regex("((*Debit) . (*Credit)) . Stop"),
   receive
     {debit, Amount, Sender} ->
       Sender ! {reply},
-      account(Balance + Amount);
+      account_loop(Balance + Amount);
     {credit, Amount, Recipient, Sender} ->
-      Future = await(Amount, Recipient),
-      resume(),
+%%      Future = await(Amount, Recipient),
+      ?mb_new(future_mb),
+      Future = spawn(?MODULE, await, [Amount, Recipient]),
+      resume(Future),
       Sender ! {reply},
-      account(Balance - Amount);
+      account_loop(Balance - Amount);
     {stop} ->
-%%      io:format("INFO: Terminating account.~n"),
       Self = self(),
-      Stale = flush(Self, 0),
-      if
-        Stale > 0 ->
-          io:format("WARN: Flushed ~p message(s)!~n", [Stale]);
-        true ->
-          ok
-      end
+      Stale = flush(Self, 0)
+%%      if
+%%        Stale > 0 ->
+%%          format("WARN: Flushed ~p message(s)!~n", [Stale]);
+%%        true ->
+%%          ok
+%%      end
   end.
 
 %% def main(): Unit {
@@ -156,7 +180,7 @@ account(Balance) ->
 %%   alice ! Stop();
 %%   bob ! Stop()
 %% }
--spec main() -> no_return().
+-spec main() -> any().
 main() ->
   ?mb_new(account_mb),
   Alice = spawn(?MODULE, account, [5]),
@@ -166,7 +190,9 @@ main() ->
   ?mb_new(main_mb),
   Self = self(),
   Bob ! {credit, 20, Alice, Self},
-  resume(),
+
+  Self = self(),
+  resume(Self),
 
   Alice ! {stop},
   Bob ! {stop}.

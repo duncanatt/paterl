@@ -9,66 +9,83 @@
 -module(log_map).
 -author("walker").
 
+%%% Includes.
 -include("paterl.hrl").
 
+%%% Imports.
 -import(io, [format/2]).
 
-%% API
+%%% API.
 -export([main/0]).
 
+%%% Internal exports.
 -export([computer/1, worker/4, master/2]).
 
-%% Mailbox interface-function associations.
--new({master_mb, [master/2]}).
--use({master_mb, [master_loop/5]}).
--new({worker_mb, [worker/4]}).
--use({worker_mb, [worker_exit/0]}).
--new({computer_mb, [computer/1]}).
--use({computer_mb, [computer_exit/0]}).
--new({main_mb, [main/0]}).
 
-%% MasterMb's message types
+%%% ----------------------------------------------------------------------------
+%%% Type definitions.
+%%% ----------------------------------------------------------------------------
+
+%%% Messages.
+
+%% Master.
 -type start() :: {start}.
 -type result() :: {result, integer()}.
 
-%% WorkerMb's message types
+%% Worker.
 -type next_term() :: {next_term}.
 -type get_term() :: {get_term}.
 -type result_worker() :: {result_worker, integer()}.
 -type stop() :: {stop}.
 
-%% TermMb's message types
+%% Term.
 -type done() :: {done, integer()}.
 
-%% ComputerMb's message types
+%% Computer.
 -type compute() :: {compute, term_mb(), integer()}.
 -type stop_compute() :: {stop_compute}.
 
-%% Interface MasterMb {
-%%    Start(),
-%%    Result(Int)
-%% }
-%%
-%% Interface WorkerMb {
-%%    NextTerm(),
-%%    GetTerm(),
-%%    ResultWorker(Int),
-%%    Stop()
-%% }
-%%
-%% Interface TermMb {
-%%    Done(Int)
-%% }
-%%
-%% Interface ComputerMb {
-%%    Compute(TermMb!, Int),
-%%    StopCompute()
-%% }
+%%% Interfaces.
+
+%% Master.
 -type master_mb() :: pid() | start() | result().
+
+%% Worker.
 -type worker_mb() :: pid() | next_term() | get_term() | result_worker() | stop().
+
+%% Term.
 -type term_mb() :: pid() | done().
+
+%% Computer.
 -type computer_mb() :: pid() | compute() | stop_compute().
+
+%% Main.
 -type main_mb() :: pid().
+
+%%% Interface-function associations.
+
+%% Master.
+-new({master_mb, [master/2]}).
+-use({master_mb, [master_loop/7]}).
+
+%% Worker.
+-new({worker_mb, [worker/4]}).
+-use({worker_mb, [worker_loop/4, worker_exit/0]}).
+
+%% Computer.
+-new({computer_mb, [computer/1]}).
+-use({computer_mb, [computer_loop/1, computer_exit/0]}).
+
+%% Term.
+-new({term_mb, [compute_term/2]}).
+
+%% Main.
+-new({main_mb, [main/0]}).
+
+
+%%% ----------------------------------------------------------------------------
+%%% API.
+%%% ----------------------------------------------------------------------------
 
 %%  def master(self: MasterMb?, startRate: Int, increment: Int): Unit {
 %%
@@ -104,38 +121,49 @@
 %%    }
 %%  }
 -spec master(integer(), integer()) -> no_return().
-master(Start_rate, Increment) ->
+master(StartRate, Increment) ->
   Self = self(),
 
-  Rate1 = Start_rate + (1 * Increment),
+  % Computer 1.
+  Rate1 = StartRate + (1 * Increment),
   ?mb_new(computer_mb),
   Computer1 = spawn(?MODULE, computer, [Rate1]),
 
-  Start_term1 = 1 * Increment,
+  % Worker 1.
+  StartTerm1 = 1 * Increment,
   ?mb_new(worker_mb),
-  Worker1 = spawn(?MODULE, worker, [1, Self, Computer1, Start_term1]),
+  Worker1 = spawn(?MODULE, worker, [1, Self, Computer1, StartTerm1]),
 
-  Rate2 = Start_rate + (2 * Increment),
+  % Computer 2.
+  Rate2 = StartRate + (2 * Increment),
   ?mb_new(computer_mb),
   Computer2 = spawn(?MODULE, computer, [Rate2]),
 
-  Start_term2 = 2 * Increment,
+  % Worker 2.
+  StartTerm2 = 2 * Increment,
   ?mb_new(worker_mb),
-  Worker2 = spawn(?MODULE, worker, [2, Self, Computer2, Start_term2]),
+  Worker2 = spawn(?MODULE, worker, [2, Self, Computer2, StartTerm2]),
 
-  ?mb_assert_regex("Start . (*Result)"),
+  ?mb_assert_regex("Start . *Result"),
   receive
     {start} ->
+      % We should have a loop around this line to send multiple NextTerm
+      % messages, according to the number of terms we send to computer. For
+      % now, let this be 2 and 3. Later we can refactor it.
       Worker1 ! {next_term},
       Worker1 ! {next_term},
       Worker2 ! {next_term},
       Worker2 ! {next_term},
       Worker2 ! {next_term},
 
+      % Get result from worker as soon as finished. We should have many workers.
+      % The number of workers is numWorkers and to each one, we send just one
+      % request.
       Worker1 ! {get_term},
       Worker2 ! {get_term},
 
-      master_loop(0, Worker1, Computer1, Worker2, Computer2)
+      % Collect results.
+      master_loop(0, Worker1, Computer1, Worker2, Computer2, 5, 0)
   end.
 
 %%  def master_loop(self: MasterMb?, termSum: Int, workerMb1: WorkerMb!, computerMb1: ComputerMb!, workerMb2: WorkerMb!, computerMb2: ComputerMb!): Unit {
@@ -150,19 +178,26 @@ master(Start_rate, Increment) ->
 %%        master_loop(self, termSum + term, workerMb1, computerMb1, workerMb2, computerMb2)
 %%    }
 %%  }
--spec master_loop(integer(), worker_mb(), computer_mb(), worker_mb(), computer_mb()) -> no_return().
-master_loop(Term_sum, Worker1, Computer1, Worker2, Computer2) ->
-%%  TODO: Not sure about free
-%%  Worker1 ! {stop},
-%%  Worker2 ! {stop},
-%%  Computer1 ! {stop_compute},
-%%  Computer2 ! {stop_compute},
-%%  io:format("Result is: ~p~n", [Term_sum])
+-spec master_loop(integer(), worker_mb(), computer_mb(), worker_mb(), computer_mb(), integer(), integer()) -> no_return().
+master_loop(TermSum, Worker1, Computer1, Worker2, Computer2, NumWorkRequests, NumWorkReceived) ->
   ?mb_assert_regex("*Result"),
   receive
     {result, Term} ->
-      master_loop(Term_sum + Term, Worker1, Computer1, Worker2, Computer2)
+%%      if (NumWorkRequests >= NumWorkReceived) ->
+        %%  TODO: Not sure about free
+        % Notify workers and computers.
+        Worker1 ! {stop},
+        Worker2 ! {stop},
+        Computer1 ! {stop_compute},
+        Computer2 ! {stop_compute},
+%%        format("Result is: ~p~n", [TermSum]);
+        format("Result is: ~p~n", [TermSum])
+%%        true ->
+          % Accumulate computed term.
+%%          master_loop(TermSum + Term, Worker1, Computer1, Worker2, Computer2, NumWorkRequests, NumWorkReceived + 1)
+%%      end
   end.
+
 
 %% def worker(self: WorkerMb?, id: Int, masterMb: MasterMb!, computerMb: ComputerMb!, currTerm: Int): Unit {
 %%  guard self: (*NextTerm) . GetTerm . Stop {
@@ -186,20 +221,28 @@ master_loop(Term_sum, Worker1, Computer1, Worker2, Computer2) ->
 %%    }
 %%  }
 -spec worker(integer(), master_mb(), computer_mb(), integer()) -> no_return().
-worker(Id, Master, Computer, Curr_term) ->
-  ?mb_assert_regex("(*NextTerm) . GetTerm . Stop"),
+worker(Id, Master, Computer, CurrTerm) ->
+  worker_loop(Id, Master, Computer, CurrTerm).
+
+-spec worker_loop(integer(), master_mb(), computer_mb(), integer()) -> no_return().
+worker_loop(Id, Master, Computer, CurrTerm) ->
+  ?mb_assert_regex("Get_term . *Next_term . Stop"),
   receive
     {next_term} ->
-      Self = self(),
-      Computer ! {compute,Self, Curr_term},
-      ?mb_assert_regex("Done"),
-      receive
-        {done, Term} ->
-          worker(Id, Master, Computer, Term)
-      end;
+%%      Self = self(),
+%%      Computer ! {compute, Self, CurrTerm},
+%%      ?mb_assert_regex("Done"),
+%%      receive
+%%        {done, Term} ->
+%%          worker(Id, Master, Computer, Term)
+%%      end;
+      % Delegate computation of term to computer process via the local mailbox
+      % termMb.
+%%      Term = compute_term(Computer, CurrTerm),
+      worker_loop(Id, Master, Computer, 0);
     {get_term} ->
-      Master ! {result, Curr_term},
-      ?mb_assert_regex("(*NextTerm) . Stop"),
+      Master ! {result, CurrTerm},
+      ?mb_assert_regex("Stop . *Next_term"),
       receive
         {stop} ->
           worker_exit()
@@ -215,10 +258,20 @@ worker(Id, Master, Computer, Curr_term) ->
 %%  }
 -spec worker_exit() -> no_return().
 worker_exit() ->
-  ?mb_assert_regex("*NextTerm"),
+  ?mb_assert_regex("*Next_term"),
   receive
     {next_term} ->
       worker_exit()
+  end.
+
+-spec compute_term(computer_mb(), integer()) -> integer().
+compute_term(Computer, CurrTerm) ->
+  Self = self(),
+  Computer ! {compute, Self, CurrTerm},
+  ?mb_assert_regex("Done"),
+  receive
+    {done, Term} ->
+      Term
   end.
 
 %%  def computer(self: ComputerMb?, rate: Int): Unit {
@@ -235,11 +288,15 @@ worker_exit() ->
 %%  }
 -spec computer(integer()) -> no_return().
 computer(Rate) ->
-  ?mb_assert_regex("(*Compute) . StopCompute"),
+  computer_loop(Rate).
+
+-spec computer_loop(integer()) -> no_return().
+computer_loop(Rate) ->
+  ?mb_assert_regex("*Compute . Stop_compute"),
   receive
     {compute, Term_mb, Term} ->
       Term_mb ! {done, Rate * Term * (1 - Term)},
-      computer(Rate);
+      computer_loop(Rate);
     {stop_compute} ->
       computer_exit()
   end.
@@ -269,7 +326,7 @@ computer_exit() ->
 %%    spawn { master(masterMb, 3, 1) };
 %%    masterMb ! Start()
 %%  }
--spec main() -> no_return().
+-spec main() -> any().
 main() ->
   ?mb_new(master_mb),
   Master = spawn(?MODULE, master, [3, 1]),

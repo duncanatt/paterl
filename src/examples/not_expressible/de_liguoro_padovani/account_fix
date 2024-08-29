@@ -62,8 +62,10 @@ def account_loop(mb3: Account_mb?, balance: Int): (Unit * Account_mb?) {
   }
 }
 
-def main(mb14: Main_mb?): (Unit * Main_mb?) {
-  let (alice, mb17) =
+def main(mb14: Main_mb?, barrier: Barrier_mb?): (Unit * Main_mb?) {
+
+  # Cannot do it because Pat does not support triples.
+  let (alice, mb17, barrier1) =
     (let mb15 =
       new [Account_mb]
     in
@@ -75,9 +77,9 @@ def main(mb14: Main_mb?): (Unit * Main_mb?) {
             free(mb16)
         }
       in
-        mb15, mb14)
+        mb15, mb14, barrier)
   in
-    let (bob, mb20) =
+    let (bob, mb20, barrier2) =
       (let mb18 =
         new [Account_mb]
       in
@@ -89,24 +91,12 @@ def main(mb14: Main_mb?): (Unit * Main_mb?) {
               free(mb19)
           }
         in
-          mb18, mb17)
+          mb18, mb17, barrier1)
     in
-      let (self, mb21) =
-        (mb20, mb20)
+      let (v4, mb22, barrier3) =
+        (alice ! Credit(10, bob, barrier), mb21, barrier2)
       in
-        let (v4, mb22) =
-          (alice ! Credit(10, bob, self), mb21)
-        in
-          (let mb23 =
-            new [Barrier_mb]
-          in
-            let (x, mb24) =
-              await(mb23)
-            in
-              let y =
-                free(mb24)
-              in
-                x, mb22)
+        (await(barrier), mb22, barrier3)
 }
 
 def main'(): Unit {

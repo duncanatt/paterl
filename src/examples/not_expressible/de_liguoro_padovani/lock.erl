@@ -20,7 +20,7 @@
 -export([free_lock/0, user/2]).
 
 %% Mailbox interface-function associations
--new({lock_mb, [free_lock/0]}).
+-use({lock_mb, [free_lock/0]}).
 -use({lock_mb, [busy_lock/1]}).
 -new({user_mb, [user/2]}).
 -new({main_mb, [main/0]}).
@@ -59,10 +59,10 @@ free_lock() ->
   ?mb_assert_regex("*Acquire"),
   receive
     {acquire, Owner} ->
-      busy_lock(Owner);
-    {release} ->
+      busy_lock(Owner)
+%%    {release} ->
 %%      TODO: fail(self)[Unit]
-      ok
+%%      ok
   end.
 
 %% def busyLock(self: Lock?, owner: User!): Unit {
@@ -76,7 +76,7 @@ free_lock() ->
 busy_lock(Owner) ->
   Self = self(),
   Owner ! {reply, Self},
-  ?mb_assert_regex("(*Acquire) . Release"),
+  ?mb_assert_regex("Release . *Acquire"),
   receive
     {release} ->
       free_lock()
@@ -109,11 +109,18 @@ user(Num, Lock) ->
 %%   spawn { user(1, lock) };
 %%   spawn { user(2, lock) }
 %% }
--spec main() -> no_return().
+-spec main() -> any().
 main() ->
   ?mb_new(lock_mb),
   Lock = spawn(?MODULE, free_lock, []),
+
   ?mb_new(user_mb),
-  spawn(fun() -> user(1, Lock) end),
+  spawn(?MODULE, user, [1, Lock]),
+
   ?mb_new(user_mb),
-  spawn(fun() -> user(2, Lock) end).
+  spawn(?MODULE, user, [2, Lock]),
+  ok.
+
+%%  spawn(fun() -> user(1, Lock) end),
+%%
+%%  spawn(fun() -> user(2, Lock) end).

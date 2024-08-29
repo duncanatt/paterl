@@ -21,8 +21,11 @@
 
 %% Mailbox interface-function associations
 -new({account_mb, [account/1]}).
+-use({account_mb, [account_loop/1]}).
+
+%%-new({barrier_mb, [main/0]}).
 -new({barrier_mb, [await/0]}).
--use({barrier_mb, [notify/1]}).
+
 -new({main_mb, [main/0]}).
 
 %% Barrier's message types
@@ -94,18 +97,22 @@ await() ->
 %% }
 -spec account(integer()) -> no_return().
 account(Balance) ->
-  ?mb_assert_regex("((*Debit) . (*Credit))"),
+  account_loop(Balance).
+
+-spec account_loop(integer()) -> no_return().
+account_loop(Balance) ->
+  ?mb_assert_regex("*Debit . *Credit"),
   receive
     {debit, Amount, Ack} ->
       notify(Ack),
-      account(Balance - Amount);
+      account_loop(Balance - Amount);
     {credit, Amount, Payer, Ack} ->
 %%    TODO: Not sure about new mailbox
       Self = self(),
       Payer ! {debit, Amount, Self},
       await(),
       notify(Ack),
-      account(Balance + Amount)
+      account_loop(Balance + Amount)
   end.
 
 %% def main(): Unit {
@@ -121,7 +128,7 @@ account(Balance) ->
 %%   alice ! Credit(10, bob, barrier);
 %%   await(barrier)
 %% }
--spec main() -> no_return().
+-spec main() -> any().
 main() ->
   ?mb_new(account_mb),
   Alice = spawn(?MODULE, account, [10]),
