@@ -18,7 +18,7 @@
 -include("paterl.hrl").
 
 %% API
--export([annotate/2]).
+-export([module/2]).
 
 -compile(export_all).
 
@@ -85,9 +85,9 @@
 %% @param TInfo: Type annotations.
 %%
 %% @returns Annotated AST.
--spec annotate([erl_syntax:syntaxTree()], paterl_types:t_info()) ->
+-spec module([erl_syntax:syntaxTree()], paterl_types:t_info()) ->
   {ok, erl_syntax:forms()} | errors:error().
-annotate(Forms, TInfo) when is_list(Forms), is_record(TInfo, t_info) ->
+module(Forms, TInfo) when is_list(Forms), is_record(TInfo, t_info) ->
   case annotate_forms(Forms, TInfo, #error{}) of
     {Forms0, #error{errors = []}} ->
       {ok, Forms0};
