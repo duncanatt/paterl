@@ -588,13 +588,16 @@ annotate_expr({call, Anno, Operator = {atom, _, Name}, Exprs}, MbAnno, Signature
         % Mailbox-annotated function call.
         case MbAnno of
           undefined ->
-            % Inferred mailbox-annotations.
+            % Mailbox-annotation on expression is undefined. Infer it from
+            % mailbox-interface declaration.
             {set_modality(Modality, set_interface(MbName, Anno)), Error};
           {Modality, MbName} ->
-            % Explicit mailbox-annotations correspond to inferred annotations.
+            % Mailbox-annotation on expression is defined. Check that it
+            % corresponds to that from the mailbox-interface declaration.
             {set_modality(Modality, set_interface(MbName, Anno)), Error};
           {_, _} -> % TODO: Modify here.
-            % Explicit mailbox-annotations conflict with inferred annotations.
+            % Mailbox-annotation on expression is defined but conflicts with
+            % the one from from the mailbox-interface declaration.
             {Anno, ?pushError(?E_MISMATCH_ANNO, {Modality, Anno, MbName}, Error)} % e_mismatch_anno
         end;
       undefined ->
