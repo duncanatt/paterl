@@ -34,7 +34,6 @@
 
 
 forms(Forms, TInfo = #t_info{specs = Specs, mb_defs = MbDefs}) ->
-  ?WARN("In bootstrap."),
 
   % Bootstrap function name. The auxiliary bootstrapping function closes the
   % program and serves as the main entry point that launches the main function
@@ -87,7 +86,6 @@ bs_fun_def(BsFunName, Interface) ->
   Anno = erl_syntax:tuple([erl_syntax:atom(new), erl_syntax:atom(Interface)]),
   Call = erl_syntax:application(erl_syntax:atom(main), []),
   Clause = erl_syntax:clause([], [Anno, Call]),
-
 
   erl_syntax:revert(
     erl_syntax:set_pos(
