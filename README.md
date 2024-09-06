@@ -3,9 +3,9 @@
 The current type-checking pipeline consists of these stages:
 
 1. `epp:parse_file`: Erlang preprocessor (parsing and macro expansion)
-2. `paterl_syntax:module`: Rule out unsupported Erlang syntactic subset
+2. `paterl_syntax:module`: Rule out unsupported Erlang syntactic subset (not implemented)
 3. `erl_lint:module`: Erlang linting
-4. `paterl_ir:module`: Assignment transformation which expands Erlang expressions to match; will properly implement ANF in the future
+4. `paterl_ir:module`: Assignment transformation which expands Erlang expressions to match (will implement ANF next)
 5. `paterl_types:table`: Extract Erlang `typespec` annotations into a table
 6. `paterl_bootstrap:forms`: Modifies the Erlang syntax tree to insert an auxiliary bootstrapping `main` function
 7. `paterl_anno:annotate`: Annotates the Erlang syntax tree using the type information in the table obtained from step 5
