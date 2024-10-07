@@ -135,11 +135,11 @@ We start by installing `opam`, the OCaml package manager.
    sudo apt install z3
    ```
 
-  On macOS, Z3 is installed using Homebrew as follows:
+   On macOS, Z3 is installed using Homebrew as follows:
 
-  ```bash
-  $ brew install z3
-  ```
+   ```bash
+   $ brew install z3
+   ```
 
 2. Test Z3 by invoking it from the terminal.
    It should return the output shown below:
@@ -222,6 +222,8 @@ The RabbitMQ PPA is valid for Ubuntu 22.04 and 20.04.
    ```erlang
    q().
    ```
+
+### Removing Erlang
 
 In case you need to remove the Erlang version installed from the RabbitMQ PPA and restore it to the version provided by the Ubuntu repository, use PPA `purge` as follows:
 
