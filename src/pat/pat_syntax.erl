@@ -82,7 +82,7 @@
 -type tuple_pat_type() :: {pat, anno(), tuple, [expr()], t_product()}.
 
 %%% Value types.
--type val() :: var() | lit() | tuple() | unit().
+-type val() :: var() | lit() | p_tuple() | unit().
 
 -type var() :: {var, anno(), atom()}.
 
@@ -92,7 +92,7 @@
 | {string, anno(), string()}
 | {atom, anno(), atom()}.
 
--type tuple() :: {tuple, anno(), [expr()]}.
+-type p_tuple() :: {tuple, anno(), [expr()]}.
 
 -type unit() :: {unit, anno()}.
 
