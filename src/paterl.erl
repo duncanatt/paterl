@@ -23,8 +23,8 @@
 %%% Generic constants.
 
 %% Mailbox annotation primitive type.
-%%-define(EXEC, "/Users/duncan/Dropbox/Postdoc/Development/mbcheck/mbcheck").
--define(EXEC, "/Users/duncan/Downloads/mbcheck/mbcheck -qj").
+-define(EXEC, "/Users/duncan/Dropbox/Postdoc/Development/mbcheck/mbcheck").
+%%-define(EXEC, "/Users/duncan/Downloads/mbcheck/mbcheck -qj").
 
 %%% Error types.
 
@@ -106,7 +106,7 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
 
               % Annotate forms using type table.
               io:fwrite(color:green("[ANNOTATE] Annotating Erlang forms.~n")),
-              case paterl_anno_2:module(Desugared0, TInfo0) of
+              case paterl_anno:module(Desugared0, TInfo0) of
 
                 {ok, Annotated} ->
                   % Forms annotated.
@@ -147,7 +147,7 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
                       case exec(?EXEC ++ " " ++ PatFile) of
                         {0, _} ->
                           % Generated Pat file type-checked successfully.
-                          io:fwrite(color:green("[PAT] Successfully type-checked ~s.erl.~n"), [PatFile]);
+                          io:fwrite(color:green("[PAT] Successfully type-checked ~s.erl.~n~n~n"), [PatFile]);
                         {_, Bytes} ->
                           % Generated Pat file contains errors.
                           Msg = parse_error(Bytes),
@@ -244,7 +244,7 @@ translate(Msg) ->
 %%      );
       % This is a better error message.
       io_lib:format(
-        "Inferred an empty mailbox but expecting a missing message send that should produce the message pattern '~s'",
+        "Inferred from code an empty mailbox but expecting a missing message send that should produce the message pattern '~s'",
         [B]
       );
     {match, [A, "1"]} ->
@@ -255,13 +255,13 @@ translate(Msg) ->
 %%      );
       % This is a better error message.
       io_lib:format(
-        "Expecting an empty mailbox but inferred a missing message receive that should consume the message pattern '~s'",
+        "Expecting an empty mailbox but inferred from code a missing message receive that should consume the message pattern '~s'",
         [A]
       );
     {match, [A, B]} ->
       io_lib:format(
 %%        "Inferred message pattern '~s' is not included in user-asserted message pattern '~s'",
-        "Inferred message pattern '~s' but expected user-asserted message pattern '~s'",
+        "Inferred from code message pattern '~s' but expected user-asserted message pattern '~s'",
         [A, B]
       );
     nomatch ->
