@@ -1,6 +1,6 @@
 {application, paterl, [
   {description, "Erlang to Pat transpiler"},
-  {vsn, "0.1.0"},
+  {vsn, "new-use"},
   {registered, []},
   {applications, [
     kernel,

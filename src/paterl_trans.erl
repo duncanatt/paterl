@@ -658,7 +658,7 @@ spawn_expr({call, Anno, {atom, _, spawn}, _MFArgs = [_, Fun, Args]}) ->
     LetSpawn
   ).
 
-%% @private Creates the auxiliary main function that is added to the Pat file
+%% Creates the auxiliary main function that is added to the Pat file
 %% to complete it.
 %%main_fun_def() ->
 %%  Type = erl_syntax:revert(

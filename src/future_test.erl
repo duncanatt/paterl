@@ -40,7 +40,6 @@
 
 %% Future interface (a la EDoc annotations!).
 %% interface Future { Put(Int), Get(User!) }
-%% @type future_mb() :: {put, integer()} | {get, user_mb()}
 
 -type simpl() :: ok.
 -type tina() :: pid() | pid().
@@ -63,7 +62,6 @@ get().
 
 %% User interface.
 %% interface User { Reply(Int) }
-%% @type user() :: {reply, integer()}
 %%-type user_mb() :: {reply, integer()} | pid().
 
 %% Used to bootstrap the main function. Maybe inject an automatic interface?
@@ -85,8 +83,6 @@ get().
 %%     receive Put(x) from self -> resolvedFuture(self, x)
 %%   }
 %% }
-%% @spec future() -> none()
-%% @new future()
 -spec
 future() ->
   no_return().
@@ -114,8 +110,6 @@ future() ->
 %%       resolvedFuture(self, value)
 %%   }
 %% }
-%% @spec resolved_future(integer()) -> none()
-%% @use future()
 %%-use future.
 -spec resolved_future(integer(), integer(), any()) -> none().
 resolved_future(Value, 42, State) ->
@@ -140,8 +134,6 @@ resolved_future(Value, 42, State) ->
 %%     x
 %%   }
 %% }
-%% @spec user(future()) -> integer()
-%% @new user()
 -spec user(future_mb()) -> integer().
 user(FuturePid) ->
   Self =
@@ -166,8 +158,6 @@ user(FuturePid) ->
 %%   print(intToString(user(future_mb)));
 %%   print(intToString(user(future_mb)))
 %% }
-%% @spec  main() -> any()
-%% @new user()
 -spec main() -> any().
 main() ->
 

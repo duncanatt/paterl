@@ -166,33 +166,33 @@ check_forms([Form | Forms], TSpec, Errors) ->
 check_form({attribute, _, export, _Sigs}, TSpecs, Errors) when is_list(_Sigs) ->
   {TSpecs, Errors};
 
-%% @private Import attribute.
+%% Import attribute.
 check_form({attribute, _, import, {_Mod, _Funs}}, TSpecs, Errors)
   when is_atom(_Mod), is_list(_Funs) ->
   {TSpecs, Errors};
 
-%% @private Module attribute.
+%% Module attribute.
 check_form({attribute, _, module, _Mod}, TSpecs, Errors) when is_atom(_Mod) ->
   {TSpecs, Errors};
 
-%% @private File attribute.
+%% File attribute.
 check_form({attribute, _, file, {_File, _Line}}, TSpecs, Errors)
   when is_list(_File), is_integer(_Line) ->
   {TSpecs, Errors};
 
-%% @private Function declaration.
+%% Function declaration.
 check_form({function, _, Name, _Arity, Clauses}, TSpecs, Errors)
   when is_atom(Name), is_integer(_Arity), is_list(Clauses) ->
   Errors0 = check_clause_seq(Clauses, [?ALLOW_VAR], Errors),
   {TSpecs, Errors0};
 
-%% @private Local function spec.
+%% Local function spec.
 check_form({attribute, _, spec, {{Name, _Arity}, Types}}, TSpecs, Errors)
   when is_atom(Name), is_integer(_Arity), is_list(Types) ->
   Errors0 = check_fun_type_seq(Types, Errors),
   {TSpecs, Errors0};
 
-%% @private Type declaration.
+%% Type declaration.
 check_form({attribute, ANNO, type, {Name, T, Vars}}, TSpecs, Errors)
   when is_atom(Name), is_list(Vars) ->
 %%  io:format("Type name: ~p~n", [Name]),
@@ -211,15 +211,15 @@ check_form({attribute, ANNO, type, {Name, T, Vars}}, TSpecs, Errors)
   {TSpecs, check_type(T, [{?BUILTIN_TYPES, [pid | ?LIT_TYPES]}], Errors0)};
 
 
-%% @private Errors and warnings.
+%% Errors and warnings.
 check_form({EW, _}, TSpecs, Errors) when EW =:= error; EW =:= warning ->
   {TSpecs, Errors};
 
-%% @private EOF.
+%% EOF.
 check_form({eof, _}, TSpecs, Errors) ->
   {TSpecs, Errors};
 
-%% @private Wild attribute associating mailbox type to functions.
+%% Wild attribute associating mailbox type to functions.
 check_form({attribute, _, Name, Sigs}, TSpecs, Errors)
   when is_atom(Name), is_list(Sigs) ->
 
@@ -237,7 +237,7 @@ check_form({attribute, _, Name, Sigs}, TSpecs, Errors)
       {TSpecs, Errors}
   end;
 
-%% @private Unsupported forms:
+%% Unsupported forms:
 %% - Callback
 %% - Remote function spec
 %% - Record declaration
@@ -301,16 +301,16 @@ check_pat({match, _, P_1, P_2}, _, Errors) ->
   Errors0 = check_pat(P_1, [?ALLOW_VAR], Errors),
   check_pat(P_2, [?ALLOW_VAR], Errors0);
 
-%% @private Binary operator pattern.
+%% Binary operator pattern.
 check_pat({op, _, Op, P_1, P_2}, _, Errors) ->
   Errors0 = check_pat(P_1, [], Errors),
   check_pat(P_2, [], Errors0);
 
-%% @private Unary operator pattern.
+%% Unary operator pattern.
 check_pat({op, _, Op, P_0}, _, Errors) ->
   check_pat(P_0, [], Errors);
 
-%% @private Tuple pattern. Only tagged tuple patterns accepted.
+%% Tuple pattern. Only tagged tuple patterns accepted.
 check_pat(Pat = {tuple, ANNO, Pats}, Opts, Errors) when is_list(Pats) ->
 
   ?TRACE("Checking TUPLE pattern: ~p", [Pat]),
@@ -332,7 +332,7 @@ check_pat(Pat = {tuple, ANNO, Pats}, Opts, Errors) when is_list(Pats) ->
   Pats0 = if [] =:= Pats -> []; true -> tl(Pats) end,
   check_pat_seq(Pats0, [?ALLOW_VAR | Opts], Errors0);
 
-%% @private Variable pattern.
+%% Variable pattern.
 check_pat(Pat = {var, ANNO, Name}, Opts, Errors) when is_atom(Name) ->
   ?TRACE("Checking VAR pattern ~p", [Pat]),
   ?TRACE("Opts: ~p", [Opts]),
@@ -350,7 +350,7 @@ check_pat(Pat = {var, ANNO, Name}, Opts, Errors) when is_atom(Name) ->
       ?pushErr(?E_PAT, ?V_VAR, Pat, Errors)
   end;
 
-%% @private Unsupported patterns:
+%% Unsupported patterns:
 %% - Bitstring
 %% - Cons
 %% - Map
@@ -363,7 +363,7 @@ check_pat(Pat, _, Errors) ->
 %%  [{?E_PAT, element(2, Pat), Pat} | Errors].
   ?pushErr(?E_PAT, Pat, Errors).
 
-%% @private Pattern sequence.
+%% Pattern sequence.
 check_pat_seq([], _, Errors) ->
   Errors;
 check_pat_seq([Pat | Pats], Opts, Errors) ->
@@ -380,7 +380,7 @@ check_pat_seq([Pat | Pats], Opts, Errors) ->
 check_expr(Expr = {Name, _, _}, Errors) when ?IS_LIT_TYPE(Name) ->
   check_lit(Expr, Errors);
 
-%% @private Local function call expression. Currently only direct (i.e., atoms)
+%% Local function call expression. Currently only direct (i.e., atoms)
 %% local function calls are supported.
 %% The tuple check ensures that a
 %% remote call is not supported.
@@ -402,32 +402,32 @@ check_expr(Expr = {call, ANNO, E_0, Exprs}, Errors) when is_list(Exprs) ->
 %%  Errors0 = check_expr(E_0, Errors), % Evaluates to a function name or a remote call.
   check_expr_seq(Exprs, Errors0);
 
-%% @private If condition expression.
+%% If condition expression.
 check_expr({'if', _, Clauses}, Errors) when is_list(Clauses) ->
   check_clause_seq(Clauses, [], Errors);
 
-%% @private Match operator expression.
+%% Match operator expression.
 check_expr({match, _, P, E_0}, Errors) ->
   Errors0 = check_pat(P, [?ALLOW_VAR], Errors),
   check_expr(E_0, Errors0);
 
-%% @private Binary operator expression.
+%% Binary operator expression.
 check_expr({op, _, Op, E_1, E_2}, Errors) ->
   Errors0 = check_expr(E_1, Errors),
   check_expr(E_2, Errors0);
 
-%% @private Unary operator expression.
+%% Unary operator expression.
 check_expr({op, _, Op, E_0}, Errors) ->
   check_expr(E_0, Errors);
 
-%% @private Receive expression.
+%% Receive expression.
 check_expr(_Expr = {'receive', _, Clauses}, Errors) when is_list(Clauses) ->
   ?TRACE("Checking RECEIVE expression: ~p", [_Expr]),
 
   % Special clause seq. Variable or literal clause patterns are not allowed.
   check_clause_seq(Clauses, [], Errors);
 
-%% @private Tuple expression. Currently only tagged tuple expressions accepted.
+%% Tuple expression. Currently only tagged tuple expressions accepted.
 check_expr(Expr = {tuple, ANNO, Exprs}, Errors) when is_list(Exprs) ->
   Errors0 =
     case tuple_elems(Exprs) of
@@ -446,11 +446,11 @@ check_expr(Expr = {tuple, ANNO, Exprs}, Errors) when is_list(Exprs) ->
   Exprs0 = if [] =:= Exprs -> []; true -> tl(Exprs) end,
   check_expr_seq(Exprs0, Errors0);
 
-%% @private Variable expression.
+%% Variable expression.
 check_expr({var, _, Name}, Errors) when is_atom(Name) ->
   Errors;
 
-%% @private Unsupported expressions:
+%% Unsupported expressions:
 %% - Bitstring comprehension
 %% - Bitstring constructor
 %% - Block
@@ -504,7 +504,7 @@ check_clause(_Clause = {clause, _, [P], [], B}, Opts, Errors) ->
   Errors0 = check_pat(P, Opts, Errors), % Here I need to not allow variables and literals.
   check_expr_seq(B, Errors0);
 
-%% @private Function clause without guards.
+%% Function clause without guards.
 check_clause(_Clause = {clause, _, Ps, [], B}, Opts, Errors) ->
   ?TRACE("Checking FUNCTION CLAUSE ~p", [_Clause]),
   Errors0 = check_pat_seq(Ps, Opts, Errors), % Even here I need to allow variables but not literals.
@@ -524,7 +524,7 @@ check_clause({clause, _, [], Gs, B}, Opts, Errors) ->
   Errors0 = check_guard_seq(Gs, Errors),
   check_expr_seq(B, Errors0);
 
-%% @private Unsupported expressions:
+%% Unsupported expressions:
 %% - Case clause with guard sequence
 %% - Catch clause with explicit throw
 %% - Catch clause with pattern
@@ -537,7 +537,7 @@ check_clause(Clause, _, Errors) ->
 %%  [{?E_CLAUSE, element(2, Clause), Clause} | Errors].
   ?pushErr(?E_CLAUSE, Clause, Errors).
 
-%% @private Clause sequence.
+%% Clause sequence.
 check_clause_seq([], _, Errors) ->
   Errors;
 check_clause_seq([Clause | Clauses], Opts, Errors) ->
@@ -565,29 +565,29 @@ check_guard_seq([Guard | Guards], Errors) ->
 %%  Name =:= string ->
 %%  check_lit(Test, Errors);
 
-%% @private Atomic literal test.
+%% Atomic literal test.
 check_test(Test = {Name, _, _}, Errors) when ?IS_LIT_TYPE(Name) ->
   check_lit(Test, Errors);
 
-%% @private Binary operator test.
+%% Binary operator test.
 check_test({op, _, Op, Gt_1, Gt_2}, Errors) ->
   Errors0 = check_test(Gt_1, Errors),
   check_test(Gt_2, Errors0);
 
-%% @private Unary operator test.
+%% Unary operator test.
 check_test({op, _, Op, Gt_0}, Errors) ->
   check_test(Gt_0, Errors);
 
-%% @private Tuple skeleton test.
+%% Tuple skeleton test.
 %%check_test({tuple, _, Guard}, Errors) ->
 %% IF we decide to support this, we need to make the tagged/empty tuple check
 %%  check_guard(Guard, Errors);
 
-%% @private Variable test.
+%% Variable test.
 check_test({var, _, Name}, Errors) when is_atom(Name) ->
   Errors;
 
-%% @private Unsupported guard tests:
+%% Unsupported guard tests:
 %% - Bitstring constructor
 %% - Cons skeleton
 %% - Local function call
@@ -629,7 +629,7 @@ check_type(Type = {Lit, _, _}, _, Errors) when ?IS_LIT_TYPE(Lit) ->
   ?TRACE("Checking literal type: ~p", [Type]),
   check_lit(Type, Errors);
 
-%% @private Tuple type. Currently only tagged tuple with first element as an
+%% Tuple type. Currently only tagged tuple with first element as an
 %% atom is supported. This encodes Erlang messages. The tagged tuple must have
 %% at least one element, which is the message tag itself.
 check_type(Type = {type, ANNO, tuple, Types}, Opts, Errors) ->
@@ -659,12 +659,12 @@ check_type(Type = {type, ANNO, tuple, Types}, Opts, Errors) ->
   Types0 = if [] =:= Types -> []; true -> tl(Types) end,
   check_type_seq(Types0, Opts, Errors0);
 
-%% @private Type union.
+%% Type union.
 check_type({type, _, union, Types}, Opts, Errors) when is_list(Types) ->
   check_type_seq(Types, Opts, Errors);
 
 %% TODO: Add pid and other basic types such as none. Consider moving this after the tuple and uniton
-%% @private Built-in types.
+%% Built-in types.
 check_type(Type = {type, ANNO, N, Types}, Opts, Errors) when is_atom(N) ->
 %%  , N =/= union, N =/= tuple -> % Could use a marco for basic types.
 %%  when ?IS_LIT_TYPE(N) ->
@@ -683,15 +683,15 @@ check_type(Type = {type, ANNO, N, Types}, Opts, Errors) when is_atom(N) ->
 
   check_type_seq(Types, Opts, Errors0);
 
-%% @private Type variable.
+%% Type variable.
 check_type({var, _, Name}, Opts, Errors) when is_atom(Name) ->
   Errors;
 
-%% @private User-defined type.
+%% User-defined type.
 check_type({user_type, _, N, Types}, Opts, Errors) when is_atom(N), is_list(Types) ->
   check_type_seq(Types, Opts, Errors);
 
-%% @private Unsupported types:
+%% Unsupported types:
 %% - Annotated
 %% - Bitstring
 %% - Nil
@@ -788,7 +788,7 @@ type_form({attribute, _, type, TSpec = {Name, T, Vars}}, TSpecs, MbSigs)
 
   {[TSpec | TSpecs], MbSigs};
 
-%% @private Wild attribute associating mailbox type to functions.
+%% Wild attribute associating mailbox type to functions.
 type_form({attribute, _, Name, Sigs}, TSpecs, MbSigs)
   when is_atom(Name), is_list(Sigs) ->
 

@@ -1,9 +1,9 @@
 %%% ----------------------------------------------------------------------------
-%%% @author Duncan Paul Attard
+%%% Duncan Paul Attard
 %%%
-%%% @doc Module description (becomes module heading).
+%%% Module description (becomes module heading).
 %%%
-%%% @end
+%%%
 %%% 
 %%% Copyright (c) 2021, Duncan Paul Attard <duncanatt@gmail.com>
 %%%
@@ -21,6 +21,9 @@
 %%% this program. If not, see <https://www.gnu.org/licenses/>.
 %%% ----------------------------------------------------------------------------
 -module(log).
+-moduledoc """
+Macro-based logger that can be switched off on releases.
+""".
 -author("Duncan Paul Attard").
 
 %%% Includes.
@@ -34,33 +37,30 @@
 %%% Public API.
 %%% ----------------------------------------------------------------------------
 
-%% @doc Configures the logger to output to the specified file.
-%%
-%% {@params
-%%   {@name File}
-%%   {@desc Full filename where the logger output is directed.}
-%% }
-%%
-%% {@returns `true' indicating that log file is configured.}
+-doc """
+Configures the logger to write to the specified file.
+
+- `File` is the full filename where the logger output is directed.
+
+**Returns**
+- `true` to indicate that log file is configured, `false` otherwise.
+""".
 -spec log_to_file(File :: file:filename()) -> true.
 log_to_file(File) ->
   {ok, Log} = file:open(File, [write]),
   erlang:group_leader(Log, self()).
 
-%% @doc Outputs the log statement.
-%%
-%% {@params
-%%   {@name LogLabel}
-%%   {@desc Label indicating the severity of the log statement.}
-%%   {@name Module}
-%%   {@desc Name of the module issuing the log statement.}
-%%   {@name Line}
-%%   {@desc Line number of the log statement.}
-%%   {@name Fmt}
-%%   {@desc Format of the log statement string.}
-%% }
-%%
-%% {@returns `ok' to acknowledge success.}
+-doc """
+Writes the log statement.
+
+- `LogLabel` indicates the severity of the log statement.
+- `Module` is the name of the module issuing the log statement.
+- `Line` is the line number of the log statement.
+- `Fmt` is the format of the log statement string.
+
+**Returns**
+- `ok` to acknowledge success.
+""".
 -spec write(LogLabel, Module, Line, Fmt) -> ok
   when
   LogLabel :: string(),
@@ -70,22 +70,18 @@ log_to_file(File) ->
 write(LogLabel, Module, Line, Fmt) ->
   write(LogLabel, Module, Line, Fmt, []).
 
-%% @doc Outputs the log statement with formatting parameters.
-%%
-%% {@params
-%%   {@name LogLabel}
-%%   {@desc Label indicating the severity of the log statement.}
-%%   {@name Module}
-%%   {@desc Name of the module issuing the log statement.}
-%%   {@name Line}
-%%   {@desc Line number of the log statement.}
-%%   {@name Fmt}
-%%   {@desc Format of the log statement string.}
-%%   {@name Params}
-%%   {@desc Formatting parameters for the log statement string.}
-%% }
-%%
-%% {@returns `ok' to acknowledge success.}
+-doc """
+Outputs the log statement with formatting parameters.
+
+- `LogLabel` indicated the severity of the log statement.
+- `Module` is the name of the module issuing the log statement.
+- `Line` is the line number of the log statement.
+- `Fmt` is the format of the log statement string.
+- `Params` are the parameters to be formatted in the log statement string.
+
+**Returns**
+- `ok` to acknowledge success.
+""".
 -spec write(LogLabel, Module, Line, Fmt, Params) -> ok
   when
   LogLabel :: string(),
@@ -106,19 +102,17 @@ write(LogLabel, Module, Line, Fmt, Params) ->
 %%% Private helper functions.
 %%% ----------------------------------------------------------------------------
 
-%% @private Determines whether a log statement for the specified severity level
-%% can be output.
-%%
-%% {@params
-%%   {@name LogLevel}
-%%   {@desc Level from 1 to 5, indicating the severity of the log statement,
-%%          where 1 = TRACE, 2 = DEBUG, 3 = INFO, 4 = WARN, 5 = ERROR.
-%%   }
-%%   {@name LogLabel}
-%%   {@desc Label indicating the severity of the log statement.}
-%% }
-%%
-%% {@returns `true' if the log statement can be output, otherwise `false'.}
+-doc """
+Determines whether a log statement for the specified severity level can be
+output.
+
+- `LogLevel` is the log level from 1 to 5 that indicates the severity of the log
+statement, where 1 = TRACE, 2 = DEBUG, 3 = INFO, 4 = WARN, 5 = ERROR.
+- `LogLabel` indicates the the severity of the log statement.
+
+**Returns**
+- `true' if the log statement can be output, `false' otherwise.
+""".
 -spec can_log(LogLevel :: integer(), LogLabel :: string()) -> boolean().
 can_log(?trace_level, ?trace_str) ->
   true;

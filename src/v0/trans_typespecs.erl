@@ -109,34 +109,34 @@ trans_mod([Form | Forms], TInfo = #t_info{}) ->
 trans_form(Form = {attribute, _, export, _Funs}, TInfo = #t_info{}) when is_list(_Funs) ->
   {Form, TInfo};
 
-%% @private Import annotation.
+%% Import annotation.
 trans_form(Form = {attribute, _, import, {_Mod, _Funs}}, TInfo = #t_info{})
   when is_atom(_Mod), is_list(_Funs) ->
   {Form, TInfo};
 
-%% @private Module attribute.
+%% Module attribute.
 trans_form(Form = {attribute, _, module, _Mod}, TInfo = #t_info{}) when is_atom(_Mod) ->
   {Form, TInfo};
 
-%% @private File attribute.
+%% File attribute.
 trans_form(Form = {attribute, _, file, {_File, _Line}}, TInfo = #t_info{})
   when is_list(_File), is_integer(_Line) ->
   {Form, TInfo};
 
-%% @private Function declaration.
+%% Function declaration.
 trans_form(Form = {function, _, Name, Arity, Clauses}, TInfo = #t_info{})
   when is_atom(Name), is_integer(Arity), is_list(Clauses) ->
   trans_clauses(Clauses),
   {Form, TInfo};
 
 
-%% @private Local function spec.
+%% Local function spec.
 trans_form(Form = {attribute, _, spec, {{Name, Arity}, Types}}, TInfo = #t_info{})
   when is_atom(Name), is_integer(Arity), is_list(Types) ->
   {_, TInfo0} = trans_fun_types(Types, TInfo),
   {Form, TInfo0};
 
-%% @private Type declaration.
+%% Type declaration.
 trans_form(Form = {attribute, _, type, {Name, T, Vars}}, TInfo = #t_info{})
   when is_atom(Name), is_list(Vars) ->
   {_, TInfo0} = trans_type(T, TInfo),
@@ -148,15 +148,15 @@ trans_form(Form = {attribute, _, type, {Name, T, Vars}}, TInfo = #t_info{})
   {Form, TInfo0};
 
 
-%% @private Errors and warnings.
+%% Errors and warnings.
 trans_form(Form = {EW, _}, TInfo = #t_info{}) when EW =:= error; EW =:= warning ->
   {Form, TInfo};
 
-%% @private EOF.
+%% EOF.
 trans_form(Form = {eof, _}, TInfo = #t_info{}) ->
   {Form, TInfo};
 
-%% @private Wild attribute associating mailbox types to functions.
+%% Wild attribute associating mailbox types to functions.
 trans_form(Form = {attribute, _, Name, Sigs}, TInfo = #t_info{mb_sigs = MbTypes}) when is_atom(Name), is_list(Sigs) ->
 
   % Checks whether the specified tuple is a Fun/Arity.
@@ -175,11 +175,11 @@ trans_form(Form = {attribute, _, Name, Sigs}, TInfo = #t_info{mb_sigs = MbTypes}
 
 
 
-%% @private Wild attribute potentially defining a mailbox type usage.
+%% Wild attribute potentially defining a mailbox type usage.
 %%trans_form(Form = {attribute, _, A,T}) when is_atom(A)->
 %%  Form;
 
-%% @private Unsupported forms:
+%% Unsupported forms:
 %% - Callback
 %% - Remote function spec
 %% - Record declaration
@@ -258,28 +258,28 @@ trans_lit(Lit) ->
 trans_pat(Pat = {Type, _, _}) when ?IS_LIT_TYPE(Type) ->
   trans_lit(Pat);
 
-%% @private Compound pattern.
+%% Compound pattern.
 trans_pat(Pat = {match, _, P_1, P_2}) ->
   trans_pat(P_1),
   trans_pat(P_2),
   Pat;
 
-%% @private Binary operator pattern.
+%% Binary operator pattern.
 trans_pat(Pat = {op, _, Op, P_1, P_2}) ->
   trans_pat(P_1),
   trans_pat(P_2),
   Pat;
 
-%% @private Unary operator pattern.
+%% Unary operator pattern.
 trans_pat(Pat = {op, _, Op, P_0}) ->
   trans_pat(P_0),
   Pat;
 
-%% @private Variable pattern.
+%% Variable pattern.
 trans_pat(Pat = {var, _, Name}) when is_atom(Name) ->
   Pat;
 
-%% @private Unsupported patterns:
+%% Unsupported patterns:
 %% - Bitstring
 %% - Cons
 %% - Map
@@ -310,45 +310,45 @@ trans_expr(Expr = {Name, _, _})
   ?IS_LIT_TYPE(Name) ->
   trans_lit(Expr);
 
-%% @private Local function call expression. The remote check is required to
+%% Local function call expression. The remote check is required to
 %% emit a legible error message.
 trans_expr(Expr = {call, _, E_0, Exprs}) when element(1, remote) =/= remote, is_list(Exprs) ->
   trans_expr(E_0),
   trans_exprs(Exprs),
   Expr;
 
-%% @private If condition expression.
+%% If condition expression.
 trans_expr(Expr = {'if', _, Clauses}) when is_list(Clauses) ->
   trans_clauses(Clauses),
   Expr;
 
-%% @private Match operator expression.
+%% Match operator expression.
 trans_expr(Expr = {match, _, P, E_0}) ->
   trans_pat(P),
   trans_expr(E_0),
   Expr;
 
-%% @private Binary operator expression.
+%% Binary operator expression.
 trans_expr(Expr = {op, _, Op, E_1, E_2}) ->
   trans_expr(E_1),
   trans_expr(E_2),
   Expr;
 
-%% @private Unary operator expression.
+%% Unary operator expression.
 trans_expr(Expr = {op, _, Op, E_0}) ->
   trans_expr(E_0),
   Expr;
 
-%% @private Receive expression.
+%% Receive expression.
 trans_expr(Expr = {'receive', _, Clauses}) when is_list(Clauses) ->
   trans_clauses(Clauses),
   Expr;
 
-%% @private Variable expression.
+%% Variable expression.
 trans_expr(Expr = {var, _, Name}) when is_atom(Name) ->
   Expr;
 
-%% @private Unsupported expressions:
+%% Unsupported expressions:
 %% - Bitstring comprehension
 %% - Bitstring constructor
 %% - Block
@@ -399,7 +399,7 @@ trans_body([]) ->
 trans_body([Expr | Exprs]) ->
   [trans_expr(Expr) | trans_body(Exprs)].
 
-%% @private If clauses.
+%% If clauses.
 %%trans_if_clause(Clause) ->
 %%  Clause.
 %%trans_if_clauses([]) ->
@@ -407,7 +407,7 @@ trans_body([Expr | Exprs]) ->
 %%trans_if_clauses([Clause | Clauses]) ->
 %%  [trans_if_clause(Clause) | trans_if_clauses(Clauses)].
 
-%% @private Case clauses.
+%% Case clauses.
 %%trans_case_clause(Clause) ->
 %%  Clause.
 %%trans_case_clauses([]) ->
@@ -426,26 +426,26 @@ trans_clause(Clause = {clause, _, Ps, [], B}) ->
   trans_body(B),
   Clause;
 
-%% @private Case clause.
+%% Case clause.
 trans_clause(Clause = {clause, _, [P], [], B}) ->
   trans_pat(P),
   trans_body(B),
   Clause;
 
-%% @private Case clause with guard sequence.
+%% Case clause with guard sequence.
 trans_clause(Clause = {clause, _, [P], Gs, B}) ->
   trans_pat(P),
   trans_guards(Gs),
   trans_body(B),
   Clause;
 
-%% @private Guard sequence.
+%% Guard sequence.
 trans_clause(Clause = {clause, _, [], Gs, B}) ->
   trans_guards(Gs),
   trans_body(B),
   Clause;
 
-%% @private Unsupported expressions:
+%% Unsupported expressions:
 %% - Case clause
 %% - Case clause with guard sequence
 %% - Catch clause with explicit throw
@@ -459,7 +459,7 @@ trans_clause(Clause) ->
   ?NO_SUPPORT(Clause, 'Clause'),
   Clause.
 
-%% @private Clause sequence.
+%% Clause sequence.
 trans_clauses([]) ->
   [];
 trans_clauses([Clause | Clauses]) ->
@@ -488,7 +488,7 @@ trans_test(Test = {Name, _, _})
   Name =:= string ->
   trans_lit(Test);
 
-%% @private Unsupported guard tests:
+%% Unsupported guard tests:
 %% - Bitstring constructor
 %% - Cons skeleton
 %% - Local function call
@@ -507,7 +507,7 @@ trans_test(Test) ->
   ?NO_SUPPORT(Test, 'Guard Test'),
   Test.
 
-%% @private Guard (i.e. a sequence of guard tests).
+%% Guard (i.e. a sequence of guard tests).
 trans_guard([]) ->
   [];
 trans_guard([Test | Tests]) ->
@@ -519,7 +519,7 @@ trans_guard([Test | Tests]) ->
 %%% ----------------------------------------------------------------------------
 
 
-%% @private Annotated type.
+%% Annotated type.
 %% TODO: Delete this
 %%trans_type(Type = {ann_type, _, [A, T_0]}, TInfo = #t_info{}) ->
 %%  trans_type_var(A),
@@ -552,27 +552,27 @@ trans_type(Type = {type, _, N, Types}, TInfo = #t_info{types = Ty}) ->
 
   {Type, TInfo0};
 
-%% @private Type union.
+%% Type union.
 trans_type(Union = {type, _, union, _}, TInfo = #t_info{}) ->
   trans_type_union(Union, TInfo);
 
-%% @private Type variable.
+%% Type variable.
 trans_type(Var = {var, _, _}, TInfo = #t_info{}) ->
   trans_type_var(Var);
 
-%% @private User-defined type.
+%% User-defined type.
 trans_type(Type = {user_type, _, N, Types}, TInfo = #t_info{}) when is_atom(N), is_list(Types) ->
   {_, TInfo0} = trans_types(Types, TInfo),
   {Type, TInfo0};
 
-%% @private Function type.
+%% Function type.
 trans_type(Type = {type, _, 'fun', [{type, _, product, _}, _]}, TInfo = #t_info{}) ->
   trans_fun_type(Type, TInfo);
 
 
 %%Support tuple type with tags.
 
-%% @private Tagged tuple for messages. Tuple must have at least one component.
+%% Tagged tuple for messages. Tuple must have at least one component.
 trans_type(Type = {type, _, tuple, Types}, TInfo = #t_info{})
 %%  when element(1, Tag) =:= atom ->
   ->
@@ -580,7 +580,7 @@ trans_type(Type = {type, _, tuple, Types}, TInfo = #t_info{})
   {_, TInfo0} = trans_types(Types, TInfo),
   {Type, TInfo0};
 
-%% @private Unsupported types:
+%% Unsupported types:
 %% - Annotated
 %% - Bitstring
 %% - Nil

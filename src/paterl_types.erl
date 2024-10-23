@@ -203,6 +203,7 @@ table(Forms) ->
   end.
 
 % {Sigs, MbSigs, Types, Specs}
+
 read_attribs(Forms) ->
   lists:foldl(
     fun(_Form = {function, ANNO, Fun, Arity, _}, {Sigs, MbDefs, Types, Specs}) ->
@@ -236,8 +237,8 @@ read_attribs(Forms) ->
 
 get_t_info(Forms) ->
 
-  % Read raw attributes from AST. The consistency of type and function
-  % specifications is performed by the Erlang preprocessor.
+  % Read raw attributes from AST. The consistency checking of type and function
+  % specs w.r.t functions is performed by the Erlang preprocessor.
   {Sigs, MbDefs, Types, Specs} = read_attribs(Forms),
 
   ?TRACE("Sigs: ~p", [Sigs]),
@@ -427,8 +428,8 @@ make_mb_defs(MbDefs) when is_list(MbDefs) ->
 
 %% @private Checks that the function signatures in mailbox definitions are
 %% defined.
-%% @returns `{ok, Warnings}` if all signatures are defined, otherwise
-%% `{error, Warnings, Errors}`. Warnings is always the empty list.
+%% returns {ok, Warnings} if all signatures are defined, otherwise
+%% {error, Warnings, Errors}. Warnings is always the empty list.
 check_mb_sigs_defined(MbDefs = #{}, Sigs = #{}) ->
   ?TRACE("Sigs in check_mb_sigs_defined = ~p", [Sigs]),
   return(
@@ -448,7 +449,7 @@ check_mb_sigs_defined(MbDefs = #{}, Sigs = #{}) ->
   ).
 
 %% @private Checks that mailbox names have a corresponding type defined.
-%% @returns `{ok, Warnings}` if all mailbox names have a corresponding type
+%% returns `{ok, Warnings}` if all mailbox names have a corresponding type
 %% defined, otherwise `{error, Errors, Warnings}`. Warnings is always the empty
 %% list.
 check_mb_types_defined(MbNames = #{}, Types = #{}) ->
@@ -640,7 +641,7 @@ check_valid_tuple_nodes([Node | Nodes], Types = #{}, Error) ->
 
 %% @private Checks that function signatures names have a corresponding spec
 %% defined.
-%% @returns `{ok, Warnings}` if all function signatures have a corresponding
+%% returns `{ok, Warnings}` if all function signatures have a corresponding
 %% spec defined, otherwise `{error, Errors, Warnings}`. Warnings is always the
 %% empty list.
 check_sigs_have_specs(Sigs = #{}, Specs = #{}) ->
@@ -925,17 +926,17 @@ to_erl_af(ANNO, {Name, Arity})
 % TODO: Move to another module, maybe util
 
 %% @doc Formats return values using the Erlang preprocessor pattern.
-%% 1. An error-free result with possible warnings returns `{ok, Result, Warnings}`.
-%% 2. Otherwise only errors are returned `{error, Errors, Warnings}`.
+%% 1. An error-free result with possible warnings returns {ok, Result, Warnings}.
+%% 2. Otherwise only errors are returned {error, Errors, Warnings}.
 return(Result, #error{errors = [], warnings = Warnings}) ->
   {ok, Result, Warnings};
 return(_, Error = #error{}) ->
   Error.
 
 %% @doc Formats return values using the Erlang preprocessor pattern.
-%% 1. No errors and potential warnings returns `{ok, Warnings}`.
-%% 2. Errors are returned as `{error, Errors, Warnings}`.
-%% 3. Results are returned as `{ok, Result, Warnings}`, where Warnings is the
+%% 1. No errors and potential warnings returns {ok, Warnings}.
+%% 2. Errors are returned as {error, Errors, Warnings}.
+%% 3. Results are returned as {ok, Result, Warnings}, where Warnings is the
 %% empty list.
 return(#error{errors = [], warnings = Warnings}) ->
   {ok, Warnings};
