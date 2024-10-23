@@ -143,7 +143,7 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
 
                   case file:write_file(PatFile, PatString) of
                     ok ->
-                      io:fwrite(color:green("[PAT] Pat'ting ~s.~n"), [PatFile]),
+                      io:fwrite(color:green("[PAT] Patt'ing ~s.~n"), [PatFile]),
                       case exec(?EXEC ++ " " ++ PatFile) of
                         {0, _} ->
                           % Generated Pat file type-checked successfully.
