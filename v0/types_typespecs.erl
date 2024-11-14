@@ -22,11 +22,11 @@
 %%% Macro and record definitions.
 %%% ----------------------------------------------------------------------------
 
--define(E_MB_TYPE_UNDEF, e_mb_type_undef).
+-define(E_UNDEF__MB_TYPE, e_mb_type_undef).
 -define(W_MB_TYPE_PID, w_mb_type_pid).
 -define(W_MB_TYPE_EMPTY, w_mb_type_empty).
 %%-define(E_MB_TYPE_INVALID, e_mb_type_invalid).
--define(E_MB_SIG_TYPE_UNDEF, e_mb_sig_type_undef).
+-define(E_UNDEF__FUN_SPEC, e_mb_sig_type_undef).
 
 
 %%%% Error creation macros.
@@ -169,7 +169,7 @@ check_mb_types(MbSigs, TSpecs) ->
         true ->
           {Errors, Warnings};
         false ->
-          {?pushError(?E_MB_TYPE_UNDEF, Node, Errors), Warnings}
+          {?pushError(?E_UNDEF__MB_TYPE, Node, Errors), Warnings}
       end
     end,
     {[], []}, MbSigs).
@@ -269,7 +269,7 @@ check_mb_sig_types(MbSigs, FSpecs) ->
                 erl_syntax:get_pos(Node)),
 
               ?ERROR("Function ~p was not found.", [Sig]), % Need a function name for the error.
-              {?pushError(?E_MB_SIG_TYPE_UNDEF, FA, Errors0), Warnings}
+              {?pushError(?E_UNDEF__FUN_SPEC, FA, Errors0), Warnings}
           end
         end,
         {Errors, Warnings}, Sigs)
@@ -309,7 +309,7 @@ has_builtin(N, [_ | Types]) ->
 %%% ----------------------------------------------------------------------------
 
 %% @doc Formats the specified error to human-readable form.
-format_error({?E_MB_TYPE_UNDEF, Node}) ->
+format_error({?E_UNDEF__MB_TYPE, Node}) ->
   io_lib:format(
     "mailbox interface '~s' has no corresponding typespec defined",
     [erl_prettypr:format(Node)]
@@ -328,7 +328,7 @@ format_error({?W_MB_TYPE_EMPTY, Node}) ->
 %%    "mailbox interface has invalid type '~s'", [erl_prettypr:format(Node)]
 %%  );
 
-format_error({?E_MB_SIG_TYPE_UNDEF, Node}) ->
+format_error({?E_UNDEF__FUN_SPEC, Node}) ->
   io_lib:format(
     "no type information found for function ~s used in mailbox interface",
     [erl_prettypr:format(Node)]

@@ -1,18 +1,30 @@
-%%%-------------------------------------------------------------------
-%%% @author duncan
-%%% @copyright (C) 2024, <COMPANY>
-%%% @doc
-%%% The Pat Erlang type management.
-%%% @end
-%%% Created : 29. Jan 2024 15:23
-%%%-------------------------------------------------------------------
+%%
+%% %CopyrightBegin%
+%%
+%% Copyright the University of Glasgow 2022-2024. All Rights Reserved.
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+%%
+%% %CopyrightEnd%
+%%
 -module(paterl_types).
+-moduledoc "Erlang mailbox and type annotation extraction.".
 -author("duncan").
 
 %%% Includes.
--include_lib("stdlib/include/assert.hrl").
 -include("log.hrl").
--include("errors.hrl").
+-include("paterl_lib.hrl").
+%%-include("errors.hrl").
 -include("paterl.hrl").
 
 %%% Imports.
@@ -37,6 +49,7 @@ set_pos/2
 
 %%% Public types.
 -export_type([types/0, specs/0, mb_defs/0, mailbox/0, mb_names/0, t_info/0, signature/0]).
+-export_type([result/0]).
 
 -compile(export_all).
 
@@ -47,35 +60,44 @@ set_pos/2
 %%% Error types.
 
 %% Mailbox specification syntactically incorrect.
--define(E_MB_SPEC_BAD, e_mb_spec_bad).
+%%-define(E__BAD_MB_DEF, e_mb_spec_bad).
 
 %% Invalid function Fun/Arity signature.
--define(E_MB_SIG_BAD, e_mb_sig_bad).
+%%-define(E_MB_SIG_BAD, e_mb_sig_bad).
 
-%% Untyped function signature.
--define(E_MB_SIG_TYPE_UNDEF, e_mb_sig_type_undef).
+%% Untyped function signature. e_mb_sig_type_undef
+-define(E_UNDEF__FUN_SPEC, e_undef__fun_spec).
 
 %% Function signature associated with more than one mailbox type.
 -define(E_MB_SIG_NOT_UNIQUE, e_mb_sig_not_unique).
 
-%% Undefined function signature.
--define(E_MB_SIG_UNDEF, e_mb_sig_undef).
+%% Undefined function reference.
+-define(E_UNDEF__FUN_REF, e_undef__fun_ref).
 
 %% Undefined mailbox type.
--define(E_MB_TYPE_UNDEF, e_mb_type_undef).
+-define(E_UNDEF__MB_TYPE, e_undef__mb_type).
 
 %% Invalid message tag.
--define(E_MB_MSG_TAG_BAD, e_mb_msg_tag_bad).
+-define(E_BAD__MSG_TAG, e_bad__msg_tag).
 
 %% Invalid message element type. Supported types are integers and strings.
--define(E_MB_MSG_ELEM_TYPE_BAD, e_mb_msg_elem_type_bad).
+-define(E_BAD__MSG_ELEM_TYPE, e_bad__msg_elem_type).
 
 %% No pid() associated with mailbox type.
--define(W_MB_NO_PID, w_mb_no_pid).
+-define(W_NO__PID, w_no__pid).
 
 %% Mailbox not initialized with new modality.
--define(E_MB_NO_NEW, e_mb_no_new).
+-define(E_NO__MB_NEW, e_no__mb_new).
 
+%% User-defined mailbox interface type contains types other than a message.
+-define(E_BAD__MSG_TYPE, e_bad__msg_type).
+
+%% User-defined message type contains types other than a built-in or a
+%% user-defined mailbox interface type.
+-define(E_BAD__MB_TYPE, e_bad__mb_type).
+
+%% Undefined type.
+-define(E__UNDEF_TYPE, e__undef_type).
 
 %% Error macros.
 
@@ -119,7 +141,12 @@ set_pos/2
 
 -type anno() :: erl_anno:anno().
 
+-doc """
+Function result.
+""".
+%%-type result() :: {ok, term(), errors:warnings()} | {ok, errors:warnings()} | errors:error().
 
+%%-type error() :: paterl_lib:error().
 
 
 
@@ -147,21 +174,37 @@ set_pos/2
 -type t_info() :: #t_info{}.
 %% Program type information type.
 
+-type result() :: {ok, t_info(), Warnings :: paterl_errors:warnings()} |
+{errors, Warnings :: paterl_errors:warnings(), Errors :: paterl_errors:errors()}.
+
 
 %%% ----------------------------------------------------------------------------
 %%% Public API.
 %%% ----------------------------------------------------------------------------
 
--spec table(erl_syntax:forms()) -> {ok, t_info(), errors:warnings()} | errors:error().
-table(Forms) ->
-  case check_mb_specs_syntactic(Forms) of % TODO: Move it to the syntax checking file.
-    {ok, _} ->
+%%-spec table(erl_syntax:forms()) -> {ok, t_info(), errors:warnings()} | errors:error().
+%%-spec table(erl_syntax:forms()) -> {ok, t_info(), paterl_lib:warnings()} | {error, paterl_lib:warnings(), paterl_lib:errors()}.
+%%-spec table(erl_syntax:forms()) ->
+%%  {ok, TInfo, Warnings} | {error, Warnings, Errors}
+%%  when
+%%  TInfo :: t_info(),
+%%  Warnings :: paterl_errors:warnings(),
+%%  Errors :: paterl_errors:errors().
+-spec table(erl_syntax:forms()) -> result().
+table(Forms) when is_list(Forms) ->
+  _File = paterl_syntax:get_file(Forms),
 
-      % Extract type information from AST to table.
-      case get_t_info(Forms) of
-        {ok, TInfo = #t_info{}, []} ->
+  A =
+%%    case check_mb_specs_syntactic(Forms) of % TODO: Move it to the syntax checking file.
+%%      #analysis{status = ok} ->
 
-          #t_info{types = Types, specs = Specs, mb_defs = MbDefs, mb_names = MbNames} = TInfo,
+
+        % Extract type information from AST to table.
+        case get_t_info(Forms) of
+          #analysis{status = ok, result = TInfo} ->
+%%        {ok, TInfo = #t_info{}, []} ->
+
+            #t_info{types = Types, specs = _Specs, mb_defs = _MbDefs, mb_names = MbNames} = TInfo,
 
 %%          io:format("~n~s SIGS & TINFO ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
 %%          io:format("Types: ~p~n", [Types]),
@@ -171,61 +214,77 @@ table(Forms) ->
 %%          io:format("~s SIGS & TINFO ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
 
 
-          case check_mb_types_defined(MbNames, Types) of
-            {ok, []} ->
-              case check_mb_types_valid(Types) of
-                {ok, Warnings} ->
+            case check_mb_types_defined(MbNames, Types) of
+%%            {ok, []} ->
+              #analysis{status = ok} ->
+                case check_mb_types_valid(Types) of
+                  #analysis{status = ok, warnings = Warnings} ->
+%%                {ok, Warnings} ->
 
-                  %% TODO: Check mb is new (we have no use without new). Uses MbNames.
-                  case check_mb_new(MbNames) of
-                    {ok, []} ->
-                      {ok, TInfo, Warnings};
-                    Error = #error{} ->
-                      % One or more mailbox definitions are used without new.
-                      Error
-                  end;
-                Error = #error{} ->
-                  % One or more invalid messages types in mailbox definitions.
-                  Error
-              end;
-            Error = #error{} ->
-              % One or more undefined mailbox type names.
-              Error
-          end;
-        Error = #error{} ->
-          % One or more function signatures associated with the same mailbox
-          % definition or undeclared function signatures in mailbox definitions.
-          Error
-      end;
-    Error = #error{} ->
-      % Syntax errors in mailbox definitions.
-      Error
-  end.
+                    %% TODO: Check mb is new (we have no use without new). Uses MbNames.
+                    case check_mb_new(MbNames) of
+%%                    {ok, []} ->
+                      #analysis{status = ok} ->
+
+                        #analysis{
+                          file = paterl_syntax:get_file(Forms),
+                          result = TInfo,
+                          warnings = Warnings
+                        };
+%%                      {ok, TInfo, Warnings}; % TODO: Here we should create the analysis record and return_pack it.
+                      Analysis = #analysis{status = error} ->
+                        % One or more mailbox definitions are used without new.
+                        Analysis
+                    end;
+                  Analysis = #analysis{status = error} ->
+                    % One or more invalid messages types in mailbox definitions.
+                    Analysis
+                end;
+              Analysis = #analysis{status = error} ->
+                % One or more undefined mailbox type names.
+                Analysis
+            end;
+          Analysis = #analysis{status = error} ->
+            % One or more function signatures associated with the same mailbox
+            % definition or undeclared function signatures in mailbox definitions.
+            Analysis
+        end,
+%%      Analysis = #analysis{status = error} ->
+%%        % Syntax errors in mailbox definitions.
+%%        Analysis
+%%    end,
+  paterl_lib:return(A).
 
 % {Sigs, MbSigs, Types, Specs}
 
+-spec read_attribs(erl_syntax:forms()) -> {FunSigs, MbDefs, Types, FunSpecs}
+  when
+  FunSigs :: term(),
+  MbDefs :: term(),
+  Types :: term(),
+  FunSpecs :: term().
 read_attribs(Forms) ->
   lists:foldl(
     fun(_Form = {function, ANNO, Fun, Arity, _}, {Sigs, MbDefs, Types, Specs}) ->
       ?TRACE("Fun: ~p", [_Form]),
       ?DEBUG("~b: ~s/~b", [ANNO, Fun, Arity]),
-      {new_sig(ANNO, {Fun, Arity}, Sigs), MbDefs, Types, Specs};
+      {add_fun_sig(ANNO, {Fun, Arity}, Sigs), MbDefs, Types, Specs};
 
       (_Form = {attribute, ANNO, Modality, {Mailbox, Sigs0}}, {Sigs, MbDefs, Types, Specs})
         when Modality =:= ?M_NEW; Modality =:= ?M_USE ->
         ?TRACE("MbDef: ~p", [_Form]),
         ?DEBUG("~b: -~s ~s with ~p", [ANNO, Modality, Mailbox, Sigs0]),
-        {Sigs, new_mb_def(ANNO, Sigs0, Modality, Mailbox, MbDefs), Types, Specs};
+        {Sigs, add_mb_def(ANNO, Sigs0, Modality, Mailbox, MbDefs), Types, Specs};
 
       (_Form = {attribute, ANNO, type, {Name, Type, Vars}}, {Sigs, MbDefs, Types, Specs}) ->
         ?TRACE("Type: ~p", [_Form]),
         ?DEBUG("~b: -type ~s", [ANNO, Name]),
-        {Sigs, MbDefs, new_type(ANNO, Name, Type, Vars, Types), Specs};
+        {Sigs, MbDefs, add_type(ANNO, Name, Type, Vars, Types), Specs};
 
-      (_Form = {attribute, ANNO, spec, {Sig = {Name, Arity}, Types0}}, {Sigs, MbDefs, Types, Specs}) ->
+      (_Form = {attribute, ANNO, spec, {Sig = {_Fun, _Arity}, Types0}}, {Sigs, MbDefs, Types, Specs}) ->
         ?TRACE("Spec: ~p", [_Form]),
-        ?DEBUG("~b: -spec ~s/~b", [ANNO, Name, Arity]),
-        {Sigs, MbDefs, Types, new_spec(ANNO, Sig, Types0, Specs)};
+        ?DEBUG("~b: -spec ~s/~b", [ANNO, _Fun, _Arity]),
+        {Sigs, MbDefs, Types, add_fun_spec(ANNO, Sig, Types0, Specs)};
 
       (_Form, Data) ->
         ?TRACE("Form: ~p", [_Form]),
@@ -235,10 +294,12 @@ read_attribs(Forms) ->
     end, {[], [], [], []}, Forms).
 
 
+-spec get_t_info(erl_syntax:forms()) -> paterl_lib:analysis().
 get_t_info(Forms) ->
 
   % Read raw attributes from AST. The consistency checking of type and function
-  % specs w.r.t functions is performed by the Erlang preprocessor.
+  % specs w.r.t functions is already performed by the Erlang preprocessor and
+  % we do not need to check that.
   {Sigs, MbDefs, Types, Specs} = read_attribs(Forms),
 
   ?TRACE("Sigs: ~p", [Sigs]),
@@ -252,63 +313,71 @@ get_t_info(Forms) ->
   SpecsCtx = #{} = make_specs_ctx(Specs),
 
   ?TRACE("First Specs map = ~p", [SpecsCtx]),
-  return(
-    case check_sigs_have_specs(SigsCtx, SpecsCtx) of
-      {ok, []} ->
-        % Get mailbox definition map for convenient use for type consistency checking.
-        % Check that each function signature is associated to at most one mailbox
-        % definition and modality.
-        case make_mb_defs(MbDefs) of
-          {ok, MbDefs0 = #{}, []} ->
 
-            ?TRACE("Mapped MbDefs = ~p", [MbDefs0]),
-            % Check that function signatures used in mailbox definitions are defined.
-            case check_mb_sigs_defined(MbDefs0, SigsCtx) of
-              {ok, []} ->
+  case check_sigs_have_specs(SigsCtx, SpecsCtx) of
+    #analysis{status = ok} ->
+%%      {ok, []} ->
+      % Get mailbox definition map for convenient use for type consistency checking.
+      % Check that each function signature is associated to at most one mailbox
+      % definition and modality.
+      case make_mb_defs(MbDefs) of
+%%          {ok, MbDefs0 = #{}, []} ->
+        #analysis{status = ok, result = MbDefs0} ->
 
-                % Get unique mailbox names.
-                MbNamesCtx = make_mb_names_ctx(MbDefs),
+          ?TRACE("Mapped MbDefs = ~p", [MbDefs0]),
+          % Check that function signatures used in mailbox definitions are defined.
+          case check_mb_sigs_defined(MbDefs0, SigsCtx) of
+%%              {ok, []} ->
+            #analysis{status = ok} ->
+              % Get unique mailbox names.
+              MbNamesCtx = make_mb_names_ctx(MbDefs),
 
-                % Type info record.
+              % TODO: This can be packaged into an analysis record.
+
+              % Type info record.
+              TInfo =
                 #t_info{
                   types = make_types_ctx(Types, MbNamesCtx),
                   specs = SpecsCtx,
                   mb_names = MbNamesCtx,
                   mb_defs = MbDefs0
-                };
+                },
+              #analysis{result = TInfo};
 
-              Error = #error{} ->
-                % One or more function signatures in mailbox definitions are not
-                % declared as types.
-                Error
-            end;
-          Error = #error{} ->
-            % One or more function signatures are associated with the same mailbox.
-            Error
-        end;
-      Error = #error{} ->
-        % One or more function signatures do not have specs.
-        Error
-    end
-  ).
-
-
+            Analysis = #analysis{status = error} -> % Here we do not need to match against, we can just use the variable Error.
+              % One or more function signatures in mailbox definitions are not
+              % declared as types.
+              Analysis
+          end;
+        Analysis = #analysis{status = error} ->
+          % One or more function signatures are associated with the same mailbox.
+          Analysis
+      end;
+    Analysis = #analysis{status = error} ->
+      % One or more function signatures do not have specs.
+      Analysis
+  end.
 
 
 
 
-new_sig(ANNO, Sig = {_, _}, Sigs) when is_list(Sigs) ->
+
+
+
+add_fun_sig(ANNO, Sig = {_, _}, Sigs) when is_list(Sigs) ->
   [{ANNO, Sig} | Sigs].
 
-new_mb_def(ANNO, Sigs, Modality, Mailbox, MbSpecs)
+add_mb_def(ANNO, Sigs, Modality, Mailbox, MbSpecs)
   when is_list(Sigs), is_list(MbSpecs) ->
   [{{Modality, Mailbox}, {ANNO, Sigs}} | MbSpecs].
 
-new_type(ANNO, Name, Type, Vars, Types) when is_list(Vars), is_list(Types) ->
+add_type(ANNO, Name, Type, Vars, Types)
+  when is_list(Vars), is_list(Types) ->
   [{Name, {ANNO, Type, Vars}} | Types].
 
-new_spec(ANNO, Sig = {_, _}, Types, Specs) when is_list(Types), is_list(Specs) ->
-  [{Sig, {ANNO, Types}} | Specs].
+add_fun_spec(ANNO, Sig = {_, _}, Types, FunSpecs)
+  when is_list(Types), is_list(FunSpecs) ->
+  [{Sig, {ANNO, Types}} | FunSpecs].
 
 
 %% @private Returns the map of function signatures.
@@ -363,32 +432,145 @@ make_types_ctx(Types, MbNames = #{}) when is_list(Types) ->
 % 1. Check that the new and use attributes have the correct format.
 % TODO: Maybe move this to the other module concerned with syntactic checking
 % TODO: and leave this module only for semantics/consistency checks.
-check_mb_specs_syntactic(Forms) when is_list(Forms) ->
-  return(
-    lists:foldl(
-      fun(Node = {attribute, _, Modality, {Mailbox, Sigs}}, Error)
-        when
-        Modality =:= ?M_NEW, is_atom(Mailbox), is_list(Sigs);
-        Modality =:= ?M_USE, is_atom(Mailbox), is_list(Sigs) ->
-        lists:foldl(
-          fun({Name, Arity}, Error) when is_atom(Name), Arity >= 0, Arity =< 255 ->
-            Error;
-            (_, Error = #error{}) ->
 
-              % Invalid function signature. Other signature forms, such as
-              % atom/atom are checked by the Erlang preprocessor.
-              ?pushError(?E_MB_SIG_BAD, Node, Error)
-          end, Error, Sigs);
-        (Node = {attribute, _, Modality, _}, Error)
-          when Modality =:= ?M_NEW; Modality =:= ?M_USE ->
+-doc """
+Checks that the -new and -use wild attributes have the correct format.
+- `Forms` is the list of forms.
 
-          % Invalid mailbox spec.
-          ?pushError(?E_MB_SPEC_BAD, Node, Error);
-        (_, Error) ->
-          Error
-      end,
-      #error{}, Forms)
-  ).
+**Returns**
+The `{compiler_internal,term()}` option is forwarded to the Erlang token
+scanner, see [`{compiler_internal,term()}`](`m:erl_scan#compiler_interal`).
+
+- `{ok, Result, []}` if the syntactic check succeeds, `{error, Errors, []}`
+otherwise.
+""".
+%%-spec check_mb_specs_syntactic(Forms) -> {ok, Forms, []} | error()
+%%  when
+%%  Forms :: erl_syntax:forms().
+%%-spec check_mb_specs_syntactic(erl_syntax:forms()) -> paterl_lib:analysis().
+%%check_mb_specs_syntactic(Forms) when is_list(Forms) ->
+%%  AttribCheckFun =
+%%%%    fun(Attrib = {attribute, _, Modality, {Mailbox, Sigs}}, Analysis)
+%%  fun(Attrib = {attribute, ANNO, Modality, Value}, Analysis)
+%%    when Modality =:= ?M_NEW; Modality =:= ?M_USE ->
+%%
+%%    case Value of
+%%      {Mailbox, Sigs} when is_atom(Mailbox), is_list(Sigs) ->
+%%        % Well-structured mailbox spec attribute. Check validity of signature
+%%        % definitions in the spec.
+%%        % Other signature forms, such as atom/atom are checked by the Erlang
+%%        % preprocessor.
+%%
+%%
+%%        FunSigCheckFun =
+%%          fun(Sig = {Name, Arity}, Analysis0) ->
+%%            ?TRACE("Processing sig: ~p", [Sig]),
+%%            case is_fun_sig(Sig) of
+%%              true ->
+%%                % Valid function signature.
+%%                Analysis0;
+%%              false ->
+%%                % Invalid function signature.
+%%                Node = to_erl_af(ANNO, Sig),
+%%%%                  erl_syntax:revert(
+%%%%                    erl_syntax:set_pos(
+%%%%                      erl_syntax:arity_qualifier(erl_syntax:atom(Name), erl_syntax:integer(Arity)),
+%%%%                      erl_syntax:get_pos(Attrib)
+%%%%                      )),
+%%                ?pushError(?E_MB_SIG_BAD, Node, Analysis0)
+%%            end
+%%          end,
+%%
+%%        % Check validity of function signature definitions.
+%%        lists:foldl(FunSigCheckFun, Analysis, Sigs);
+%%
+%%%%          true ->
+%%%%            % Invalid mailbox spec attribute.
+%%%%            ?pushError(?E_MB_SPEC_BAD, Attrib, Analysis)
+%%%%        end;
+%%      _ ->
+%%        % Invalid mailbox spec attribute.
+%%        ?pushError(?E__BAD_MB_DEF, Attrib, Analysis)
+%%    end;
+%%
+%%    (_, Analysis) ->
+%%      % Other attributes.
+%%      Analysis
+%%  end,
+%%
+%%%%  AttributeCheckFun =
+%%%%    fun(Node = {attribute, _, Modality, {Mailbox, Sigs}}, Error)
+%%%%      when
+%%%%      Modality =:= ?M_NEW, is_atom(Mailbox), is_list(Sigs);
+%%%%      Modality =:= ?M_USE, is_atom(Mailbox), is_list(Sigs) ->
+%%%%
+%%%%      SigsCheckFun =
+%%%%        fun({Name, Arity}, Error) when is_atom(Name), Arity >= 0, Arity =< 255 ->
+%%%%          Error;
+%%%%          (_, Error = #analysis{}) ->
+%%%%
+%%%%            % Invalid function signature. Other signature forms, such as
+%%%%            % atom/atom are checked by the Erlang preprocessor.
+%%%%            ?pushError(?E_MB_SIG_BAD, Node, Error)
+%%%%        end,
+%%%%      lists:foldl(SigsCheckFun, Error, Sigs);
+%%%%
+%%%%      (Node = {attribute, _, Modality, _}, Error)
+%%%%        when Modality =:= ?M_NEW; Modality =:= ?M_USE ->
+%%%%
+%%%%        % Invalid mailbox spec.
+%%%%        ?pushError(?E_MB_SPEC_BAD, Node, Error);
+%%%%      (_, Error) ->
+%%%%
+%%%%        % Valid attribute.
+%%%%        Error
+%%%%    end,
+%%
+%%  % Check validity of mailbox definition attributes.
+%%  lists:foldl(AttribCheckFun, #analysis{}, Forms).
+
+is_fun_sig({Name, Arity}) when is_atom(Name), Arity >= 0, Arity =< 255 ->
+  true;
+is_fun_sig(_) ->
+  false.
+
+%%is_fun_sigs([]) ->
+%%  true;
+%%is_fun_sigs([{Name, Arity} | FunSigs])
+%%  when
+%%  is_atom(Name), Arity >= 0, Arity =< 255 ->
+%%  is_fun_sigs(FunSigs);
+%%is_fun_sigs(_) ->
+%%  false.
+
+%%is_fun_sigs([FunSig | FunSigs]) ->
+%%  case is_fun_sig(FunSig) of
+%%    true ->
+%%      is_fun_sigs(FunSigs);
+%%    false ->
+%%      false
+%%  end.
+
+
+any(_, []) ->
+  false;
+any(Pred, [H | T]) when is_function(Pred, 1) ->
+  case Pred(H) of
+    false ->
+      any(Pred, T);
+    true ->
+      true
+  end.
+
+all(_, []) ->
+  true;
+all(Pred, [H | T]) when is_function(Pred, 1) ->
+  case Pred(H) of
+    true ->
+      all(Pred, T);
+    false ->
+      false
+  end.
 
 
 %%% ----------------------------------------------------------------------------
@@ -401,263 +583,520 @@ check_mb_specs_syntactic(Forms) when is_list(Forms) ->
 %% mailbox name in either the new or use modality.
 %% @returns {ok, MbSpecs, Warnings} or {error, Errors, Warning}. Warnings is
 %% always the empty list for this call.
-%% TODO: Type specs.
+-spec make_mb_defs(list()) -> paterl_lib:analysis().
 make_mb_defs(MbDefs) when is_list(MbDefs) ->
-  {MbSpecs, Error} =
-    lists:foldl(
-      fun({{Modality, Mailbox}, {ANNO, Sigs}}, {Map, Error}) ->
-        lists:foldl(
-          fun(Sig = {_, _}, {Map, Error}) ->
-            case maps:is_key(Sig, Map) of
-              true ->
+  MbDefFun =
+    fun({{Modality, Mailbox}, {ANNO, Sigs}}, Analysis = #analysis{}) ->
+      UniqueCheckFun =
+        fun(Sig = {_, _}, Analysis0 = #analysis{result = MbDefs = #{}}) ->
+          case maps:is_key(Sig, MbDefs) of
+            true ->
+              % Function signature already associated with other mailbox type.
+              Node = to_erl_af(ANNO, Sig),
+              ?pushError(?E_MB_SIG_NOT_UNIQUE, Node, Analysis0);
+            false ->
+              % Associate function signature with mailbox type.
+              Analysis0#analysis{result = MbDefs#{Sig => {Modality, ANNO, Mailbox}}}
+          end
+        end,
 
-                % Function signature already associated with other mailbox type.
-                Node = to_erl_af(ANNO, Sig),
-                {Map, ?pushError(?E_MB_SIG_NOT_UNIQUE, Node, Error)};
-              false ->
+      % Check that mailbox definition-function signature association is unique.
+      % Will be relaxed later due to the -new and -use issue.
+      lists:foldl(UniqueCheckFun, Analysis, Sigs)
+    end,
 
-                % Associate function signature with mailbox type.
-                {Map#{Sig => {Modality, ANNO, Mailbox}}, Error}
-            end
-          end,
-          {Map, Error}, Sigs)
-      end,
-      {#{}, #error{}}, MbDefs),
+  % Convert the list of mailbox definitions to a map, checking mailbox
+  % definition-function signature association is unique.
+  lists:foldl(MbDefFun, #analysis{result = #{}}, MbDefs).
 
-  return(MbSpecs, Error).
+
+%%  {MbSpecs, Error} =
+%%    lists:foldl(
+%%      fun({{Modality, Mailbox}, {ANNO, Sigs}}, {Map, Error}) ->
+%%        lists:foldl(
+%%          fun(Sig = {_, _}, {Map, Error}) ->
+%%            case maps:is_key(Sig, Map) of
+%%              true ->
+%%
+%%                % Function signature already associated with other mailbox type.
+%%                Node = to_erl_af(ANNO, Sig),
+%%                {Map, ?pushError(?E_MB_SIG_NOT_UNIQUE, Node, Error)};
+%%              false ->
+%%
+%%                % Associate function signature with mailbox type.
+%%                {Map#{Sig => {Modality, ANNO, Mailbox}}, Error}
+%%            end
+%%          end,
+%%          {Map, Error}, Sigs)
+%%      end,
+%%      {#{}, #analysis{}}, MbDefs),
+%%
+%%  paterl_lib:return_status(MbSpecs, Error).
 
 %% @private Checks that the function signatures in mailbox definitions are
 %% defined.
 %% returns {ok, Warnings} if all signatures are defined, otherwise
 %% {error, Warnings, Errors}. Warnings is always the empty list.
+-spec check_mb_sigs_defined(#{}, #{}) -> paterl_lib:analysis().
 check_mb_sigs_defined(MbDefs = #{}, Sigs = #{}) ->
   ?TRACE("Sigs in check_mb_sigs_defined = ~p", [Sigs]),
-  return(
-    maps:fold(
-      fun(Sig = {_, _}, {_, ANNO, _}, Error) ->
-        case maps:is_key(Sig, Sigs) of
-          true ->
-            % Function signature in mailbox spec defined.
-            Error;
-          false ->
-            % Undefined function signature in mailbox spec.
-            Node = to_erl_af(ANNO, Sig),
-            ?pushError(?E_MB_SIG_UNDEF, Node, Error)
-        end
-      end,
-      #error{}, MbDefs)
-  ).
+  FunSigCheck =
+    fun(Sig = {_, _}, {_, ANNO, _}, Error) ->
+      case maps:is_key(Sig, Sigs) of
+        true ->
+          % Function signature in mailbox spec defined.
+          Error;
+        false ->
+          % Undefined function signature in mailbox spec.
+          Node = to_erl_af(ANNO, Sig),
+          ?pushError(?E_UNDEF__FUN_REF, Node, Error)
+      end
+    end,
+
+  % Check that function signatures referred to in mailbox specs are defined.
+  maps:fold(FunSigCheck, #analysis{}, MbDefs).
+
 
 %% @private Checks that mailbox names have a corresponding type defined.
 %% returns `{ok, Warnings}` if all mailbox names have a corresponding type
 %% defined, otherwise `{error, Errors, Warnings}`. Warnings is always the empty
 %% list.
+-spec check_mb_types_defined(#{}, #{}) -> paterl_lib:analysis().
 check_mb_types_defined(MbNames = #{}, Types = #{}) ->
-  return(
-    maps:fold(
-      fun(Mailbox, {ANNO, _}, Error) ->
-        case maps:is_key(Mailbox, Types) of
-          true ->
+  MbNameCheckFun =
+    fun(MbName, {ANNO, _}, Analysis = #analysis{}) ->
+      ?TRACE("Checking MbName = ~p", [MbName]),
+      case maps:is_key(MbName, Types) of
+        true ->
+          % Mailbox name defined as user-defined type.
+          Analysis;
+        false ->
+          % Undefined mailbox user-defined type.
+          Node = to_erl_af(ANNO, MbName),
+          ?pushError(?E_UNDEF__MB_TYPE, Node, Analysis)
+      end
+    end,
 
-            % Mailbox defined as type.
-            Error;
-          false ->
+  % Check that mailbox names are defined as user-defined types.
+  maps:fold(MbNameCheckFun, #analysis{}, MbNames).
 
-            % Undefined mailbox type.
-%%            Node = revert(set_pos(atom(Mailbox), ANNO)),
-            Node = to_erl_af(ANNO, Mailbox),
-            ?pushError(?E_MB_TYPE_UNDEF, Node, Error)
-        end
-      end,
-      #error{}, MbNames)
-  ).
 
+%% TODO: Document this better.
+-spec check_mb_new(#{}) -> paterl_lib:analysis().
 check_mb_new(MbNames) when is_map(MbNames) ->
   ?TRACE("Checking for newness"),
-  return(
-    maps:fold(
-      fun(_, {_, ?M_NEW}, Error) ->
-        Error;
-        (Name, {ANNO, ?M_USE}, Error) ->
-          ?pushError(?E_MB_NO_NEW, to_erl_af(ANNO, Name), Error)
-      end,
-      #error{}, MbNames)
-  ).
+  MbNameNewCheckFun =
+    fun(_, {_, ?M_NEW}, Analysis = #analysis{}) ->
+      % Mailbox name is new.
+      Analysis;
+      (MbName, {ANNO, ?M_USE}, Error) ->
+        % Mailbox name is use.
+        ?pushError(?E_NO__MB_NEW, to_erl_af(ANNO, MbName), Error)
+    end,
 
-% TODO: Implementing this.
+  % Check that mailbox name is annotated with new and is not used without new.
+  maps:fold(MbNameNewCheckFun, #analysis{}, MbNames).
+
+
+-spec check_mb_types_valid(#{}) -> paterl_lib:analysis().
 check_mb_types_valid(Types = #{}) ->
-  return(
-    maps:fold(
-      fun(Name, {?T_MBOX, ANNO, Type, Vars}, Error) ->
-        ?TRACE(">> Checking type: ~p = ~p", [Name, Type]),
+  MbTypeCheckFun =
+    fun(Name, {?T_MBOX, ANNO, Type, _TypeVars}, Analysis) ->
+      ?TRACE("Check user-defined mailbox interface type '~s() :: ~s'.", [Name, erl_prettypr:format(Type)]),
+      % Check user-defined mailbox interface type.
 
-
-        case check_msg_type_valid(Type, Types, Error, false) of
-          {true, Error0} ->
-
-            ?TRACE("Pid OK"),
-
-
-            Error0;
-          {false, Error0} ->
-
-            % Pid missing.
-            ?TRACE("Pid MISSING ~p", [Error0]),
-
-%%            Node = revert(set_pos(atom(Name), ANNO)),
-            Node = to_erl_af(ANNO, Name),
-            ?pushWarning(?W_MB_NO_PID, Node, Error0)
-        end;
-        (_, {?T_TYPE, _, _, _}, Error) ->
-
-          % Skip non-mailbox type.
-          Error
-      end,
-      #error{}, Types)
-  ).
-
-
-
-check_msg_type_valid(Type = {type, _, pid, _}, #{}, Error, _) ->
-  ?TRACE("Type: ~p", [Type]),
-  {true, Error};
-
-check_msg_type_valid(Type = {type, ANNO, tuple, [Node]}, #{}, Error, HasPid) ->
-  ?TRACE("Type: ~p", [Type]),
-
-%%  case is_valid_tag(Elem) of
-%%    true ->
-%%      ?TRACE("~p is a valid tag", [Elem]),
-%%      {HasPid, Error};
-%%    false ->
-%%      ?TRACE("~p is NOT a valid tag", [Elem]),
-%%      {HasPid, ?pushError(?E_MB_MSG_TAG_BAD, Elem, Error)}
-%%  end;
-  {HasPid, check_valid_tag(Node, Error)};
-
-
-
-check_msg_type_valid(Type = {type, _, tuple, [Node | Nodes]}, Types = #{}, Error, HasPid) ->
-  ?TRACE("Type: ~p", [Type]),
-
-
-%%  case is_valid_tag(Elem) of
-%%    true ->
-%%      ?TRACE("~p is a valid tag", [Elem]),
+      % Do not check for nor stop in case of errors: these are handled by
+      % caller functions.
+%%      case check_msg_type_valid(Type, Types, Analysis, false) of
+%%        Analysis0 = #analysis{status = error} ->
+%%          % User-defined message type invalid.
+%%          Analysis0;
 %%
-%%      case is_valid_payload(Elems, Types) of
-%%        true ->
-%%          ?TRACE("~p is a valid payload", [Elems]),
-%%          {HasPid, Error};
-%%        false ->
-%%          ?TRACE("~p is NOT a valid payload", [Elems]),
-%%          {HasPid, Error}
+%%        Analysis0 = #analysis{status = ok, result = true} ->
+%%%%        {true, Error0} ->
+%%
+%%          ?TRACE("Pid present in type defintion."),
+%%          % PID present in mailbox definition.
+%%          Analysis0;
+%%        Analysis0 = #analysis{status = ok, result = false} ->
+%%%%        {false, Error0} ->
+%%
+%%          % PID missing.
+%%          ?TRACE("Pid MISSING ~p", [Analysis0]),
+%%
+%%%%            Node = revert(set_pos(atom(Name), ANNO)),
+%%          Node = to_erl_af(ANNO, Name),
+%%          ?pushWarning(?W_MB_NO_PID, Node, Analysis0)
 %%      end;
-%%    false ->
-%%      ?TRACE("~p is NOT a valid tag", [Elem]),
-%%      {false, Error}
-%%  end;
+      Analysis0 = paterl_lib:reset_status(Analysis),
+      Anal = check_msg_type_valid3(Name, ANNO, Type, Types, Analysis0),
+      ?TRACE("--- Anal: ~p", [Anal]),
+      Anal;
+      (_, {?T_TYPE, _, _, _}, Analysis) ->
+        % Skip user-defined non-mailbox interface types.
+        Analysis
+    end,
 
-  case check_valid_tag(Node, Error) of
-    #error{errors = []} ->
-      {HasPid, check_valid_tuple_nodes(Nodes, Types, Error)};
-    Error0 = #error{} ->
-      {HasPid, Error0}
+  % Check validity of mailbox types definition including missing PIDs.
+  Analysis = maps:fold(MbTypeCheckFun, #analysis{}, Types),
+
+
+  % Result is internal and should not be visible to callers. Only status is
+  % relevant.
+%%  Analysis#analysis{result = undefined}.
+  paterl_lib:reset_result(paterl_lib:set_status(Analysis)).
+
+
+check_msg_type_valid3(MbName, ANNO, MsgType, Types, Analysis) ->
+
+%%  case check_msg_type_valid2(MsgType, Types, Analysis#analysis{result = false}) of
+%%    Analysis0 = #analysis{status = error} ->
+%%      % User-defined message type invalid.
+%%      ?ERROR("Invalid user-defined mailbox interface type '~s'.", [MbName]),
+%%      Analysis0;
+%%    Analysis0 = #analysis{status = ok, result = HadPidType} ->
+%%      % User-defined message type valid and the extra build-in Pid type is
+%%      % included in the message type definition.
+%%      if HadPidType -> Analysis0;
+%%        true ->
+%%          ?WARN("Missing built-in 'pid()' type."),
+%%          ?pushWarning(?W_MB_NO_PID, to_erl_af(ANNO, MbName), Analysis0)
+%%      end
+%%  end.
+  case check_msg_type_valid2(MsgType, Types, Analysis#analysis{result = false}) of
+    Analysis0 = #analysis{result = false} ->
+      ?WARN("Missing built-in 'pid()' type."),
+      ?pushWarning(?W_NO__PID, to_erl_af(ANNO, MbName), Analysis0);
+    Analysis0 ->
+      Analysis0
+  end.
+
+check_msg_type_valid2(_Type = {type, _ANNO, pid, _}, #{}, Analysis) ->
+  % Built-in pid type found.
+  ?TRACE("Check built-in type '~s'.", [erl_prettypr:format(_Type)]),
+  Analysis#analysis{result = _HasPidType = true};
+check_msg_type_valid2(_Type = {type, _ANNO, tuple, [Tag | Elems]}, Types = #{}, Analysis) ->
+  % Inline message type.
+  ?TRACE("Check inline message type '~s'.", [erl_prettypr:format(_Type)]),
+
+  % Check that first element is a valid tag.
+  case check_valid_tag(Tag, Analysis) of
+    #analysis{status = ok} ->
+      % Check that rest of tuple elements are valid types. Only primitive,
+      % user-defined message, or user-defined mailbox interface types are
+      % permitted as elements.
+
+      ?TRACE("After validating the tag ~p", [Tag]),
+      check_valid_tuple_elems2(Elems, Types, Analysis);
+
+
+    Analysis0 = #analysis{status = error} ->
+      ?TRACE("After invalidating the tag ~p", [Tag]),
+      % First element not a valid tag.
+      Analysis0
   end;
+check_msg_type_valid2(_Type = {user_type, _ANNO, Name, _TypeVars}, Types = #{}, Analysis) ->
+  % User-defined message type. Only user-defined message types are permitted in
+  % mailbox interface definitions.
+  ?TRACE("Check user-defined message type '~s'.", [erl_prettypr:format(_Type)]),
 
 
-check_msg_type_valid(T = {user_type, ANNO, Type, Vars}, Types = #{}, Error, HasPid) ->
-  ?TRACE("USER Type: ~p", [T]),
+  case maps:get(Name, Types, undefined) of
+    {?T_TYPE, _, Type0, _} ->
+      % User-defined type is a message type.
+      ?TRACE("Valid user-defined message type '~s'.", [erl_prettypr:format(_Type)]),
+      ?TRACE(">> Type: ~p", [Name]),
 
-  % Query types map.
-%%  case maps:is_key(Type, Types) of
-%%    true ->
-%%      {HasPid, Error};
-%%    false ->
-%%      {HasPid, Error}
-%%  end;
-  case maps:get(Type, Types, undefined) of
-    {_, _, Type0, _} ->
+%%      check_msg_type_valid3(MbName, ANNO, MsgType, Types, Analysis)
+      check_msg_type_valid2(Type0, Types, Analysis);
+    {?T_MBOX, _, Type0, _} ->
+      % User-defined type is a mailbox interface type.
+      ?ERROR("Invalid user-defined message type '~s'.", [erl_prettypr:format(_Type)]),
+      %TODO: Unexpected mailbox interface type error.
+%%      ?pushError(?E_MB_MSG_ELEM_TYPE_BAD, Elem, Analysis),
+      ?pushError(?E_BAD__MSG_TYPE, _Type, Analysis);
 
-      ?TRACE("The found usertype is ~p", [Type0]),
-
-%%      {A, B} = check_msg_type_valid(Type0, Types, Error, HasPid),
-%%      ?TRACE("HasPid in user type? ~p", [A]),
-
-      check_msg_type_valid(Type0, Types, Error, HasPid);
+%%      error(lists:flatten(io_lib:format("'~s' is not normal type.", [erl_prettypr:format(_Type)])));
     undefined ->
+      ?ERROR("Undefined type '~s'.", [erl_prettypr:format(_Type)]),
+      % Undefined types are ruled out by the Erlang preprocessor/liner. This
+      % case should never arise if erl_lint was used in prior passes.
+      ?pushError(?E__UNDEF_TYPE, _Type, Analysis)
+%%      error("Undefined types are ruled out by the preprocessor/linter; use epp or erl_lint")
+  end;
+check_msg_type_valid2(_Type = {type, _ANNO, union, MsgTypes}, Types = #{}, Analysis) ->
+  % Inline message types or user-defined message types. User-defined mailbox
+  % interface types are not permitted in type unions.
+  ?TRACE("Check union type '~s'.", [erl_prettypr:format(_Type)]),
+  check_msgs_types_valid2(MsgTypes, Types, Analysis);
 
-      % TODO: maybe use an assert.
-      % This case is handled by the Erlang preprocessor and should never happen.
-      {HasPid, Error}
+check_msg_type_valid2(Type, _, Analysis) ->
+  % Invalid type.
+  ?ERROR("Invalid type '~s'", [erl_prettypr:format(Type)]),
+  ?pushError(?E_BAD__MSG_TYPE, Type, Analysis).
+
+
+
+check_msgs_types_valid2([], _Types = #{}, Analysis) ->
+  Analysis;
+check_msgs_types_valid2([MsgType | MsgTypes], Types = #{}, Analysis) ->
+  Analysis0 = check_msg_type_valid2(MsgType, Types, Analysis),
+  check_msgs_types_valid2(MsgTypes, Types, Analysis0).
+
+
+check_valid_tuple_elems2([], #{}, Analysis) ->
+  Analysis;
+check_valid_tuple_elems2([_Type = {type, _ANNO, integer, _} | Elems], Types = #{}, Analysis) ->
+  % Built-in primitive type.
+  ?TRACE("Check built-in primitive type '~s'.", [erl_prettypr:format(_Type)]),
+  check_valid_tuple_elems2(Elems, Types, Analysis);
+check_valid_tuple_elems2([_Type = {user_type, _ANNO, Name, _} | Elems], Types = #{}, Analysis) ->
+  % User-defined mailbox interface type. Only primitive and user-defined mailbox
+  % interface types are permitted in message tuple elements.
+  ?TRACE("Check user-defined mailbox interface type '~s'.", [erl_prettypr:format(_Type)]),
+  ?TRACE(">> Types map: ~p", [Types]),
+
+
+  case maps:get(Name, Types, undefined) of
+    {?T_MBOX, _, Type0, _Vars} ->
+      % User-defined type is a mailbox interface type.
+      ?TRACE("Valid user-defined mailbox interface type '~s'.", [erl_prettypr:format(_Type)]),
+      check_valid_tuple_elems2(Elems, Types, Analysis);
+    {?T_TYPE, _, Type0, _Vars} ->
+      ?ERROR("Invalid user-defined mailbox interface type '~s'.", [erl_prettypr:format(_Type)]),
+      % User-defined type is a normal type.
+      % TODO: Unexpected type.
+      ?pushError(?E_BAD__MB_TYPE, _Type, Analysis);
+%%      error(lists:flatten(io_lib:format("'~s' is not a mailbox interface type.", [erl_prettypr:format(_Type)])));
+    undefined ->
+      ?ERROR("Undefined type '~s'.", [erl_prettypr:format(_Type)]),
+      % Undefined types are ruled out by the Erlang preprocessor/liner. This
+      % case should never arise if erl_lint was used in prior passes.
+      ?pushError(?E__UNDEF_TYPE, _Type, Analysis)
+%%      error("Undefined types are ruled out by the preprocessor/linter; use epp or erl_lint")
   end;
 
 
-check_msg_type_valid(T = {type, _, union, Elems}, Types = #{}, Error, HasPid) ->
-  ?TRACE("Type: ~p", [T]),
-
-  check_msgs_types_valid(Elems, Types, Error, HasPid);
-
-
-check_msg_type_valid(T = {type, ANNO, Type, _}, Types = #{}, Error, HasPid) ->
-  ?ERROR("Type: ~p", [T]),
-  % Type not permitted.
-  {HasPid, Error}.
+check_valid_tuple_elems2([Elem | Elems], Types = #{}, Analysis) ->
+  ?TRACE("Invalid type '~s' in message.", [erl_prettypr:format(Elem)]),
+  Analysis0 = ?pushError(?E_BAD__MSG_ELEM_TYPE, Elem, Analysis),
+  check_valid_tuple_elems2(Elems, Types, Analysis0).
 
 
-check_msgs_types_valid([], Types = #{}, Error, HasPid) ->
-  {HasPid, Error};
-check_msgs_types_valid([Elem | Elems], Types = #{}, Error, HasPid) ->
-  {HasPid0, Error0} = check_msg_type_valid(Elem, Types, Error, HasPid),
-  check_msgs_types_valid(Elems, Types, Error0, HasPid0).
+%%-spec check_msg_type_valid(Type, Types, Analysis, HasPid) -> paterl_lib:analysis()
+%%  when
+%%  Type :: {type, anno(), atom(), term()},
+%%  Types :: map(),
+%%  Analysis :: paterl_lib:analysis(),
+%%  HasPid :: boolean().
+%%check_msg_type_valid(_Type = {type, _ANNO, pid, _}, #{}, Analysis, _) ->
+%%  ?TRACE("Type: ~p", [_Type]),
+%%  Analysis#analysis{result = true};
+%%%%  {true, Error};
+%%
+%%check_msg_type_valid(_Type = {type, _ANNO, tuple, [Node]}, #{}, Analysis, HasPid) ->
+%%  ?TRACE("Type: ~p", [_Type]),
+%%  % Message type with tag and no payload.
+%%
+%%%%  case is_valid_tag(Elem) of
+%%%%    true ->
+%%%%      ?TRACE("~p is a valid tag", [Elem]),
+%%%%      {HasPid, Error};
+%%%%    false ->
+%%%%      ?TRACE("~p is NOT a valid tag", [Elem]),
+%%%%      {HasPid, ?pushError(?E_MB_MSG_TAG_BAD, Elem, Error)}
+%%%%  end;
+%%  Analysis0 = check_valid_tag(Node, Analysis),
+%%  Analysis0#analysis{result = HasPid};
+%%%%  {HasPid, check_valid_tag(Node, Analysis)};
+%%
+%%
+%%check_msg_type_valid(_Type = {type, _, tuple, [Elem | Elems]}, Types = #{}, Analysis, HasPid) ->
+%%  ?TRACE("Type: ~p", [_Type]),
+%%  % Message type with tag and payload.
+%%
+%%
+%%%%  case is_valid_tag(Elem) of
+%%%%    true ->
+%%%%      ?TRACE("~p is a valid tag", [Elem]),
+%%%%
+%%%%      case is_valid_payload(Elems, Types) of
+%%%%        true ->
+%%%%          ?TRACE("~p is a valid payload", [Elems]),
+%%%%          {HasPid, Error};
+%%%%        false ->
+%%%%          ?TRACE("~p is NOT a valid payload", [Elems]),
+%%%%          {HasPid, Error}
+%%%%      end;
+%%%%    false ->
+%%%%      ?TRACE("~p is NOT a valid tag", [Elem]),
+%%%%      {false, Error}
+%%%%  end;
+%%
+%%  case check_valid_tag(Elem, Analysis) of
+%%    #analysis{status = ok} ->
+%%      Analysis0 = check_valid_tuple_elems(Elems, Types, Analysis),
+%%      Analysis0#analysis{result = HasPid};
+%%%%      {HasPid, check_valid_tuple_nodes(Nodes, Types, Analysis)};
+%%    Analysis0 = #analysis{status = error} ->
+%%      Analysis0#analysis{result = HasPid}
+%%%%      {HasPid, Error0}
+%%  end;
+%%check_msg_type_valid(_Type = {user_type, _ANNO, Type, _TypeVars}, Types = #{}, Analysis, HasPid) ->
+%%  ?TRACE("USER Type: ~p", [_Type]),
+%%
+%%  % Query types map.
+%%%%  case maps:is_key(Type, Types) of
+%%%%    true ->
+%%%%      {HasPid, Error};
+%%%%    false ->
+%%%%      {HasPid, Error}
+%%%%  end;
+%%  case maps:get(Type, Types, undefined) of
+%%    {_, _, Type0, _} ->
+%%
+%%      ?TRACE("The found usertype is ~p", [Type0]),
+%%
+%%%%      {A, B} = check_msg_type_valid(Type0, Types, Error, HasPid),
+%%%%      ?TRACE("HasPid in user type? ~p", [A]),
+%%
+%%      check_msg_type_valid(Type0, Types, Analysis, HasPid);
+%%    undefined ->
+%%
+%%      % TODO: maybe use an assert.
+%%      % This case is handled by the Erlang preprocessor and should never happen.
+%%      Analysis#analysis{result = HasPid}
+%%%%      {HasPid, Analysis}
+%%  end;
+%%check_msg_type_valid(_Type = {type, _ANNO, union, MsgTypes}, Types = #{}, Analysis, HasPid) ->
+%%  ?TRACE("Type: ~p", [_Type]),
+%%  check_msgs_types_valid(MsgTypes, Types, Analysis, HasPid);
+%%check_msg_type_valid(Term, _Types = #{}, Analysis, HasPid) ->
+%%  ?ERROR("Type: ~p", [Term]),
+%%  % Type not permitted.
+%%  ?pushError(?E_MB_MSG_ELEM_TYPE_BAD, Term, Analysis).
+%%%%  Analysis#analysis{result = HasPid}.
+%%%%  {HasPid, Analysis}.
 
 
+%%-spec check_msgs_types_valid(MsgTypes, Types, Analysis, HasPid) ->
+%%  paterl_lib:analysis()
+%%  when
+%%  MsgTypes :: list(),
+%%  Types :: map(),
+%%  Analysis :: paterl_lib:analysis(),
+%%  HasPid :: boolean().
+%%check_msgs_types_valid([], _Types = #{}, Analysis, HasPid) ->
+%%  Analysis#analysis{result = HasPid};
+%%%%  {HasPid, Analysis};
+%%check_msgs_types_valid([MsgType | MsgTypes], Types = #{}, Analysis, HasPid) ->
+%%  Analysis0 = #analysis{result = HasPid0} =
+%%    check_msg_type_valid(MsgType, Types, Analysis, HasPid),
+%%  check_msgs_types_valid(MsgTypes, Types, Analysis0, HasPid0).
+%%%%  {HasPid0, Error0} = check_msg_type_valid(Elem, Types, Analysis, HasPid),
+%%%%  check_msgs_types_valid(Elems, Types, Error0, HasPid0).
 
 
+%% Checks that the specified term is an atom.
+-spec check_valid_tag(term(), paterl_lib:analysis()) -> paterl_lib:analysis().
+check_valid_tag(_Tag = {atom, _, _}, Analysis) ->
+  ?TRACE("Valid '~s' tag.", [erl_prettypr:format(_Tag)]),
+  Analysis;
+check_valid_tag(Term, Analysis) ->
+  ?TRACE("Invalid '~s' tag.", [erl_prettypr:format(Term)]),
+  ?pushError(?E_BAD__MSG_TAG, Term, Analysis).
 
-check_valid_tag(Node = {atom, _, _}, Error) ->
-  ?TRACE("~p is a valid tag", [Node]),
-  Error;
-check_valid_tag(Node, Error) ->
-  ?TRACE("~p is NOT a valid tag", [Node]),
-  ?pushError(?E_MB_MSG_TAG_BAD, Node, Error).
+
+%%-spec check_valid_tuple_elems(Elems, Types, Analysis) -> paterl_lib:analysis()
+%%  when
+%%  Elems :: list(),
+%%  Types :: map(),
+%%  Analysis :: paterl_lib:analysis().
+%%check_valid_tuple_elems([], #{}, Analysis) ->
+%%  Analysis;
+%%check_valid_tuple_elems([{type, _ANNO, integer, _} | Elems], Types = #{}, Analysis) ->
+%%  % Type is built-in.
+%%  check_valid_tuple_elems(Elems, Types, Analysis);
+%%check_valid_tuple_elems([Node = {user_type, _ANNO, Type, _} | Elems], Types = #{}, Analysis) ->
+%%  % User defined-type name must refer to a mailbox type definition. Check that
+%%  % the mailbox type is defined as a user-defined type in its turn.
+%%  %% TODO: Check whether this consistency check that checks the types of
+%%  %% individual tuple elements is required. It could be that the Erlang
+%%  %% preprocessor also does this, in which case we can remove the map:is_key
+%%  %% check.
+%%
+%%  % TODO: Checking that the type of the user-defined type in the tuple is not
+%%  % TODO: enough: it may exist but be an atom, say. It must be a message, so
+%%  % TODO: we must check the type of that mailbox type as well.
+%%  % HOW: 1. get Type from Types, 2. Check the obtained type.
+%%%%  check_msg_type_valid(Type, Types, Analysis, false)..maybe! See on monday!
+%%%%  case maps:is_key(Type, Types) of
+%%%%    true ->
+%%%%      % User-defined mailbox type definition exists. Check rest.
+%%%%
+%%%%      check_valid_tuple_elems(Elems, Types, Analysis);
+%%%%    false ->
+%%%%      % Non-existent user-defined mailbox type definition. This never occurs
+%%%%      % because the Erlang preprocessor ensures types are valid.
+%%%%
+%%%%      % TODO: This should never occur because the Erlang preprocessor ensures that types are valid.
+%%%%      check_valid_tuple_elems(Elems, Types, ?pushError(?E_MB_TYPE_UNDEF, Node, Analysis))
+%%%%  end;
+%%
+%%  case is_map_key(Type, Types) of
+%%    true ->
+%%      % User-defined mailbox interface type exists. Check rest of tuple
+%%      % elements.
+%%      ?DEBUG("User-defined mailbox interface type ~p found as type.", [Type]),
+%%      ?DEBUG("Checking rest of elements"),
+%%
+%%      ?DEBUG("~n~n~n~nTypes table: ~p", [Types]),
+%%      {?T_TYPE, _, TypeDef, _} = maps:get(Type, Types),
+%%      ?DEBUG("User-defined message type is: ~p", [TypeDef]),
+%%      Analysis0 = check_msg_type_valid(TypeDef, Types, Analysis, false),
+%%      ?DEBUG("Answer is: ~p", [Analysis0]),
+%%
+%%      check_valid_tuple_elems(Elems, Types, Analysis0);
+%%
+%%    false ->
+%%      error("Undefined types are ruled out by the preprocessor or linter; use epp or erl_lint"),
+%%      check_valid_tuple_elems(Elems, Types, ?pushError(?E_MB_TYPE_UNDEF, Node, Analysis))
+%%  end;
+%%
+%%check_valid_tuple_elems([Elem | Elems], Types = #{}, Analysis) ->
+%%  Analysis0 = ?pushError(?E_MB_MSG_ELEM_TYPE_BAD, Elem, Analysis),
+%%  check_valid_tuple_elems(Elems, Types, Analysis0).
 
 
-check_valid_tuple_nodes([], #{}, Error) ->
-  Error;
-check_valid_tuple_nodes([{type, _, integer, _} | Nodes], Types = #{}, Error) ->
-  check_valid_tuple_nodes(Nodes, Types, Error);
-check_valid_tuple_nodes([Node = {user_type, ANNO, Type, _} | Nodes], Types = #{}, Error) ->
-  case maps:is_key(Type, Types) of
-    true ->
-      check_valid_tuple_nodes(Nodes, Types, Error);
-    false ->
-
-      % TODO: This should never occur because the Erlang preprocessor ensures that types are valid.
-      check_valid_tuple_nodes(Nodes, Types, ?pushError(?E_MB_TYPE_UNDEF, Node, Error))
-  end;
-check_valid_tuple_nodes([Node | Nodes], Types = #{}, Error) ->
-  check_valid_tuple_nodes(Nodes, Types, ?pushError(?E_MB_MSG_ELEM_TYPE_BAD, Node, Error)).
-
-%% @private Checks that function signatures names have a corresponding spec
+%% @private Checks that function signatures have a corresponding function spec
 %% defined.
 %% returns `{ok, Warnings}` if all function signatures have a corresponding
 %% spec defined, otherwise `{error, Errors, Warnings}`. Warnings is always the
 %% empty list.
-check_sigs_have_specs(Sigs = #{}, Specs = #{}) ->
-  return(
-    maps:fold(
-      fun(Sig = {_, _}, {ANNO}, Error) ->
-        case maps:is_key(Sig, Specs) of
-          true ->
-            Error;
-          false ->
-            Node = to_erl_af(ANNO, Sig),
-            ?pushError(?E_MB_SIG_TYPE_UNDEF, Node, Error)
-        end
-      end,
-      #error{}, Sigs)
-  ).
+%%-spec check_sigs_have_specs(map(), map()) -> {ok, []} | {ok, term(), term()}.
+check_sigs_have_specs(FunSigs = #{}, FunSpecs = #{}) ->
+  FunSpecCheckFun =
+    fun(FunSig = {_, _}, {ANNO}, Analysis) ->
+      if is_map_key(FunSig, FunSpecs) ->
+        % Function signature has corresponding function spec.
+        Analysis;
+        true ->
+          % Non-existent function spec.
+          Node = to_erl_af(ANNO, FunSig),
+          ?pushError(?E_UNDEF__FUN_SPEC, Node, Analysis)
+      end
+
+%%      case maps:is_key(FunSig, FunSpecs) of
+%%        true ->
+%%          Analysis;
+%%        false ->
+%%          Node = to_erl_af(ANNO, FunSig),
+%%          ?pushError(?E_MB_SIG_TYPE_UNDEF, Node, Analysis)
+%%      end
+    end,
+
+  % Check that function signatures have a corresponding function spec defined.
+  maps:fold(FunSpecCheckFun, #analysis{}, FunSigs).
 
 
 %%is_valid_tag({atom, _, _}) ->
@@ -851,7 +1290,8 @@ check_sigs_have_specs(Sigs = #{}, Specs = #{}) ->
 
 %% What Phil said: The receive annotations having a mailbox name must check that
 %% that mailbox name is in scope. ie, I cannot refer to a future_mb mailbox from
-%% a duncan_mb mailbox scope. This would be in another file for semantic checks.
+%% a duncan_mb mailbox scope. This would be in another file for semantic checks
+%% once we implement multiple mailboxes.
 
 
 %%% ----------------------------------------------------------------------------
@@ -862,60 +1302,70 @@ format_sig({Fun, Arity}) ->
   io_lib:format("~s/~b", [Fun, Arity]).
 
 %% @doc Formats the specified error to human-readable form.
-format_error({?E_MB_SPEC_BAD, Node}) ->
+format_error({?E_UNDEF__FUN_SPEC, Node}) ->
   io_lib:format(
-    "bad mailbox spec '~s'",
-    [erl_prettypr:format(Node)]
-  );
-format_error({?E_MB_SIG_BAD, Node}) ->
-  io_lib:format(
-    "mailbox spec contains bad function signature '~s'",
-    [erl_prettypr:format(Node)]
-  );
-format_error({?E_MB_SIG_TYPE_UNDEF, Node}) ->
-  io_lib:format(
-    "function signature has no associated spec '~s'",
+    "function has no corresponding spec '~s'",
     [erl_prettypr:format(Node)]
   );
 format_error({?E_MB_SIG_NOT_UNIQUE, Node}) ->
   io_lib:format(
-    "function signature '~s' associated with more than one mailbox definition",
+    "fun reference '~s' associated with more than one mailbox definition",
     [erl_prettypr:format(Node)]
   );
-format_error({?E_MB_SIG_UNDEF, Node}) ->
+format_error({?E_UNDEF__FUN_REF, Node}) ->
   io_lib:format(
-    "mailbox spec contains undefined function signature '~s'",
+    "mailbox interface definition contains undefined fun reference '~s'",
     [erl_prettypr:format(Node)]
   );
-format_error({?E_MB_TYPE_UNDEF, Node}) ->
+format_error({?E_UNDEF__MB_TYPE, Node}) ->
   io_lib:format(
-    "undefined mailbox type '~s'",
+    "undefined mailbox interface type '~s'",
     [erl_prettypr:format(Node)]
   );
-format_error({?E_MB_MSG_TAG_BAD, Node}) ->
+format_error({?E_BAD__MSG_TAG, Node}) ->
   io_lib:format(
     "bad message tag '~s'",
     [erl_prettypr:format(Node)]
   );
-format_error({?E_MB_MSG_ELEM_TYPE_BAD, Node}) ->
+format_error({?E_BAD__MSG_ELEM_TYPE, Node}) -> %TODO: See if this is used. It is but remove it and use ?E_BAD__MB_TYPE instead.
   io_lib:format(
     "bad message element type '~s'",
     [erl_prettypr:format(Node)]
   );
-format_error({?W_MB_NO_PID, Node}) ->
+format_error({?W_NO__PID, Node}) ->
   io_lib:format(
-    "mailbox type '~s' does not contain pid() that makes it incompatible with Dialyzer",
+    "mailbox interface type '~s' does not contain pid(), which makes it incompatible with Dialyzer",
     [erl_prettypr:format(Node)]
   );
-format_error({?E_MB_NO_NEW, Node}) ->
+format_error({?E_NO__MB_NEW, Node}) ->
   io_lib:format(
-    "used mailbox type '~s' is never initialized with 'new'",
+    "used mailbox interface '~s' is never initialized with '-new'",
+    [erl_prettypr:format(Node)]
+  );
+format_error({?E_BAD__MSG_TYPE, Node}) ->
+  io_lib:format(
+    "bad type '~s' in mailbox interface type; use a message or pid() type",
+    [erl_prettypr:format(Node)]
+  );
+format_error({?E_BAD__MB_TYPE, Node}) ->
+  io_lib:format(
+    "bad type '~s' in message type; use a built-in or mailbox interface type",
+    [erl_prettypr:format(Node)]
+  );
+format_error({?E__UNDEF_TYPE, Node}) ->
+  io_lib:format(
+    "undefined type '~s'",
     [erl_prettypr:format(Node)]
   ).
 
 
+%%REARRANGE check_msgs_types_valid2 to use list
+%%
+%%REFACTOR WITH NON anonymous functions
 
+%% REFACTOR WITH maybe
 
+% TODO: Move to paterl syntax.
 to_erl_af(ANNO, Name) when is_atom(Name) ->
   revert(set_pos(atom(Name), ANNO));
 to_erl_af(ANNO, {Name, Arity})
@@ -923,27 +1373,6 @@ to_erl_af(ANNO, {Name, Arity})
   revert(set_pos(implicit_fun(atom(Name), integer(Arity)), ANNO)).
 
 
-% TODO: Move to another module, maybe util
-
-%% @doc Formats return values using the Erlang preprocessor pattern.
-%% 1. An error-free result with possible warnings returns {ok, Result, Warnings}.
-%% 2. Otherwise only errors are returned {error, Errors, Warnings}.
-return(Result, #error{errors = [], warnings = Warnings}) ->
-  {ok, Result, Warnings};
-return(_, Error = #error{}) ->
-  Error.
-
-%% @doc Formats return values using the Erlang preprocessor pattern.
-%% 1. No errors and potential warnings returns {ok, Warnings}.
-%% 2. Errors are returned as {error, Errors, Warnings}.
-%% 3. Results are returned as {ok, Result, Warnings}, where Warnings is the
-%% empty list.
-return(#error{errors = [], warnings = Warnings}) ->
-  {ok, Warnings};
-return(Error = #error{}) ->
-  Error;
-return(Result) ->
-  {ok, Result, []}.
 
 
 

@@ -32,7 +32,7 @@ compile: clean
 compile-test: clean
 	mkdir -p $(BIN)
 	erlc -DTEST -Dlog -pa $(BIN) +debug_info -W0 -I $(INCLUDE) -o $(BIN) $(call recursive,$(SRC),erl)
-	erlc -DTEST -Dlog -pa $(BIN) -I $(INCLUDE) -W0 -o $(BIN) $(call recursive,$(TEST),erl)
+	erlc -DTEST -Dlog -pa $(BIN) +debug_info -I $(INCLUDE) -W0 -o $(BIN) $(call recursive,$(TEST),erl)
 
 test: compile-test
 	#erl -noshell -pa $(BIN) -eval 'case eunit:test(log_tracer_test, [verbose]) of error -> init:stop(1); Result -> Result end.' -s init stop

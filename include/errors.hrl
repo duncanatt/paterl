@@ -15,12 +15,12 @@ pushError(Code, Node, Error),
 %%  Error#error{errors =
 %%  [{erl_syntax:get_pos(ErrNode), ?MODULE, {Class, ErrNode}} | Error#error.errors]
 %%  }
-  errors:push_error(?MODULE, {Code, Node}, Error)
+  paterl_lib:push_error(?MODULE, {Code, Node}, Error)
 ).
 
 -define(
-pushWarning(Code, Node, Warning),
-  errors:push_warning(?MODULE, {Code, Node}, Warning)
+pushWarning(Code, Node, Error),
+  paterl_lib:push_warning(?MODULE, {Code, Node}, Error)
 ).
 
 %%-define(
@@ -29,8 +29,8 @@ pushWarning(Code, Node, Warning),
 %%).
 
 -record(error, {
-  errors = [] :: errors:errors(),
-  warnings = [] :: errors:errors()
+  errors = [] :: errors:reasons(),
+  warnings = [] :: errors:reasons()
 }).
 
 %%-record(ok, {

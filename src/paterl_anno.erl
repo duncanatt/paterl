@@ -540,7 +540,7 @@ annotate_expr_seq([Expr | ExprSeq], Signature, MbScope, TInfo, Error) ->
   when
   Expr :: erl_syntax:syntaxTree(),
   MbAnno :: {atom(), atom() | string()} | undefined, %TODO: Enumerate the Mb-annotations, state | use | new, etc.
-  Signature :: paterl_syntax:signature(),
+  Signature :: any(), %paterl_syntax:signature(),
   MbScope :: atom(),
   TInfo :: paterl_types:t_info(),
   Error :: errors:error().

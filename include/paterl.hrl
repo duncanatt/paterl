@@ -48,10 +48,10 @@
   mb_names = [] :: paterl_types:mb_names()
 }).
 
--define(M_NEW, new).
--define(M_USE, use).
+%%-define(M_NEW, new).
+%%-define(M_USE, use).
 
--define(T_TYPE, type).
--define(T_SPEC, spec).
--define(T_MBOX, mbox).
+%%-define(T_TYPE, type).
+%%-define(T_SPEC, spec).
+%%-define(T_MBOX, mbox).
 

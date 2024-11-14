@@ -43,6 +43,7 @@ Configures the logger to write to the specified file.
 - `File` is the full filename where the logger output is directed.
 
 **Returns**
+
 - `true` to indicate that log file is configured, `false` otherwise.
 """.
 -spec log_to_file(File :: file:filename()) -> true.
@@ -59,6 +60,7 @@ Writes the log statement.
 - `Fmt` is the format of the log statement string.
 
 **Returns**
+
 - `ok` to acknowledge success.
 """.
 -spec write(LogLabel, Module, Line, Fmt) -> ok
@@ -80,6 +82,7 @@ Outputs the log statement with formatting parameters.
 - `Params` are the parameters to be formatted in the log statement string.
 
 **Returns**
+
 - `ok` to acknowledge success.
 """.
 -spec write(LogLabel, Module, Line, Fmt, Params) -> ok
@@ -111,6 +114,7 @@ statement, where 1 = TRACE, 2 = DEBUG, 3 = INFO, 4 = WARN, 5 = ERROR.
 - `LogLabel` indicates the the severity of the log statement.
 
 **Returns**
+
 - `true' if the log statement can be output, `false' otherwise.
 """.
 -spec can_log(LogLevel :: integer(), LogLabel :: string()) -> boolean().
