@@ -30,7 +30,7 @@ Erlang syntactic subset and mailbox interface well-formedness syntax checks.
 %%% Public API.
 -export([module/1]).
 -export([format_error/1]).
--export([get_file/1, set_anno/2]).
+-export([get_file/1, set_anno/2, fun_reference/2]).
 
 %%% Public types.
 -export_type([form/0, forms/0, clause/0, expr/0, type/0, tree/0]).
@@ -127,14 +127,32 @@ The [annotation](`m:erl_anno`) is only set for the root of `Tree`.
 ### Returns
 - updated `Tree`
 """.
--spec set_anno(Tree, ANNO) -> Tree0
+-spec set_anno(Tree, Anno) -> Tree0
   when
   Tree :: erl_syntax:syntaxTree(),
-  ANNO :: erl_anno:anno(),
+  Anno :: erl_anno:anno(),
   Tree0 :: tree().
 set_anno(Tree, Anno) ->
   erl_syntax:revert(erl_syntax:set_pos(Tree, Anno)).
 
+-doc """
+Creates an implicit fun reference abstract syntax representation with the
+specified [annotation](`m:erl_anno`).
+
+### Returns
+- implicit fun reference abstract syntax representation
+""".
+-spec fun_reference(FunRef, Anno) -> Tree0
+  when
+  FunRef :: {atom(), non_neg_integer()},
+  Anno :: erl_anno:anno(),
+  Tree0 :: tree().
+fun_reference({Name, Arity}, Anno) when is_atom(Name), is_integer(Arity) ->
+  erl_syntax:revert(
+    erl_syntax:set_pos(
+      erl_syntax:implicit_fun(erl_syntax:atom(Name), erl_syntax:integer(Arity)),
+      Anno
+    )).
 
 %%% ----------------------------------------------------------------------------
 %%% Erlang syntactic subset checks.

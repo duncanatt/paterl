@@ -21,6 +21,9 @@
 -moduledoc "Pretty prints errors and warnings on the standard error.".
 -author("duncan").
 
+%%% Includes.
+-include("log.hrl").
+
 %%% Public API.
 -export([show_errors/1, show_warnings/1, show_error/1, show_warning/1]).
 
@@ -73,6 +76,7 @@
 show_errors([]) ->
   ok;
 show_errors([Source = {_Filename, Reasons} | Errors]) when is_list(Reasons) ->
+  ?TRACE("Source = ~p", [Source]),
   print_reasons(?S_ERROR, Source),
   show_errors(Errors).
 

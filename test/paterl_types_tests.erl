@@ -57,7 +57,7 @@ mb_interface_type_test_() ->
   {foreachx, fun startup/1, [
     T() || T <- [
       fun undef_mb_type/0,
-      fun def_mb_type/0,
+      fun def_mb_type/0, % This
       fun mb_inline_msg_type/0,
       fun undef_mb_msg_type/0,
       fun def_mb_msg_type/0,
@@ -94,7 +94,8 @@ mb_usage_test_() ->
   {foreachx, fun startup/1, [
     T() || T <- [
       fun use_non_new_mb/0,
-      fun use_new_mb/0
+      fun use_new_mb/0,
+      fun use_new_mb2/0
     ]]}.
 
 
@@ -878,6 +879,29 @@ use_new_mb() -> {
       end}
   end}.
 
+use_new_mb2() -> {
+  """
+  -module(test).
+  -new({mb, [f/0]}).
+  -use({mb, [f/0, g/0]}).
+  -type mb() :: pid().
+  -spec f() -> ok.
+  f() -> ok.
+  -spec g() -> ok.
+  g() -> ok.
+  """,
+  fun(_, Result) ->
+    {"Test valid use of new mailbox interface",
+      fun() ->
+        ?TRACE("Result = ~p", [Result])
+        % Successful result with no warnings.
+%%        ?assertMatch({ok, #t_info{}, []}, Result),
+%%        {ok, #t_info{types = Types}, _Warnings = []} = Result,
+%%
+%%        % Valid use of new mailbox interface.
+%%        ?assertMatch(#{mb := {mbox, _, {type, _, pid, []}, []}}, Types)
+      end}
+  end}.
 
 %%% ----------------------------------------------------------------------------
 %%% Helpers.

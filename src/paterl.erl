@@ -174,7 +174,7 @@ type_forms(File, Forms) ->
   io:fwrite("[TYPE] Extract type annotations.~n"),
   case paterl_types:table(Forms) of
     {ok, TInfo = #t_info{types = Types, specs = Specs, mb_defs = MbDefs, mb_names = MbNames}, Warnings0} ->
-      paterl_errors:show_warnings([{File, Warnings0}]), %TODO: Encapsulate this in the paterl_types module and use the file attribute.
+      paterl_errors:show_warnings(Warnings0), %TODO: Encapsulate this in the paterl_types module and use the file attribute.
 
       io:format("~n~s TINFO ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
       io:format("Types: ~p~n", [Types]),
@@ -200,8 +200,8 @@ type_forms(File, Forms) ->
     {error, Errors, Warnings} ->
       % Type annotation extraction errors.
       %TODO: Encapsulate this in the paterl_types module and use the file attribute.
-      paterl_errors:show_warnings([{File, Warnings}]),
-      paterl_errors:show_errors([{File, Errors}]),
+      paterl_errors:show_warnings(Warnings),
+      paterl_errors:show_errors(Errors),
       error
   end.
 
