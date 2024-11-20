@@ -85,10 +85,10 @@
 %% @param TInfo: Type annotations.
 %%
 %% @returns Annotated AST.
--spec module([erl_syntax:syntaxTree()], paterl_types:t_info()) ->
+-spec module([erl_syntax:syntaxTree()], paterl_types:type_info()) ->
   {ok, erl_syntax:forms()} | errors:error().
-module(Forms, TInfo) when is_list(Forms), is_record(TInfo, t_info) ->
-  case annotate_forms(Forms, TInfo, #error{}) of
+module(Forms, TypeInfo = #type_info{}) when is_list(Forms) ->
+  case annotate_forms(Forms, TypeInfo, #error{}) of
     {Forms0, #error{errors = []}} ->
       {ok, Forms0};
     {_, #error{errors = Errors}} ->
@@ -187,12 +187,12 @@ expand_msg_type(Type = {user_type, _, Name, []}, TypesCtx, Acc) when is_map(Type
 
 
 %% @private Annotates forms.
--spec annotate_forms(erl_syntax:forms(), paterl_types:t_info(), errors:error()) ->
+-spec annotate_forms(erl_syntax:forms(), paterl_types:type_info(), errors:error()) ->
   {erl_syntax:forms(), errors:error()}.
 annotate_forms([], _, Error) ->
   {[], Error};
 
-annotate_forms([Mod = {attribute, _, module, _} | Forms], TInfo = #t_info{types = TypesCtx}, Error) ->
+annotate_forms([Mod = {attribute, _, module, _} | Forms], TInfo = #type_info{types = TypesCtx}, Error) ->
   Interfaces = get_interfaces(TypesCtx),
   ?TRACE("Interfaces: ~p", [Interfaces]),
   {Forms0, Error0} = annotate_forms(Forms, TInfo, Error),
@@ -221,10 +221,10 @@ annotate_forms([_ | Forms], TInfo, Error) ->
 
 
 %% @private Annotates functions with a single clause and without guards.
--spec annotate_function(erl_syntax:syntaxTree(), paterl_types:t_info(), errors:error()) ->
+-spec annotate_function(erl_syntax:syntaxTree(), paterl_types:type_info(), errors:error()) ->
   {erl_syntax:syntaxTree(), errors:error()}.
 annotate_function({function, Anno, Name, Arity, Clauses},
-    TInfo = #t_info{specs = SpecsCtx, mb_defs = MbDefsCtx}, Error) ->
+    TInfo = #type_info{specs = SpecsCtx, mb_funs = MbDefsCtx}, Error) ->
 
   % Recover function signature.
   Sig = {Name, Arity},
@@ -263,7 +263,7 @@ annotate_function({function, Anno, Name, Arity, Clauses},
   {Form0, Error0}.
 
 %% @private Annotates a function clause list.
--spec annotate_clauses([erl_syntax:syntaxTree()], [erl_syntax:syntaxTree()], paterl_types:signature(), atom(), paterl_types:t_info(), errors:error()) ->
+-spec annotate_clauses([erl_syntax:syntaxTree()], [erl_syntax:syntaxTree()], paterl_types:fun_ref(), atom(), paterl_types:type_info(), errors:error()) ->
   {[erl_syntax:syntaxTree()], errors:error()}.
 annotate_clauses([], [], _, _, _, Error) ->
   {[], Error};
@@ -276,7 +276,7 @@ annotate_clauses([Clause | Clauses], [Type | Types], Signature, MbScope, TInfo, 
 %%
 %% The following spec-annotated clauses are annotated:
 %% 1. Function clause without guard
--spec annotate_clause(erl_syntax:syntaxTree(), erl_syntax:syntaxTree(), paterl_types:signature(), atom(), paterl_types:t_info(), errors:error()) ->
+-spec annotate_clause(erl_syntax:syntaxTree(), erl_syntax:syntaxTree(), paterl_types:fun_ref(), atom(), paterl_types:type_info(), errors:error()) ->
   {erl_syntax:syntaxTree(), errors:error()}.
 annotate_clause(
     Clause = {clause, Anno, PatSeq, GuardSeq = [], Body},
@@ -323,7 +323,7 @@ annotate_clause(Clause, _ArgType, _Signature, _MbScope, _TInfo, Error) ->
   {Clause, Error}.
 
 %% @private Annotates a non-function clause list.
--spec annotate_clauses([erl_syntax:syntaxTree()], paterl_types:signature(), atom(), paterl_types:t_info(), errors:error()) ->
+-spec annotate_clauses([erl_syntax:syntaxTree()], paterl_types:fun_ref(), atom(), paterl_types:type_info(), errors:error()) ->
   {[erl_syntax:syntaxTree()], errors:error()}.
 annotate_clauses([], _, _, _, Error) ->
   {[], Error};
@@ -337,7 +337,7 @@ annotate_clauses([Clause | Clauses], Signature, MbScope, TInfo, Error) ->
 %%
 %% The following clauses are annotated:
 %% 1. If
--spec annotate_clause(erl_syntax:syntaxTree(), paterl_types:signature(), atom(), paterl_types:t_info(), errors:error()) ->
+-spec annotate_clause(erl_syntax:syntaxTree(), paterl_types:fun_ref(), atom(), paterl_types:type_info(), errors:error()) ->
   {erl_syntax:syntaxTree(), errors:error()}.
 annotate_clause(Clause = {clause, Anno, _PatSeq = [], GuardSeq, Body},
     Signature, MbScope, TInfo, Error)
@@ -370,7 +370,7 @@ annotate_clause(Clause, _Signature, _MbScope, _, Error) ->
 
 
 %% @private Annotates a pattern list.
--spec annotate_pat_seq([erl_syntax:syntaxTree()], [erl_syntax:syntaxTree()], atom(), paterl_types:t_info()) ->
+-spec annotate_pat_seq([erl_syntax:syntaxTree()], [erl_syntax:syntaxTree()], atom(), paterl_types:type_info()) ->
   [erl_syntax:syntaxTree()].
 annotate_pat_seq(PatSeq, TypeSeq, MbScope, TInfo)
   when is_list(PatSeq), is_list(TypeSeq), length(PatSeq) == length(TypeSeq) ->
@@ -411,7 +411,7 @@ annotate_pat(Pat, _Type = {Qualifier, _, Type, _}, _MbScope, _TInfo)
 %% the expression that follows the match expression in the expression list.
 %% Otherwise, the AST of the match expression remains unmodified and its RHS
 %% AST is annotated.
--spec annotate_expr_seq([erl_syntax:syntaxTree()], Signature :: paterl_types:signature(), MbScope :: atom(), paterl_types:t_info(), errors:error()) ->
+-spec annotate_expr_seq([erl_syntax:syntaxTree()], Signature :: paterl_types:fun_ref(), MbScope :: atom(), paterl_types:type_info(), errors:error()) ->
   {[erl_syntax:syntaxTree()], errors:error()}.
 annotate_expr_seq([], _, _, _, Error = #error{}) ->
   ?TRACE("Empty expression sequence."),
@@ -542,7 +542,7 @@ annotate_expr_seq([Expr | ExprSeq], Signature, MbScope, TInfo, Error) ->
   MbAnno :: {atom(), atom() | string()} | undefined, %TODO: Enumerate the Mb-annotations, state | use | new, etc.
   Signature :: any(), %paterl_syntax:signature(),
   MbScope :: atom(),
-  TInfo :: paterl_types:t_info(),
+  TInfo :: paterl_types:type_info(),
   Error :: errors:error().
 annotate_expr({call, Anno, Spawn = {atom, _, spawn}, MFArgs}, {AnnoName, MbName}, _Signature, _MbScope, _TInfo, Error)
   when is_list(MFArgs), AnnoName == new ->
@@ -570,7 +570,7 @@ annotate_expr({call, Anno, Self = {atom, _, self}, []}, undefined, _Signature, M
   {Expr0, Error};
 
 annotate_expr({call, Anno, Operator = {atom, _, Name}, Exprs}, MbAnno, Signature, MbScope,
-    TInfo = #t_info{mb_defs = MbDefsCtx}, Error)
+    TInfo = #type_info{mb_funs = MbDefsCtx}, Error)
   when is_tuple(MbAnno), size(MbAnno) == 2;
   MbAnno == undefined ->
   % Explicit function call where function name is an atom. Function call may be
@@ -652,7 +652,7 @@ annotate_expr(Expr = {'receive', Anno, Clauses}, _, Signature, MbScope = undefin
   {_, Error1} = annotate_clauses(Clauses, Signature, MbScope, TInfo, Error0), % Find other errors.
   {Expr, Error1};
 
-annotate_expr({'receive', Anno, Clauses}, _MbAnno = {state, Regex}, Signature, MbScope, TInfo = #t_info{specs = Specs}, Error) ->
+annotate_expr({'receive', Anno, Clauses}, _MbAnno = {state, Regex}, Signature, MbScope, TInfo = #type_info{specs = Specs}, Error) ->
   % Mailbox-annotated blocking receive expression. Mailbox name can be inferred
   % from enclosing mailbox scope.
   {Clauses0, Error0} = annotate_clauses(Clauses, Signature, MbScope, TInfo, Error),

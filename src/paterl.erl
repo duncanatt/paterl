@@ -172,8 +172,8 @@ type_forms(File, Forms) ->
   % Extract type annotations. File may be valid but can contain possible
   % warnings.
   io:fwrite("[TYPE] Extract type annotations.~n"),
-  case paterl_types:table(Forms) of
-    {ok, TInfo = #t_info{types = Types, specs = Specs, mb_defs = MbDefs, mb_names = MbNames}, Warnings0} ->
+  case paterl_types:module(Forms) of
+    {ok, TInfo = #type_info{types = Types, specs = Specs, mb_funs = MbDefs, mb_defs = MbNames}, Warnings0} ->
       paterl_errors:show_warnings(Warnings0), %TODO: Encapsulate this in the paterl_types module and use the file attribute.
 
       io:format("~n~s TINFO ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
@@ -186,10 +186,10 @@ type_forms(File, Forms) ->
       {Desugared0, TInfo0} = paterl_bootstrap:forms(Forms, TInfo),
 
       io:format("~n~s TINFO BOOTSTRAPPED~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
-      io:format("Types: ~p~n", [TInfo0#t_info.types]),
-      io:format("Specs: ~p~n", [TInfo0#t_info.specs]),
-      io:format("MbDefs: ~p~n", [TInfo0#t_info.mb_defs]),
-      io:format("MbNames: ~p~n", [TInfo0#t_info.mb_names]),
+      io:format("Types: ~p~n", [TInfo0#type_info.types]),
+      io:format("Specs: ~p~n", [TInfo0#type_info.specs]),
+      io:format("MbDefs: ~p~n", [TInfo0#type_info.mb_funs]),
+      io:format("MbNames: ~p~n", [TInfo0#type_info.mb_defs]),
       io:format("~s SIGS & TINFO BOOTSTRAPPED ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
 
       io:format("~n~n~n D E S U G A R E D 2~n~n~n~n", []),
@@ -302,8 +302,8 @@ compile2(File, Opts) when is_list(File), is_list(Opts) ->
               io:fwrite(color:green("[TYPE] Extracting typespecs.~n")),
 
 %%          case paterl_types:table(Forms) of
-              case paterl_types:table(Desugared) of
-                {ok, TInfo = #t_info{types = Types, specs = Specs, mb_defs = MbDefs, mb_names = MbNames}, Warnings1} ->
+              case paterl_types:module(Desugared) of
+                {ok, TInfo = #type_info{types = Types, specs = Specs, mb_funs = MbDefs, mb_defs = MbNames}, Warnings1} ->
                   % Type table valid but possible warnings.
                   errors:show_warnings({File, Warnings1}),
 
@@ -317,10 +317,10 @@ compile2(File, Opts) when is_list(File), is_list(Opts) ->
                   {Desugared0, TInfo0} = paterl_bootstrap:forms(Desugared, TInfo),
 
                   io:format("~n~s TINFO BOOTSTRAPPED~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
-                  io:format("Types: ~p~n", [TInfo0#t_info.types]),
-                  io:format("Specs: ~p~n", [TInfo0#t_info.specs]),
-                  io:format("MbDefs: ~p~n", [TInfo0#t_info.mb_defs]),
-                  io:format("MbNames: ~p~n", [TInfo0#t_info.mb_names]),
+                  io:format("Types: ~p~n", [TInfo0#type_info.types]),
+                  io:format("Specs: ~p~n", [TInfo0#type_info.specs]),
+                  io:format("MbDefs: ~p~n", [TInfo0#type_info.mb_funs]),
+                  io:format("MbNames: ~p~n", [TInfo0#type_info.mb_defs]),
                   io:format("~s SIGS & TINFO BOOTSTRAPPED ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
 
 

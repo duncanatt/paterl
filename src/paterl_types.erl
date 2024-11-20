@@ -45,10 +45,10 @@ set_pos/2
 ]).
 
 %%% Public API.
--export([table/1]).
+-export([module/1]).
 
 %%% Public types.
--export_type([types/0, specs/0, mb_defs/0, mailbox/0, mb_names/0, t_info/0, signature/0]).
+-export_type([types/0, specs/0, mb_funs/0, mb_defs/0, type_info/0]).
 -export_type([result/0]).
 
 -compile(export_all).
@@ -57,19 +57,21 @@ set_pos/2
 %%% Macro and record definitions.
 %%% ----------------------------------------------------------------------------
 
+%% Erlang abstract syntax form information.
+-record(form_info, {
+  functions = [] :: [f_function()],
+  types = [] :: [f_type()],
+  specs = [] :: [f_spec()],
+  mailboxes = [] :: [f_mailbox(paterl_syntax:fun_ref() | undefined)]
+}).
+
 %%% Error types.
-
-%% Mailbox specification syntactically incorrect.
-%%-define(E__BAD_MB_DEF, e_mb_spec_bad).
-
-%% Invalid function Fun/Arity signature.
-%%-define(E_MB_SIG_BAD, e_mb_sig_bad).
 
 %% Untyped function signature. e_mb_sig_type_undef
 -define(E_UNDEF__FUN_SPEC, e_undef__fun_spec).
 
-%% Function signature associated with more than one mailbox type.
--define(E_MB_SIG_NOT_UNIQUE, e_mb_sig_not_unique).
+%% Fun reference associated with more than one mailbox interface.
+-define(E_DUP__MB_FUN_REF, e_dup__mb_fun_ref).
 
 %% Undefined function reference.
 -define(E_UNDEF__FUN_REF, e_undef__fun_ref).
@@ -102,88 +104,50 @@ set_pos/2
 %% Undefined type.
 -define(E__UNDEF_TYPE, e__undef_type).
 
-%% Error macros.
-
-%% Program type information.
-%%-record(p_types, {
-%%  t_specs = [] :: [t_spec()], % Global type def names to AST.
-%%  f_specs = [] :: [f_spec()], % Function signatures to AST.
-%%  mb_sigs = [] :: [mb_sig()]  % Mailbox names to mailbox modality and function signatures.
-%%}).
-
-
-%%-record(t_info, {
-%%  types = #{} :: types(), % Global type def names to AST.
-%%  specs = #{} :: specs(), % Function signatures to AST.
-%%  mb_defs = #{} :: mb_defs(),  % Mailbox names to mailbox modality and function signatures.
-%%  mb_names = [] :: [mailbox()]
-%%}).
-
-%%-record(p_data, {
-%%  f_sigs = [] :: [signature()] %% List of function signatures.
-%%}).
 
 %%% ----------------------------------------------------------------------------
 %%% Type definitions.
 %%% ----------------------------------------------------------------------------
 
--type signature() :: {name(), arity()}.
-%% Function signature Name/Arity type.
-
--type name() :: atom().
-%% Function name type.
-
--type type() :: atom().
-%% Type name type.
-
--type mailbox() :: atom().
-%% Mailbox name type.
-
+-doc "Mailbox usage modality.".
 -type modality() :: ?M_NEW | ?M_USE.
-%% Mailbox usage modality type.
 
--type anno() :: erl_anno:anno().
+-doc "Erlang abstract syntax type.".
+-type type() :: erl_parse:abstract_type().
 
--doc """
-Function result.
-""".
-%%-type result() :: {ok, term(), errors:warnings()} | {ok, errors:warnings()} | errors:error().
+-doc "Function form.".
+-type f_function() :: {function, paterl_syntax:anno(), paterl_syntax:fun_ref()}.
 
-%%-type error() :: paterl_lib:error().
+-doc "Type form.".
+-type f_type() :: {type, paterl_syntax:anno(), {paterl_syntax:name(), Type :: type(), Vars :: []}}.
 
--record(form_info, {
-  fun_refs = [],
-  types = [],
-  specs = [],
-  mb_defs = []
-}).
+-doc "Function form.".
+-type f_spec() :: {spec, paterl_syntax:anno(), {paterl_syntax:fun_ref(), Type :: type()}}.
+
+-doc "Mailbox form.".
+-type f_mailbox(FunRef) :: {mailbox, paterl_syntax:anno(), {{modality(), paterl_syntax:name()}, FunRef}}.
 
 
--type types() :: #{Name :: type() => {
-  type | mbox,
-  ANNO :: anno(),
-  Type :: erl_parse:abstract_type(),
-  TypeVars :: [erl_parse:abstract_expr()]}
-}.
 
--type specs() :: #{signature() => {
-  spec,
-  ANNO :: anno(),
-  FunTypes :: [erl_parse:abstract_type()]}
-}.
-
--type mb_defs() :: #{signature() => {modality(), ANNO :: anno(), mailbox()}}.
-
--type mb_names() :: #{mailbox() => {ANNO :: anno(), modality()}}.
+-doc "Erlang abstract form information".
+-type form_info() :: #form_info{}.
 
 
-%% Mailbox interface names map that tracks the Erlang functions implementing the
-%% mailbox type.
+% TODO.
+-type types() :: #{paterl_syntax:name() => {type | mbox, paterl_syntax:anno(), Type :: type(), Vars :: []}}.
 
--type t_info() :: #t_info{}.
+-type specs() :: #{paterl_syntax:fun_ref() => {spec, paterl_syntax:anno(), FunTypes :: [type()]}}.
+
+-type mb_funs() :: #{paterl_syntax:fun_ref() => {modality(), paterl_syntax:anno(), paterl_syntax:name()}}.
+
+-type mb_defs() :: #{paterl_syntax:name() => {paterl_syntax:anno(), modality()}}.
+
+-doc "Module type information.".
+-type type_info() :: #type_info{}.
 %% Program type information type.
 
--type result() :: {ok, t_info(), Warnings :: paterl_errors:warnings()} |
+-doc "Return result.".
+-type result() :: {ok, type_info(), Warnings :: paterl_errors:warnings()} |
 {errors, Warnings :: paterl_errors:warnings(), Errors :: paterl_errors:errors()}.
 
 
@@ -192,145 +156,146 @@ Function result.
 %%% ----------------------------------------------------------------------------
 
 
--spec table(erl_syntax:forms()) -> result().
-table2(Forms) when is_list(Forms) ->
-  _File = paterl_syntax:get_file(Forms),
+%%-spec table(erl_syntax:forms()) -> result().
+%%table2(Forms) when is_list(Forms) ->
+%%  _File = paterl_syntax:get_file(Forms),
+%%
+%%  A =
+%%
+%%    % Extract type information from AST to table.
+%%  case get_t_info(Forms) of
+%%    #analysis{status = ok, result = TInfo} ->
+%%%%        {ok, TInfo = #t_info{}, []} ->
+%%
+%%      #t_info{types = Types, specs = _Specs, mb_funs = _MbDefs, mb_defs = MbNames} = TInfo,
+%%
+%%%%          io:format("~n~s SIGS & TINFO ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
+%%%%          io:format("Types: ~p~n", [Types]),
+%%%%          io:format("Specs: ~p~n", [Specs]),
+%%%%          io:format("MbDefs: ~p~n", [MbDefs]),
+%%%%          io:format("MbNames: ~p~n", [MbNames]),
+%%%%          io:format("~s SIGS & TINFO ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
+%%
+%%
+%%      case check_mb_types_defined(MbNames, Types) of
+%%%%            {ok, []} ->
+%%        #analysis{status = ok} ->
+%%          case check_mb_types_valid(Types) of
+%%            #analysis{status = ok, warnings = Warnings} ->
+%%%%                {ok, Warnings} ->
+%%
+%%              %% TODO: Check mb is new (we have no use without new). Uses MbNames.
+%%              case check_mb_new(MbNames) of
+%%%%                    {ok, []} ->
+%%                #analysis{status = ok} ->
+%%
+%%                  #analysis{
+%%                    file = paterl_syntax:get_file(Forms),
+%%                    result = TInfo,
+%%                    warnings = Warnings
+%%                  };
+%%%%                      {ok, TInfo, Warnings}; % TODO: Here we should create the analysis record and return_pack it.
+%%                Analysis = #analysis{status = error} ->
+%%                  % One or more mailbox definitions are used without new.
+%%                  Analysis
+%%              end;
+%%            Analysis = #analysis{status = error} ->
+%%              % One or more invalid messages types in mailbox definitions.
+%%              Analysis
+%%          end;
+%%        Analysis = #analysis{status = error} ->
+%%          % One or more undefined mailbox type names.
+%%          Analysis
+%%      end;
+%%    Analysis = #analysis{status = error} ->
+%%      % One or more function signatures associated with the same mailbox
+%%      % definition or undeclared function signatures in mailbox definitions.
+%%      Analysis
+%%  end,
+%%
+%%  paterl_lib:return(A).
 
-  A =
-
-    % Extract type information from AST to table.
-  case get_t_info(Forms) of
-    #analysis{status = ok, result = TInfo} ->
-%%        {ok, TInfo = #t_info{}, []} ->
-
-      #t_info{types = Types, specs = _Specs, mb_defs = _MbDefs, mb_names = MbNames} = TInfo,
-
-%%          io:format("~n~s SIGS & TINFO ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
-%%          io:format("Types: ~p~n", [Types]),
-%%          io:format("Specs: ~p~n", [Specs]),
-%%          io:format("MbDefs: ~p~n", [MbDefs]),
-%%          io:format("MbNames: ~p~n", [MbNames]),
-%%          io:format("~s SIGS & TINFO ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
-
-
-      case check_mb_types_defined(MbNames, Types) of
-%%            {ok, []} ->
-        #analysis{status = ok} ->
-          case check_mb_types_valid(Types) of
-            #analysis{status = ok, warnings = Warnings} ->
-%%                {ok, Warnings} ->
-
-              %% TODO: Check mb is new (we have no use without new). Uses MbNames.
-              case check_mb_new(MbNames) of
-%%                    {ok, []} ->
-                #analysis{status = ok} ->
-
-                  #analysis{
-                    file = paterl_syntax:get_file(Forms),
-                    result = TInfo,
-                    warnings = Warnings
-                  };
-%%                      {ok, TInfo, Warnings}; % TODO: Here we should create the analysis record and return_pack it.
-                Analysis = #analysis{status = error} ->
-                  % One or more mailbox definitions are used without new.
-                  Analysis
-              end;
-            Analysis = #analysis{status = error} ->
-              % One or more invalid messages types in mailbox definitions.
-              Analysis
-          end;
-        Analysis = #analysis{status = error} ->
-          % One or more undefined mailbox type names.
-          Analysis
-      end;
-    Analysis = #analysis{status = error} ->
-      % One or more function signatures associated with the same mailbox
-      % definition or undeclared function signatures in mailbox definitions.
-      Analysis
-  end,
-
-  paterl_lib:return(A).
-
-table(Forms) when is_list(Forms) ->
-  Anal =
+-spec module(paterl_syntax:forms()) -> result().
+module(Forms) when is_list(Forms) ->
+  Analysis =
     maybe
     % Extract type, spec, and mailbox definition information.
-      #analysis{status = ok, result = TInfo} ?= get_t_info(Forms),
-      #t_info{types = Types, mb_names = MbNames} = TInfo,
+      #analysis{status = ok, result = TInfo} ?= analyze_type_info(Forms),
+      #type_info{types = Types, mb_defs = MbDefs} = TInfo,
 
       % Check that mailbox interface definitions have corresponding types.
-      #analysis{status = ok} ?= check_mb_types_defined(MbNames, Types),
+      #analysis{status = ok} ?= check_mb_types_defined(MbDefs, Types),
+
+      % Check that mailbox interface uses are initialized with new.
+      #analysis{status = ok} ?= check_mb_new(MbDefs),
 
       % Check validity of mailbox interface types.
       #analysis{status = ok, warnings = Warnings} ?= check_mb_types_valid(Types),
-
-      % Check that mailbox interface uses are initialized with new.
-      #analysis{status = ok} ?= check_mb_new(MbNames),
-
-      #analysis{
-        file = paterl_syntax:get_file(Forms),
-        result = TInfo,
+      #analysis{file = paterl_syntax:get_file(Forms), result = TInfo,
         warnings = Warnings
       }
-    else
-      Analysis = #analysis{status = error} ->
-        Analysis
     end,
-  paterl_lib:return(Anal).
 
-
-% {Sigs, MbSigs, Types, Specs}
-
--spec read_attribs(erl_syntax:forms()) -> {FunSigs, MbDefs, Types, FunSpecs}
-  when
-  FunSigs :: term(),
-  MbDefs :: term(),
-  Types :: term(),
-  FunSpecs :: term().
-read_attribs(Forms) ->
-  lists:foldl(
-    fun(_Form = {function, ANNO, Fun, Arity, _}, {Sigs, MbDefs, Types, Specs}) ->
-      ?TRACE("Fun: ~p", [_Form]),
-      ?DEBUG("~b: ~s/~b", [ANNO, Fun, Arity]),
-      {add_fun_sig(ANNO, {Fun, Arity}, Sigs), MbDefs, Types, Specs};
-
-      (_Form = {attribute, ANNO, Modality, {Mailbox, Sigs0}}, {Sigs, MbDefs, Types, Specs})
-        when Modality =:= ?M_NEW; Modality =:= ?M_USE ->
-        ?TRACE("MbDef: ~p", [_Form]),
-        ?DEBUG("~b: -~s ~s with ~p", [ANNO, Modality, Mailbox, Sigs0]),
-        {Sigs, add_mb_def(ANNO, Sigs0, Modality, Mailbox, MbDefs), Types, Specs};
-
-      (_Form = {attribute, ANNO, type, {Name, Type, Vars}}, {Sigs, MbDefs, Types, Specs}) ->
-        ?TRACE("Type: ~p", [_Form]),
-        ?DEBUG("~b: -type ~s", [ANNO, Name]),
-        {Sigs, MbDefs, add_type(ANNO, Name, Type, Vars, Types), Specs};
-
-      (_Form = {attribute, ANNO, spec, {Sig = {_Fun, _Arity}, Types0}}, {Sigs, MbDefs, Types, Specs}) ->
-        ?TRACE("Spec: ~p", [_Form]),
-        ?DEBUG("~b: -spec ~s/~b", [ANNO, _Fun, _Arity]),
-        {Sigs, MbDefs, Types, add_fun_spec(ANNO, Sig, Types0, Specs)};
-
-      (_Form, Data) ->
-        ?TRACE("Form: ~p", [_Form]),
-        ?DEBUG("~b: ~s ~p", [element(2, _Form), element(1, _Form),
-          if size(_Form) > 2 -> element(3, _Form); true -> undefined end]),
-        Data
-    end, {[], [], [], []}, Forms).
+  % Return analysis with possible errors as result.
+  paterl_lib:return(Analysis).
 
 
 
+%%-spec read_attribs(erl_syntax:forms()) -> {FunSigs, MbDefs, Types, FunSpecs}
+%%  when
+%%  FunSigs :: term(),
+%%  MbDefs :: term(),
+%%  Types :: term(),
+%%  FunSpecs :: term().
+%%read_attribs(Forms) ->
+%%  lists:foldl(
+%%    fun(_Form = {function, ANNO, Fun, Arity, _}, {Sigs, MbDefs, Types, Specs}) ->
+%%      ?TRACE("Fun: ~p", [_Form]),
+%%      ?DEBUG("~b: ~s/~b", [ANNO, Fun, Arity]),
+%%      {add_fun_sig(ANNO, {Fun, Arity}, Sigs), MbDefs, Types, Specs};
+%%
+%%      (_Form = {attribute, ANNO, Modality, {Mailbox, Sigs0}}, {Sigs, MbDefs, Types, Specs})
+%%        when Modality =:= ?M_NEW; Modality =:= ?M_USE ->
+%%        ?TRACE("MbDef: ~p", [_Form]),
+%%        ?DEBUG("~b: -~s ~s with ~p", [ANNO, Modality, Mailbox, Sigs0]),
+%%        {Sigs, add_mb_def(ANNO, Sigs0, Modality, Mailbox, MbDefs), Types, Specs};
+%%
+%%      (_Form = {attribute, ANNO, type, {Name, Type, Vars}}, {Sigs, MbDefs, Types, Specs}) ->
+%%        ?TRACE("Type: ~p", [_Form]),
+%%        ?DEBUG("~b: -type ~s", [ANNO, Name]),
+%%        {Sigs, MbDefs, add_type(ANNO, Name, Type, Vars, Types), Specs};
+%%
+%%      (_Form = {attribute, ANNO, spec, {Sig = {_Fun, _Arity}, Types0}}, {Sigs, MbDefs, Types, Specs}) ->
+%%        ?TRACE("Spec: ~p", [_Form]),
+%%        ?DEBUG("~b: -spec ~s/~b", [ANNO, _Fun, _Arity]),
+%%        {Sigs, MbDefs, Types, add_fun_spec(ANNO, Sig, Types0, Specs)};
+%%
+%%      (_Form, Data) ->
+%%        ?TRACE("Form: ~p", [_Form]),
+%%        ?DEBUG("~b: ~s ~p", [element(2, _Form), element(1, _Form),
+%%          if size(_Form) > 2 -> element(3, _Form); true -> undefined end]),
+%%        Data
+%%    end, {[], [], [], []}, Forms).
+
+
+-spec analyze_forms(paterl_syntax:forms()) -> form_info().
 analyze_forms(Forms) ->
   lists:foldl(fun analyze_form/2, #form_info{}, Forms).
 
+-spec analyze_form(Form, FormInfo) -> FormInfo0
+  when
+  Form :: paterl_syntax:form(),
+  FormInfo :: form_info(),
+  FormInfo0 :: form_info().
 analyze_form(Form, FormInfo) ->
-  ANNO = erl_syntax:get_pos(Form),
+  Anno = erl_syntax:get_pos(Form),
   case erl_syntax_lib:analyze_form(Form) of
     {attribute, _} ->
       case erl_syntax_lib:analyze_attribute(Form) of
         Wild = {Name, _}
           when Name =:= type; Name =:= spec; Name =:= ?M_NEW; Name =:= ?M_USE ->
           ?TRACE("Attribute '~p'.", [Wild]),
-          add_form_info(Wild, ANNO, FormInfo);
+          add_form_info(Wild, Anno, FormInfo);
         _ ->
           ?TRACE("Skip attribute '~s'", [erl_prettypr:format(Form)]),
           FormInfo
@@ -338,157 +303,168 @@ analyze_form(Form, FormInfo) ->
     Fun = {function, {_Name, _Arity}} ->
       % Function definition.
       ?TRACE("Function '~s/~b'.", [_Name, _Arity]),
-      add_form_info(Fun, ANNO, FormInfo);
+      add_form_info(Fun, Anno, FormInfo);
     _ ->
       % Other form.
       ?TRACE("Skip form '~s'.", [erl_prettypr:format(Form)]),
       FormInfo
   end.
 
-
-
-add_form_info({function, Info}, ANNO, FormInfo = #form_info{fun_refs = FunRefs}) ->
+-spec add_form_info(InfoPair, Anno, FormInfo) -> FormInfo0
+  when
+  InfoPair :: {atom(), term()},
+  Anno :: paterl_syntax:anno(),
+  FormInfo :: form_info(),
+  FormInfo0 :: form_info().
+add_form_info({function, Info}, ANNO, FormInfo = #form_info{functions = FunRefs}) ->
   {_Fun, _Arity} = Info,
-%%  FormInfo#form_info{fun_refs = [{ANNO, Info} | FunRefs]};
-  FormInfo#form_info{fun_refs = [{function, ANNO, Info} | FunRefs]};
+  FormInfo#form_info{functions = [{function, ANNO, Info} | FunRefs]};
 add_form_info({type, Info}, ANNO, FormInfo = #form_info{types = Types}) ->
-  {Name, Type, Vars = []} = Info,
-%%  FormInfo#form_info{types = [{Name, {ANNO, Type, Vars}} | Types]};
+  {_Name, _Type, _Vars = []} = Info,
   FormInfo#form_info{types = [{type, ANNO, Info} | Types]};
 add_form_info({spec, Info}, ANNO, FormInfo = #form_info{specs = Specs}) ->
-  {FunRef = {_Fun, _Arity}, Type} = Info,
-%%  FormInfo#form_info{specs = [{FunRef, {ANNO, Type}} | Specs]};
+  {_FunRef = {_Fun, _Arity}, _Type} = Info,
   FormInfo#form_info{specs = [{spec, ANNO, Info} | Specs]};
-add_form_info({MbMod, Info}, ANNO, FormInfo = #form_info{mb_defs = MbDefs})
+add_form_info({MbMod, Info}, ANNO, FormInfo = #form_info{mailboxes = MbDefs})
   when MbMod =:= ?M_NEW; MbMod =:= ?M_USE ->
-  {MbName, FunRefs} = Info,
-
   FlatMbDefs =
-    if length(FunRefs) =:= 0 ->
-      [{mailbox, ANNO, {{MbMod, MbName}, undefined}}];
-      true ->
-        % Flatten mailbox interface definitions.
+    case Info of
+      {MbName, []} ->
+        % Mailbox interface definition with no fun references.
+        [{mailbox, ANNO, {{MbMod, MbName}, undefined}}];
+      {MbName, FunRefs} ->
+        % Mailbox interface definition with fun references.
         [{mailbox, ANNO, {{MbMod, MbName}, FunRef}} || FunRef <- FunRefs]
     end,
-%%  FormInfo#form_info{mb_defs = [{{MbMod, MbName}, {ANNO, FunRefs}} | MbDefs]}.
-%%  FormInfo#form_info{mb_defs = [{mailbox, ANNO, {{MbMod, MbName}, FunRefs}} | MbDefs]}.
-  FormInfo#form_info{mb_defs = MbDefs ++ FlatMbDefs}.
+  FormInfo#form_info{mailboxes = MbDefs ++ FlatMbDefs}.
 
 
-%%flatten_mb_defs(MbDefs) when is_list(MbDefs) ->
-%%  Fun =
-%%    fun({mailbox, ANNO, {{MbMod, MbName}, FunRefs}}, MbFunRefs) ->
-%%      MbFunRefs ++ [{mailbox, ANNO, {{MbMod, MbName}, FunRef}} || FunRef <- FunRefs]
-%%    end,
-%%  lists:foldl(Fun, [], MbDefs).
-
-%% TODO: Generate warning for mailbox interface not associated to any function.
-
-
-
--spec get_t_info(erl_syntax:forms()) -> paterl_lib:analysis().
-get_t_info(Forms) ->
-
-  % Read raw attributes from AST. The consistency checking of type and function
-  % specs w.r.t functions is already performed by the Erlang preprocessor and
-  % we do not need to check that.
-
-  {Sigs, MbDefs, Types, Specs} = read_attribs(Forms),
-  ?TRACE("Sigs: ~p", [Sigs]),
-  ?TRACE("MbDefs: ~p", [MbDefs]),
-  ?TRACE("Types: ~p", [Types]),
-  ?TRACE("Specs: ~p", [Specs]),
-
-  #form_info{fun_refs = FunRefs, types = Types_, specs = Specs_, mb_defs = MbDefs_} = analyze_forms(Forms),
-  ?TRACE("Sigs_: ~p", [FunRefs]),
-  ?TRACE("MbDefs_: ~p", [MbDefs_]),
-  ?TRACE("Types_: ~p", [Types_]),
-  ?TRACE("Specs_: ~p", [Specs_]),
-
-  % Sigs = Specs = list
-%%  SigsCtx = #{} = make_sigs_ctx(Sigs),
-%%  Specs0 = maps:from_list(Specs),
-
-
-
-
-  SpecsCtx = #{} = make_specs_ctx(Specs_),
-%%  MbDefs0 = #{} = make_mb_defs2(MbDefs_),
-
-  % Flatten mbdefs - place in desugaring pass.
-%%  MbDefsFlat = flatten_mb_defs(MbDefs_),
-
-
-  ?DEBUG("SpecsCtx:~n~p~n", [SpecsCtx]),
-
-  case check_fun_specs2(FunRefs, SpecsCtx) of
-    Analysis0 = #analysis{status = ok} ->
-      % Get mailbox definition map for convenient use for type consistency checking.
-      % Check that each function signature is associated to at most one mailbox
-      % definition and modality.
-
-      % HERE STARTS MAILBOX TYPE CHECKING.
-      case check_unused_mb_defs(MbDefs_) of
-        #analysis{status = ok} ->
-
-%%          UsedMbDefs = used_mb_defs(MbDefs_),
-%%          ?TRACE("UnusedMbDefs = ~p", [UsedMbDefs]),
-
-          case check_mb_dup_fun_use(MbDefs_, Analysis0) of
-            Analysis1 = #analysis{status = ok} ->
-              ?TRACE("check_mb_dup_fun_use = ok"),
-
-              MbDefs0 = make_mb_defs3(MbDefs_),
-              ?DEBUG("MbDefsCtx:~n~p~n", [MbDefs0]),
-
-              % Check that function signatures used in mailbox definitions are defined.
-              case check_mb_fun_refs_defined(MbDefs0, SpecsCtx) of
-                #analysis{status = ok} ->
-                  % Get unique mailbox names.
-                  MbNamesCtx = make_mb_names_ctx(MbDefs),
-                  ?DEBUG("MbNamesCtx:~n~p~n", [MbNamesCtx]),
-                  MbNamesCtx0 = make_mb_names_ctx2(MbDefs_),
-                  ?DEBUG("MbNamesCtx0:~n~p~n", [MbNamesCtx0]),
-%%              MbNamesCtx = MbNamesCtx0,
+%%-spec get_t_info(erl_syntax:forms()) -> paterl_lib:analysis().
+%%get_t_info(Forms) ->
+%%
+%%  % Read raw attributes from AST. The consistency checking of type and function
+%%  % specs w.r.t functions is already performed by the Erlang preprocessor and
+%%  % we do not need to check that.
+%%
+%%  #form_info{functions = Functions, types = Types, specs = Specs, mailboxes = Mailboxes} = analyze_forms(Forms),
+%%  ?TRACE("Functions: ~p", [Functions]),
+%%  ?TRACE("Types: ~p", [Types]),
+%%  ?TRACE("Specs: ~p", [Specs]),
+%%  ?TRACE("MbDefs: ~p", [Mailboxes]),
+%%
+%%  SpecsCtx = #{} = make_specs(Specs),
+%%  ?DEBUG("SpecsCtx:~n~p~n", [SpecsCtx]),
+%%
+%%  case check_fun_specs(Functions, SpecsCtx) of
+%%    Analysis0 = #analysis{status = ok} ->
+%%      % Get mailbox definition map for convenient use for type consistency checking.
+%%      % Check that each function signature is associated to at most one mailbox
+%%      % definition and modality.
+%%
+%%      % HERE STARTS MAILBOX TYPE CHECKING.
+%%      case check_unused_mb_defs(Mailboxes) of
+%%        #analysis{status = ok} ->
+%%
+%%          case check_mb_dup_fun_use(Mailboxes) of
+%%            #analysis{status = ok} ->
+%%              ?TRACE("check_mb_dup_fun_use = ok"),
+%%
+%%              MbFuns = make_mb_funs(Mailboxes),
+%%              ?DEBUG("MbDefsCtx:~n~p~n", [MbFuns]),
+%%
+%%              % Check that function signatures used in mailbox definitions are defined.
+%%              case check_mb_fun_refs_defined(MbFuns, SpecsCtx) of
+%%                #analysis{status = ok} ->
+%%                  % Get unique mailbox names.
+%%                  MbDefs = make_mb_defs(Mailboxes),
+%%                  ?DEBUG("MbDefs:~n~p~n", [MbDefs]),
+%%
+%%
+%%                  % Type info record.
+%%                  TInfo =
+%%                    #type_info{
+%%                      types = make_types(Types, MbDefs),
+%%                      specs = SpecsCtx,
+%%                      mb_defs = MbDefs,
+%%                      mb_funs = MbFuns
+%%                    },
+%%                  X = #analysis{result = TInfo},
+%%                  ?TRACE("Analysis record = ~p", [X]),
+%%                  X;
+%%
+%%                Analysis2 = #analysis{status = error} -> % Here we do not need to match against, we can just use the variable Error.
+%%                  % One or more function signatures in mailbox definitions are not
+%%                  % declared as types.
+%%                  Analysis2
+%%              end;
+%%            Analysis1 = #analysis{status = error} ->
+%%              % One or more function signatures are associated with the same mailbox.
+%%              ?TRACE("check_mb_dup_fun_use = error"),
+%%              Analysis1
+%%          end;
+%%        AnalysisX = #analysis{status = error} ->
+%%          AnalysisX
+%%      end;
+%%    Analysis0 = #analysis{status = error} ->
+%%      % One or more function signatures do not have specs.
+%%      ?TRACE("check_fun_specs2 = error"),
+%%      Analysis0
+%%  end.
 
 
-                  % TODO: This can be packaged into an analysis record.
-                  TypesCtx = make_types_ctx(Types, MbNamesCtx),
-                  TypesCtx0 = make_types_ctx2(Types_, MbNamesCtx0),
-                  TypsCtx = TypesCtx0,
+% Errors can arise due to:
+% One or more function signatures do not have specs.
+% One or more function signatures are associated with the same mailbox.
+% One or more function signatures in mailbox definitions are not
+% declared as types.
+% Warnings can arise due to:
+% Mailbox interface definitions not being used by functions.
 
-                  % Type info record.
-                  TInfo =
-                    #t_info{
-                      types = make_types_ctx2(Types_, MbNamesCtx0),
-                      specs = SpecsCtx,
-                      mb_names = MbNamesCtx,
-                      mb_defs = MbDefs0
-                    },
-                  X = #analysis{result = TInfo},
-                  ?TRACE("Analysis record = ~p", [X]),
-                  X;
 
-                Analysis2 = #analysis{status = error} -> % Here we do not need to match against, we can just use the variable Error.
-                  % One or more function signatures in mailbox definitions are not
-                  % declared as types.
-                  Analysis2
-              end;
-            Analysis1 = #analysis{status = error} ->
-              % One or more function signatures are associated with the same mailbox.
-              ?TRACE("check_mb_dup_fun_use = error"),
-              Analysis1
-          end;
-        AnalysisX = #analysis{status = error} ->
-          AnalysisX
-      end;
-    Analysis0 = #analysis{status = error} ->
-      % One or more function signatures do not have specs.
-      ?TRACE("check_fun_specs2 = error"),
-      Analysis0
+-spec analyze_type_info(paterl_syntax:forms()) -> paterl_lib:analysis().
+analyze_type_info(Forms) ->
+
+  % Read raw Erlang forms.
+  FormInfo = #form_info{functions = Functions, mailboxes = Mailboxes} =
+    analyze_forms(Forms),
+  ?TRACE("Functions: ~p", [FormInfo#form_info.functions]),
+  ?TRACE("Types: ~p", [FormInfo#form_info.types]),
+  ?TRACE("Specs: ~p", [FormInfo#form_info.specs]),
+  ?TRACE("Mailboxes: ~p", [FormInfo#form_info.mailboxes]),
+
+  Specs = make_specs(FormInfo#form_info.specs),
+  ?DEBUG("CTX Specs:~n~p~n", [Specs]),
+
+  maybe
+  % Check that functions have corresponding specs defined.
+    #analysis{status = ok} ?= check_fun_specs(Functions, Specs),
+
+    % Check that mailbox interface definitions are used. %TODO: Move it to syntax checking module.
+    #analysis{status = ok, warnings = Warnings} ?=
+    check_unused_mb_defs(Mailboxes),
+    UsedMailboxes = used_mailboxes(Mailboxes),
+    ?TRACE("FunRefMailboxes = ~p", [UsedMailboxes]),
+
+    % Check that mailbox interface definitions are used by at most one function.
+    #analysis{status = ok} ?= check_mb_dup_fun_use(UsedMailboxes),
+    MbFuns = make_mb_funs(UsedMailboxes),
+
+    % Check that fun references in mailbox interface definitions are defined.
+    #analysis{status = ok} ?= check_mb_fun_refs_defined(MbFuns, Specs),
+    MbDefs = make_mb_defs(Mailboxes),
+    TypeInfo =
+      #type_info{
+        types = make_types(FormInfo#form_info.types, MbDefs),
+        specs = Specs,
+        mb_defs = MbDefs,
+        mb_funs = MbFuns
+      },
+    X = #analysis{result = TypeInfo, warnings = Warnings},
+    ?TRACE("Analysis record = ~p", [X]),
+    X
   end.
 
-
+% TODO: Move to syntax module.
 check_unused_mb_defs(MbDefs) when is_list(MbDefs) ->
   Fun =
     fun({mailbox, _, {{_, _}, _FunRef = {_, _}}}, Analysis) ->
@@ -498,497 +474,251 @@ check_unused_mb_defs(MbDefs) when is_list(MbDefs) ->
     end,
   lists:foldl(Fun, #analysis{}, MbDefs).
 
-used_mb_defs(MbDefs) when is_list(MbDefs) ->
-  Fun = fun({mailbox, _, {{_, _}, _FunRef = {_, _}}}) -> true; (_) -> false end,
-  lists:filter(Fun, MbDefs).
+
+%% TODO: eliminate the mb_defs from type_info record.
+%% TODO: Move the warning to the syntax check.
 
 
-add_fun_sig(ANNO, Sig = {_, _}, Sigs) when is_list(Sigs) ->
-  [{ANNO, Sig} | Sigs].
-
-add_mb_def(ANNO, Sigs, Modality, Mailbox, MbSpecs)
-  when is_list(Sigs), is_list(MbSpecs) ->
-  [{{Modality, Mailbox}, {ANNO, Sigs}} | MbSpecs].
-
-add_type(ANNO, Name, Type, Vars, Types)
-  when is_list(Vars), is_list(Types) ->
-  [{Name, {ANNO, Type, Vars}} | Types].
-
-add_fun_spec(ANNO, Sig = {_, _}, Types, FunSpecs)
-  when is_list(Types), is_list(FunSpecs) ->
-  [{Sig, {ANNO, Types}} | FunSpecs].
-
-
-%% @private Returns the map of function signatures. Function signatures are
-%% assumed to be unique.
-%% @returns Function signatures.
-%%make_sigs_ctx(Sigs) when is_list(Sigs) ->
-%%  Fun = fun({ANNO, Sig = {_, _}}, Sigs0) -> Sigs0#{Sig => {ANNO}} end,
-%%  Map = lists:foldl(Fun, #{}, Sigs),
-%%  if map_size(Map) =:= length(Sigs) -> Map; true -> error(invalid_fun_refs) end.
+%%% ----------------------------------------------------------------------------
+%%% Program mailbox interface and type spec extraction.
+%%% ----------------------------------------------------------------------------
 
 -doc """
-Creates a map of function specs.
+Creates the list of used mailbox interface names.
 
-Function specs are assumed to be unique and should be enforced by the Erlang
-linter.
+Used mailbox interface names are ones that are paired with **at least one** fun
+reference. In code, unused mailbox interfaces look thus:
+```erlang
+-new({mb_name, []}). % Empty fun reference list.
+```
+whereas used mailbox interfaces are defined as follows:
+```erlang
+-new({mb_name, [f/0]}). % Fun reference list contains at least one item.
+```
+""".
+-spec used_mailboxes(Mailboxes) -> Mailboxes0
+  when
+  Mailboxes :: [f_mailbox(paterl_syntax:fun_ref() | undefined)],
+  Mailboxes0 :: [f_mailbox(paterl_syntax:fun_ref())].
+used_mailboxes(Mailboxes) when is_list(Mailboxes) ->
+  Fun = fun({mailbox, _, {{_, _}, _FunRef = {_, _}}}) -> true; (_) -> false end,
+  lists:filter(Fun, Mailboxes).
+
+-doc """
+Creates a [`specs()`](`t:specs/0`) mapping from fun references to corresponding
+type specs.
+
+Assumes that function specs are unique, as enforced by the Erlang linter.
 
 ### Returns
-- map of function specs
+- [`specs()`](`t:specs/0`) mapping
 """.
-%%make_specs_ctx(Specs) when is_list(Specs) ->
-%%  Fun =
-%%    fun({Sig = {_, _}, {ANNO, Spec}}, Ctx) ->
-%%      Ctx#{Sig => {spec, ANNO, Spec}}
-%%    end,
-%%  lists:foldl(Fun, #{}, Specs).
-
-% FINAL.
-make_specs_ctx(Specs) when is_list(Specs) ->
+-spec make_specs([f_spec()]) -> specs().
+make_specs(Specs) when is_list(Specs) ->
   Fun =
     fun({spec, ANNO, {FunRef = {_, _}, Type}}, Ctx) ->
       Ctx#{FunRef => {spec, ANNO, Type}}
     end,
   lists:foldl(Fun, #{}, Specs).
 
+-doc """
+Creates a [`mb_funs()`](`t:mb_funs/0`) mapping from fun references to
+corresponding mailbox interface names.
 
-%% @private Returns the map of mailbox names defined.
-%% @returns Mailbox names.
-make_mb_names_ctx(MbDefs) when is_list(MbDefs) ->
-  ?TRACE("make_mb_names_ctx MbDefs = ~p", [MbDefs]),
-  lists:foldl(
-    fun({{Modality, Name}, {ANNO, _}}, Ctx) ->
-%%    fun({mailbox, Anno, {{MbMod, MbName}, FunRef}}, Ctx) ->
-%%      maps:update_with(MbName, fun({_, new}) -> {Anno, new}; (_) -> {Anno, MbMod} end, {Anno, MbMod}, Ctx)
-      maps:update_with(Name, fun({_, new}) -> {ANNO, new}; (_) -> {ANNO, Modality} end, {ANNO, Modality}, Ctx)
-    end,
-    #{}, MbDefs).
-
-make_mb_names_ctx2(MbDefs) when is_list(MbDefs) ->
-  ?TRACE("make_mb_names_ctx2 MbDefs = ~p", [MbDefs]),
+### Returns
+- [`mb_funs()`](`t:mb_funs/0`) [`mb_funs()`](`t:mb_funs/0`) mapping
+""".
+-spec make_mb_funs(Mailboxes) -> mb_funs()
+  when Mailboxes :: [f_mailbox(paterl_syntax:fun_ref())].
+make_mb_funs(Mailboxes) when is_list(Mailboxes) ->
   Fun =
-    fun({mailbox, Anno, {{MbMod, MbName}, FunRef}}, Ctx) ->
+    fun({mailbox, Anno, {{MbMod, MbName}, FunRef = {_, _}}}, Ctx) ->
+      Ctx#{FunRef => {MbMod, Anno, MbName}}
+    end,
+  lists:foldl(Fun, #{}, Mailboxes).
+
+-doc """
+Creates a [`mb_defs()`](`t:mb_defs/0`) mapping from mailbox interface names to
+corresponding `-new` or `-use` modalities.
+
+Each mailbox interface definition name is tagged with its latest usage modality
+`-new` or `-use` as it occurs lexically in code.
+
+If a mailbox interface definition name with a `-use` modality is later followed
+by a `-new` usage in the code, the latter modality supersedes the `-use` with
+the updated position in the code.
+
+Returned mailbox defintion interface names paired with the `-new` modality
+indicate that the corresponding mailbox is properly utilized in code. Mailbox
+interface definition names paired with the `-use` modality identify names that
+are improperly uninitialized.
+
+### Returns
+- [`mb_defs()`](`t:mb_defs/0`) mapping
+""".
+-spec make_mb_defs(Mailboxes) -> mb_defs()
+  when
+  Mailboxes :: [f_mailbox(paterl_syntax:fun_ref() | undefined)].
+make_mb_defs(Mailboxes) when is_list(Mailboxes) ->
+  Fun =
+    fun({mailbox, Anno, {{MbMod, MbName}, _FunRef}}, Ctx) ->
       maps:update_with(MbName,
-        fun({_, new}) -> {Anno, new}; (_) -> {Anno, MbMod} end,
-        {Anno, MbMod}, Ctx)
+        fun({new, _}) -> {new, Anno}; (_) -> {MbMod, Anno} end,
+        {MbMod, Anno}, Ctx)
     end,
-  lists:foldl(Fun, #{}, MbDefs).
+  lists:foldl(Fun, #{}, Mailboxes).
 
+-doc """
+Creates a [`types()`](`t:types/0`) mapping from type names to corresponding type
+definitions.
 
-make_types_ctx(Types, MbNames = #{}) when is_list(Types) ->
-%%  Mailboxes = lists:map(fun({_, _, Name}) -> Name end, maps:values(MbDefs)),
-  lists:foldl(
-    fun({Name, {ANNO, Type, Vars}}, Ctx) ->
-      case maps:is_key(Name, MbNames) of
-%%      case maps:take(Name, MbNames) of %TODO: Optimisation if we use take!
-        true ->
-
-          % Type defines a mailbox.
-          Ctx#{Name => {?T_MBOX, ANNO, Type, Vars}};
-        false ->
-
-          % Type does not define a mailbox.
-          Ctx#{Name => {?T_TYPE, ANNO, Type, Vars}}
-      end
-    end,
-    #{}, Types).
-
-%%{Name, Type, Vars = []} = Info,
-%%%%  FormInfo#form_info{types = [{Name, {ANNO, Type, Vars}} | Types]};
-%%FormInfo#form_info{types = [{type, ANNO, Info} | Types]};
-
-make_types_ctx2(Types, MbNames) when is_list(Types), is_map(MbNames) ->
+### Returns
+- [`types()`](`t:types/0`) mapping
+""".
+-spec make_types([f_type()], mb_defs()) -> types().
+make_types(Types, MbDefs) when is_list(Types), is_map(MbDefs) ->
   Fun =
-    fun({type, Anno, {Name, Type, Vars = []}}, Ctx) ->
-      case maps:is_key(Name, MbNames) of
-        true ->
-          % User-defined mailbox interface type.
-          Ctx#{Name => {?T_MBOX, Anno, Type, Vars}};
-        false ->
-          % User-defined data type.
-          Ctx#{Name => {?T_TYPE, Anno, Type, Vars}}
-      end
+    fun({type, Anno, {Name, Type, Vars = []}}, Ctx)
+      when is_map_key(Name, MbDefs) ->
+      % User-defined mailbox interface type.
+      Ctx#{Name => {?T_MBOX, Anno, Type, Vars}};
+      ({type, Anno, {Name, Type, Vars = []}}, Ctx) ->
+        % User-defined data type.
+        Ctx#{Name => {?T_TYPE, Anno, Type, Vars}}
     end,
   lists:foldl(Fun, #{}, Types).
 
 
 %%% ----------------------------------------------------------------------------
-%%% Syntactic checking functions.
+%%% Type consistency checks.
 %%% ----------------------------------------------------------------------------
-
-% 1. Check that the new and use attributes have the correct format.
-% TODO: Maybe move this to the other module concerned with syntactic checking
-% TODO: and leave this module only for semantics/consistency checks.
 
 -doc """
-Checks that the -new and -use wild attributes have the correct format.
-- `Forms` is the list of forms.
+Checks that functions have corresponding specs.
 
-**Returns**
-The `{compiler_internal,term()}` option is forwarded to the Erlang token
-scanner, see [`{compiler_internal,term()}`](`m:erl_scan#compiler_interal`).
-
-- `{ok, Result, []}` if the syntactic check succeeds, `{error, Errors, []}`
-otherwise.
+# Returns
+- `ok` if all functions have corresponding specs
+- `error` with details otherwise
 """.
-%%-spec check_mb_specs_syntactic(Forms) -> {ok, Forms, []} | error()
-%%  when
-%%  Forms :: erl_syntax:forms().
-%%-spec check_mb_specs_syntactic(erl_syntax:forms()) -> paterl_lib:analysis().
-%%check_mb_specs_syntactic(Forms) when is_list(Forms) ->
-%%  AttribCheckFun =
-%%%%    fun(Attrib = {attribute, _, Modality, {Mailbox, Sigs}}, Analysis)
-%%  fun(Attrib = {attribute, ANNO, Modality, Value}, Analysis)
-%%    when Modality =:= ?M_NEW; Modality =:= ?M_USE ->
-%%
-%%    case Value of
-%%      {Mailbox, Sigs} when is_atom(Mailbox), is_list(Sigs) ->
-%%        % Well-structured mailbox spec attribute. Check validity of signature
-%%        % definitions in the spec.
-%%        % Other signature forms, such as atom/atom are checked by the Erlang
-%%        % preprocessor.
-%%
-%%
-%%        FunSigCheckFun =
-%%          fun(Sig = {Name, Arity}, Analysis0) ->
-%%            ?TRACE("Processing sig: ~p", [Sig]),
-%%            case is_fun_sig(Sig) of
-%%              true ->
-%%                % Valid function signature.
-%%                Analysis0;
-%%              false ->
-%%                % Invalid function signature.
-%%                Node = to_erl_af(ANNO, Sig),
-%%%%                  erl_syntax:revert(
-%%%%                    erl_syntax:set_pos(
-%%%%                      erl_syntax:arity_qualifier(erl_syntax:atom(Name), erl_syntax:integer(Arity)),
-%%%%                      erl_syntax:get_pos(Attrib)
-%%%%                      )),
-%%                ?pushError(?E_MB_SIG_BAD, Node, Analysis0)
-%%            end
-%%          end,
-%%
-%%        % Check validity of function signature definitions.
-%%        lists:foldl(FunSigCheckFun, Analysis, Sigs);
-%%
-%%%%          true ->
-%%%%            % Invalid mailbox spec attribute.
-%%%%            ?pushError(?E_MB_SPEC_BAD, Attrib, Analysis)
-%%%%        end;
-%%      _ ->
-%%        % Invalid mailbox spec attribute.
-%%        ?pushError(?E__BAD_MB_DEF, Attrib, Analysis)
-%%    end;
-%%
-%%    (_, Analysis) ->
-%%      % Other attributes.
-%%      Analysis
-%%  end,
-%%
-%%%%  AttributeCheckFun =
-%%%%    fun(Node = {attribute, _, Modality, {Mailbox, Sigs}}, Error)
-%%%%      when
-%%%%      Modality =:= ?M_NEW, is_atom(Mailbox), is_list(Sigs);
-%%%%      Modality =:= ?M_USE, is_atom(Mailbox), is_list(Sigs) ->
-%%%%
-%%%%      SigsCheckFun =
-%%%%        fun({Name, Arity}, Error) when is_atom(Name), Arity >= 0, Arity =< 255 ->
-%%%%          Error;
-%%%%          (_, Error = #analysis{}) ->
-%%%%
-%%%%            % Invalid function signature. Other signature forms, such as
-%%%%            % atom/atom are checked by the Erlang preprocessor.
-%%%%            ?pushError(?E_MB_SIG_BAD, Node, Error)
-%%%%        end,
-%%%%      lists:foldl(SigsCheckFun, Error, Sigs);
-%%%%
-%%%%      (Node = {attribute, _, Modality, _}, Error)
-%%%%        when Modality =:= ?M_NEW; Modality =:= ?M_USE ->
-%%%%
-%%%%        % Invalid mailbox spec.
-%%%%        ?pushError(?E_MB_SPEC_BAD, Node, Error);
-%%%%      (_, Error) ->
-%%%%
-%%%%        % Valid attribute.
-%%%%        Error
-%%%%    end,
-%%
-%%  % Check validity of mailbox definition attributes.
-%%  lists:foldl(AttribCheckFun, #analysis{}, Forms).
-
-is_fun_sig({Name, Arity}) when is_atom(Name), Arity >= 0, Arity =< 255 ->
-  true;
-is_fun_sig(_) ->
-  false.
-
-%%is_fun_sigs([]) ->
-%%  true;
-%%is_fun_sigs([{Name, Arity} | FunSigs])
-%%  when
-%%  is_atom(Name), Arity >= 0, Arity =< 255 ->
-%%  is_fun_sigs(FunSigs);
-%%is_fun_sigs(_) ->
-%%  false.
-
-%%is_fun_sigs([FunSig | FunSigs]) ->
-%%  case is_fun_sig(FunSig) of
-%%    true ->
-%%      is_fun_sigs(FunSigs);
-%%    false ->
-%%      false
-%%  end.
-
-
-any(_, []) ->
-  false;
-any(Pred, [H | T]) when is_function(Pred, 1) ->
-  case Pred(H) of
-    false ->
-      any(Pred, T);
-    true ->
-      true
-  end.
-
-all(_, []) ->
-  true;
-all(Pred, [H | T]) when is_function(Pred, 1) ->
-  case Pred(H) of
-    true ->
-      all(Pred, T);
-    false ->
-      false
-  end.
-
-
-%%% ----------------------------------------------------------------------------
-%%% Type consistency checking functions.
-%%% ----------------------------------------------------------------------------
-
-%% Returns the mailbox spec map relating function signatures to mailbox
-%% modalities and names.
-%% Also checks that each function signature is associated with at most one
-%% mailbox name in either the new or use modality.
-%% @returns {ok, MbSpecs, Warnings} or {error, Errors, Warning}. Warnings is
-%% always the empty list for this call.
--spec make_mb_defs(list()) -> paterl_lib:analysis().
-make_mb_defs(MbDefs) when is_list(MbDefs) ->
-  MbDefFun =
-    fun({{Modality, Mailbox}, {ANNO, Sigs}}, Analysis = #analysis{}) ->
-      UniqueCheckFun =
-        fun(Sig = {_, _}, Analysis0 = #analysis{result = MbDefs = #{}}) ->
-          case maps:is_key(Sig, MbDefs) of
-            true ->
-              % Function signature already associated with other mailbox type.
-              Node = to_erl_af(ANNO, Sig),
-              ?pushError(?E_MB_SIG_NOT_UNIQUE, Node, Analysis0);
-            false ->
-              % Associate function signature with mailbox type.
-              Analysis0#analysis{result = MbDefs#{Sig => {Modality, ANNO, Mailbox}}}
-          end
-        end,
-
-      % Check that mailbox definition-function signature association is unique.
-      % Will be relaxed later due to the -new and -use issue.
-      lists:foldl(UniqueCheckFun, Analysis, Sigs)
-    end,
-
-  % Convert the list of mailbox definitions to a map, checking mailbox
-  % definition-function signature association is unique.
-  lists:foldl(MbDefFun, #analysis{result = #{}}, MbDefs).
-
-
-%%make_mb_defs2(MbDefs) when is_list(MbDefs) ->
-%%  Fun =
-%%    fun({mailbox, ANNO, {{MbMod, MbName}, FunRefs}}, Ctx) ->
-%%      Fun0 =
-%%        fun(FunRef = {_, _}, Ctx) ->
-%%          Ctx#{FunRef => {MbMod, ANNO, MbName}}
-%%        end,
-%%      lists:foldl(Fun0, Ctx, FunRefs)
-%%    end,
-%%
-%%  % Map mailbox interface definition list to map. No mailbox interface-function
-%%  % reference definition are checked for uniqueness.
-%%  lists:foldl(Fun, #{}, MbDefs).
-
-make_mb_defs3(MbDefs) when is_list(MbDefs) ->
+-spec check_fun_specs([f_function()], specs()) -> paterl_lib:analysis().
+check_fun_specs(Functions, Specs) when is_list(Functions), is_map(Specs) ->
   Fun =
-    fun({mailbox, Anno, {{MbMod, MbName}, FunRef = {_, _}}}, Ctx) ->
-      Ctx#{FunRef => {MbMod, Anno, MbName}};
-      ({mailbox, _, {{_, _}, _FunRef = undefined}}, Ctx) ->
-        Ctx
+    fun({function, _, FunRef = {_, _}}, Analysis)
+      when is_map_key(FunRef, Specs) ->
+      % Fun reference has corresponding spec.
+      Analysis;
+      ({function, Anno, FunRef = {_, _}}, Analysis) ->
+        % Non-existent function spec.
+        Node = paterl_syntax:fun_reference(FunRef, Anno),
+
+        ?ERROR("Function '~s' has missing spec.", [erl_prettypr:format(Node)]),
+        ?pushError(?E_UNDEF__FUN_SPEC, Node, Analysis)
     end,
-  lists:foldl(Fun, #{}, MbDefs).
+  lists:foldl(Fun, #analysis{}, Functions).
 
+-doc """
+Checks that fun references use a mailbox interface name at most once.
 
-% Test:
-% -new({mb, [f/0]}).
-% -new({mb0, [f/0]}).
-% This should work but it does not.
+This means that a fun reference is permitted the use of at most one mailbox name
+in either the `-new` or `-use` modality.
 
-%%check_unique_mb_defs(MbDefs, Analysis)
-%%  when is_list(MbDefs) ->
-%%  Fun =
-%%    fun({mailbox, ANNO, {{MbMod, MbName}, FunRefs}}, {MbFunRefs, Analysis}) ->
-%%      ?TRACE("Check mailbox definition -~s(~s).", [MbMod, MbName]),
-%%%%      Fun2 =
-%%%%        fun(FunRef = {_FunName, _Arity}, {UniqueFunRefs, Analysis}) ->
-%%%%          ?TRACE("Check fun reference ~s/~b.", [_FunName, _Arity]),
-%%%%          case sets:is_element({MbName, FunRef}, UniqueFunRefs) of
-%%%%            true ->
-%%%%              ?ERROR("FunRef ~p already exists!", [{MbName, FunRef}]),
-%%%%
-%%%%              % Fun ref x already associated with mailbox X in use modality.
-%%%%
-%%%%              % Function signature already associated with other mailbox type.
-%%%%              % Fun ref associated with the same mailbox with the same modality
-%%%%              % ro with the same mailbox under a different modality.
-%%%%              Node = to_erl_af(ANNO, FunRef),
-%%%%              {UniqueFunRefs, ?pushError(?E_MB_SIG_NOT_UNIQUE, Node, Analysis)};
-%%%%            false ->
-%%%%              {sets:add_element({MbName, FunRef}, UniqueFunRefs), Analysis}
-%%%%          end
-%%%%        end,
-%%%%      lists:foldl(Fun2, {UniqueFunRefs, Analysis}, FunRefs)
-%%      case get_mb_dup_fun_use(MbName, FunRefs, MbFunRefs) of
-%%        {[], MbFunRefs0} ->
-%%          % No duplicate mailbox interface-fun reference uses.
-%%          {MbFunRefs0, Analysis};
-%%        {[_ | _], MbFunRefs} ->
-%%          % Duplicate mailbox interface-fun uses. Duplicate use of a mailbox (in
-%%          % any modality) with the same fun reference is not permitted.
-%%          ?ERROR("Duplicate functions found at ~p", [MbName]),
-%%
-%%
-%%          {MbFunRefs, Analysis}
-%%      end
-%%    end,
-%%  lists:foldl(Fun, {sets:new(), Analysis}, MbDefs).
-
-%%get_mb_dup_fun_use(MbName, FunRefs, MbFunRefs) ->
-%%  Fun2 =
-%%    fun(FunRef = {_FunName, _Arity}, {DupFunRefs, MbFunRefs0}) ->
-%%%%      erl_syntax:implicit_fun(erl_syntax:atom(_FunName), erl_syntax:integer(_Arity)),
-%%%%      ?TRACE("Check fun reference ~s/~b.", [_FunName, _Arity]),
-%%      % Create mailbox interface name-fun reference association.
-%%      MbFunRef = {MbName, FunRef},
-%%      case sets:is_element(MbFunRef, MbFunRefs0) of
-%%        true ->
-%%          % Mailbox interface already used with fun reference. The duplicate use
-%%          % does not distinguish between -new and -use modalities, treating them
-%%          % as a duplication.
-%%%%          ?ERROR("Fun ref ~p already associated with mailbox interface definition ~s.", [FunRef, MbName]),
-%%          {[FunRef | DupFunRefs], MbFunRefs0};
-%%        false ->
-%%          % Mailbox interface not yet used with fun reference. Add it to set.
-%%          {DupFunRefs, sets:add_element(MbFunRef, MbFunRefs0)}
-%%      end
-%%    end,
-%%  lists:foldl(Fun2, {_DupFunRefs = [], MbFunRefs}, FunRefs).
-
-
-%% FINAL.
-check_mb_dup_fun_use(MbDefs, Analysis = #analysis{}) when is_list(MbDefs) ->
+### Returns
+- `ok` if all fun references use a mailbox interface name at most once
+- `error` with details otherwise
+""".
+-spec check_mb_dup_fun_use(Mailboxes) -> paterl_lib:analysis()
+  when
+  Mailboxes :: [f_mailbox(paterl_syntax:fun_ref() | undefined)].
+check_mb_dup_fun_use(Mailboxes) when is_list(Mailboxes) ->
   Fun =
-    fun({mailbox, Anno, {{_, MbName}, FunRef = {_, _}}}, {MbFunRefs, Analysis}) ->
-      % Mailbox interface-fun reference association.
-      MbFunRef = {MbName, FunRef},
-      case lists:member(MbFunRef, MbFunRefs) of
-        true ->
-          % Mailbox interface already used with another fun reference.
-          % Duplicate usage of mailbox interfaces by fun references does not
-          % distinguish between -new and -use modalities, treating them
-          % both as duplications.
-          Node = paterl_syntax:fun_reference(FunRef, Anno),
+    fun({mailbox, Anno, {{_, MbName}, FunRef = {_, _}}}, {MbFunRefs, Analysis})
+      when is_map_key({MbName, FunRef}, MbFunRefs) ->
+      % Mailbox interface already used with another fun reference. Duplicate
+      % usage of mailbox interfaces by fun references does not distinguish
+      % between -new and -use modalities: both are treated as duplications.
+      Node = paterl_syntax:fun_reference(FunRef, Anno),
 
-          ?ERROR("Duplicate fun reference '~s' use in mailbox interface '~s'", [
-            erl_prettypr:format(Node), MbName
-          ]),
-          {MbFunRefs, ?pushError(?E_MB_SIG_NOT_UNIQUE, Node, Analysis)};
-        false ->
-          % Mailbox interface not yet used by a fun reference.
-          {[MbFunRef | MbFunRefs], Analysis}
-      end;
-      ({mailbox, _, {{_, _MbName}, _FunRef = undefined}}, Acc = {_, _}) ->
-        ?WARN("Skip unused mailbox interface '~s'.", [_MbName]),
-        Acc
+      ?ERROR("Duplicate fun reference '~s' use in mailbox interface '~s'", [
+        erl_prettypr:format(Node), MbName
+      ]),
+      {MbFunRefs, ?pushError(?E_DUP__MB_FUN_REF, Node, Analysis)};
+      ({mailbox, _, {{_, MbName}, FunRef = {_, _}}}, {MbFunRefs, Analysis}) ->
+        % Mailbox interface not yet used by a fun reference.
+        MbFunRef = {MbName, FunRef},
+        {MbFunRefs#{MbFunRef => MbName}, Analysis}
     end,
-  {_, Analysis0} = lists:foldl(Fun, {_MbFunRefs = [], Analysis}, MbDefs),
+  {_, Analysis0} = lists:foldl(Fun, {#{}, #analysis{}}, Mailboxes),
   Analysis0.
 
+-doc """
+Checks that fun references using mailbox interfaces are defined.
 
-%% @private Checks that the function signatures in mailbox definitions are
-%% defined.
-%% returns {ok, Warnings} if all signatures are defined, otherwise
-%% {error, Warnings, Errors}. Warnings is always the empty list.
--spec check_mb_fun_refs_defined(#{}, #{}) -> paterl_lib:analysis().
-
-% FINAL.
-check_mb_fun_refs_defined(MbDefs, FunRefs)
-  when is_map(MbDefs), is_map(FunRefs) ->
+### Returns
+- `ok` if all fun references using mailbox interfaces are defined
+- `error` with details otherwise
+""".
+-spec check_mb_fun_refs_defined(mb_funs(), specs()) -> paterl_lib:analysis().
+check_mb_fun_refs_defined(MbFuns, Specs) when is_map(MbFuns), is_map(Specs) ->
   Fun =
-    fun(FunRef = {_, _}, {_, Anno, _MbName}, Analysis) ->
-      case maps:is_key(FunRef, FunRefs) of
-        true ->
-          % Defined fun reference in mailbox interface definition.
-          Analysis;
-        false ->
-          % Undefined fun reference in mailbox interface definition.
-          Node = paterl_syntax:fun_reference(FunRef, Anno),
-          ?TRACE("Undefined fun reference '~s' in mailbox interface '~s'.", [
-            erl_prettypr:format(Node), _MbName
-          ]),
-          ?pushError(?E_UNDEF__FUN_REF, Node, Analysis)
-      end
+    fun(FunRef = {_, _}, {_, _, _MbName}, Analysis)
+      when is_map_key(FunRef, Specs) ->
+      % Defined fun reference in mailbox interface.
+      Analysis;
+      (FunRef = {_, _}, {_, Anno, _MbName}, Analysis) ->
+        % Undefined fun reference in mailbox interface.
+        Node = paterl_syntax:fun_reference(FunRef, Anno),
+        ?ERROR("Undefined fun reference '~s' in mailbox interface '~s'.", [
+          erl_prettypr:format(Node), _MbName
+        ]),
+        ?pushError(?E_UNDEF__FUN_REF, Node, Analysis)
     end,
+  maps:fold(Fun, #analysis{}, MbFuns).
 
-  % Check that fun references in mailbox interface definitions are defined.
+-doc """
+Checks that mailbox interface names have corresponding types defined.
+
+### Returns
+- `ok` if all mailbox interface names have corresponding types defined
+- `error` with details otherwise
+""".
+-spec check_mb_types_defined(mb_defs(), types()) -> paterl_lib:analysis().
+check_mb_types_defined(MbDefs, Types)
+  when is_map(MbDefs), is_map(Types) ->
+  Fun =
+    fun(MbName, {_, _}, Analysis) when is_map_key(MbName, Types) ->
+      % Mailbox interface name defined as type.
+      Analysis;
+      (MbName, {_, Anno}, Analysis) ->
+        % Undefined mailbox interface name type.
+        ?ERROR("Undefined mailbox interface type '~s'.", [MbName]),
+        ?pushError(?E_UNDEF__MB_TYPE, paterl_syntax:name(MbName, Anno), Analysis)
+    end,
+  maps:fold(Fun, #analysis{}, MbDefs).
+
+-doc """
+Checks that mailbox interface names are initialized with `-new`.
+
+### Returns
+- `ok` if all mailbox interface names are initialized with `-new`
+- `error` with details otherwise
+""".
+-spec check_mb_new(mb_defs()) -> paterl_lib:analysis().
+check_mb_new(MbDefs) when is_map(MbDefs) ->
+  Fun =
+    fun(_, {?M_NEW, _}, Analysis) ->
+      % Mailbox interface definition utilized with new.
+      Analysis;
+      (MbName, {?M_USE, Anno}, Analysis) ->
+        % Mailbox interface definition not utilized with new.
+        ?ERROR("Mailbox interface definiton '~s' uninitialized with '-new'.", [
+          MbName
+        ]),
+        ?pushError(?E_NO__MB_NEW, paterl_syntax:name(MbName, Anno), Analysis)
+    end,
   maps:fold(Fun, #analysis{}, MbDefs).
 
 
-%% @private Checks that mailbox names have a corresponding type defined.
-%% returns `{ok, Warnings}` if all mailbox names have a corresponding type
-%% defined, otherwise `{error, Errors, Warnings}`. Warnings is always the empty
-%% list.
--spec check_mb_types_defined(#{}, #{}) -> paterl_lib:analysis().
-check_mb_types_defined(MbNames = #{}, Types = #{}) ->
-  MbNameCheckFun =
-    fun(MbName, {ANNO, _}, Analysis = #analysis{}) ->
-      ?TRACE("Checking MbName = ~p", [MbName]),
-      case maps:is_key(MbName, Types) of
-        true ->
-          % Mailbox name defined as user-defined type.
-          Analysis;
-        false ->
-          % Undefined mailbox user-defined type.
-          Node = to_erl_af(ANNO, MbName),
-          ?pushError(?E_UNDEF__MB_TYPE, Node, Analysis)
-      end
-    end,
 
-  % Check that mailbox names are defined as user-defined types.
-  maps:fold(MbNameCheckFun, #analysis{}, MbNames).
-
-
-%% TODO: Document this better.
-%% TODO: This must be updated to account for the fact that we can have a list of mailboxes that where some are new and some are used?.
-%% TODO: Maybe one way to deal with it is to remove lists from mailbox definitions
-
-%%HERE - Rerun newness unit test to confirm
--spec check_mb_new(#{}) -> paterl_lib:analysis().
-check_mb_new(MbNames) when is_map(MbNames) ->
-  ?TRACE("Checking for newness"),
-  MbNameNewCheckFun =
-    fun(_, {_, ?M_NEW}, Analysis = #analysis{}) ->
-      % Mailbox name is new.
-      Analysis;
-      (MbName, {ANNO, ?M_USE}, Error) ->
-        % Mailbox name is use.
-        ?pushError(?E_NO__MB_NEW, to_erl_af(ANNO, MbName), Error)
-    end,
-
-  % Check that mailbox name is annotated with new and is not used without new.
-  maps:fold(MbNameNewCheckFun, #analysis{}, MbNames).
 
 
 -spec check_mb_types_valid(#{}) -> paterl_lib:analysis().
@@ -1296,7 +1026,7 @@ check_valid_tag(_Tag = {atom, _, _}, Analysis) ->
   ?TRACE("Valid '~s' tag.", [erl_prettypr:format(_Tag)]),
   Analysis;
 check_valid_tag(Term, Analysis) ->
-  ?TRACE("Invalid '~s' tag.", [erl_prettypr:format(Term)]),
+  ?ERROR("Invalid '~s' tag.", [erl_prettypr:format(Term)]),
   ?pushError(?E_BAD__MSG_TAG, Term, Analysis).
 
 
@@ -1367,85 +1097,21 @@ check_valid_tag(Term, Analysis) ->
 %% spec defined, otherwise `{error, Errors, Warnings}`. Warnings is always the
 %% empty list.
 %%-spec check_sigs_have_specs(map(), map()) -> {ok, []} | {ok, term(), term()}.
-check_fun_specs(FunSigs = #{}, FunSpecs = #{}) ->
-  FunSpecCheckFun =
-    fun(FunSig = {_, _}, {ANNO}, Analysis) ->
-      if is_map_key(FunSig, FunSpecs) ->
-        % Function signature has corresponding function spec.
-        Analysis;
-        true ->
-          % Non-existent function spec.
-          Node = to_erl_af(ANNO, FunSig),
-          ?pushError(?E_UNDEF__FUN_SPEC, Node, Analysis)
-      end
-
-%%      case maps:is_key(FunSig, FunSpecs) of
+%%check_fun_specs(FunSigs = #{}, FunSpecs = #{}) ->
+%%  FunSpecCheckFun =
+%%    fun(FunSig = {_, _}, {ANNO}, Analysis) ->
+%%      if is_map_key(FunSig, FunSpecs) ->
+%%        % Function signature has corresponding function spec.
+%%        Analysis;
 %%        true ->
-%%          Analysis;
-%%        false ->
+%%          % Non-existent function spec.
 %%          Node = to_erl_af(ANNO, FunSig),
-%%          ?pushError(?E_MB_SIG_TYPE_UNDEF, Node, Analysis)
+%%          ?pushError(?E_UNDEF__FUN_SPEC, Node, Analysis)
 %%      end
-    end,
-
-  % Check that function signatures have a corresponding function spec defined.
-  maps:fold(FunSpecCheckFun, #analysis{}, FunSigs).
-
-check_fun_specs2(FunRefs, Specs) when is_list(FunRefs), is_map(Specs) ->
-  Fun =
-    fun({function, ANNO, FunRef}, Analysis) ->
-      if is_map_key(FunRef, Specs) ->
-        % Function reference has corresponding spec.
-        Analysis;
-        true ->
-          % Non-existent function spec.
-          Node = to_erl_af(ANNO, FunRef),
-          ?pushError(?E_UNDEF__FUN_SPEC, Node, Analysis)
-      end
-    end,
-  lists:foldl(Fun, #analysis{}, FunRefs).
-
-
-%%is_valid_tag({atom, _, _}) ->
-%%  true;
-%%is_valid_tag(_) ->
-%%  false.
-
-
-%%is_valid_payload([], _) ->
-%%  true;
-%%is_valid_payload([{type, _, integer, _} | Elems], Types = #{}) ->
-%%  is_valid_payload(Elems, Types);
-%%is_valid_payload([{user_type, ANNO, Type, Vars} | Elems], Types = #{}) ->
+%%    end,
 %%
-%%  % Check that the mailbox type Type is defined.
-%%  case maps:is_key(Type, Types) of
-%%    true ->
-%%      is_valid_payload(Elems, Types);
-%%    false ->
-%%
-%%      % Type is undefined.
-%%      false
-%%  end;
-%%is_valid_payload([_ | _], _) ->
-%%  false.
-
-
-%%is_valid_payload(Types) ->
-%%  lists:all(fun({type, _, Type, _}) when Type =:= integer -> true end, Types).
-
-%%check_msg_types([{type, _, integer, _} | Types]) ->
-%%  true;
-%%check_msg_types([])
-
-
-%%{type,172,integer, _ }
-
-%%is_tagged_tuple() ->
-%%  ok.
-%%
-%%is_valid_msg() ->
-%%  ok.
+%%  % Check that function signatures have a corresponding function spec defined.
+%%  maps:fold(FunSpecCheckFun, #analysis{}, FunSigs).
 
 
 %% Checks that the types that are mailbox specs include at least the pid. This
@@ -1559,37 +1225,6 @@ check_fun_specs2(FunRefs, Specs) when is_list(FunRefs), is_map(Specs) ->
 %%    #error{}, TSpecs).
 
 
-%% Checks that mailbox types are defined as typespecs.
-%%check_mb_defined(TSpecs = #{}, MbSigs = #{}) ->
-%%  ok.
-
-
-%% Checks that the functions using mailboxes are annotated with funspecs.
-%% The function signature is validated by the Erlang preprocessor.
-%%check_f_has_types(FSpecs = #{}, MbSigs = #{}) ->
-%%  ok.
-
-%%is_builtin_type(Name, {type, _ , Name, []}) when is_atom(Name)->
-%%  true;
-%%is_builtin_type(_, _) ->
-%%  false.
-
-%%is_pid_type({type, _, pid, []}) ->
-%%  true;
-%%is_pid_type(_) ->
-%%  false.
-
-%%has_builtin_type(Name, []) ->
-%%  false;
-%%has_builtin_type(Name, [Type | Types]) ->
-%%  case is_builtin_type(Name, Type) of
-%%    false -> has_builtin_type(Name, Type);
-%%    _ -
-%%  end.
-
-%%has_pid_type(Types) ->
-%%  lists:any(fun is_pid_type/1, Types).
-
 %% TODO: After this we need to visit the tree and decorate it with annotations in preparation for the translation function on paper.
 %% TODO: 1. Collect type specs.
 %% TODO: 2. Collect mailbox function definition.
@@ -1605,16 +1240,13 @@ check_fun_specs2(FunRefs, Specs) when is_list(FunRefs), is_map(Specs) ->
 %%% Error handling and reporting.
 %%% ----------------------------------------------------------------------------
 
-format_sig({Fun, Arity}) ->
-  io_lib:format("~s/~b", [Fun, Arity]).
-
 %% @doc Formats the specified error to human-readable form.
 format_error({?E_UNDEF__FUN_SPEC, Node}) ->
   io_lib:format(
-    "function has no corresponding spec '~s'",
+    "function '~s' has missing spec",
     [erl_prettypr:format(Node)]
   );
-format_error({?E_MB_SIG_NOT_UNIQUE, Node}) ->
+format_error({?E_DUP__MB_FUN_REF, Node}) ->
   io_lib:format(
     "fun reference '~s' associated with more than one mailbox definition",
     [erl_prettypr:format(Node)]
@@ -1646,7 +1278,7 @@ format_error({?W_NO__PID, Node}) ->
   );
 format_error({?E_NO__MB_NEW, Node}) ->
   io_lib:format(
-    "used mailbox interface '~s' is never initialized with '-new'",
+    "mailbox interface definiton '~s' uninitialized with '-new'",
     [erl_prettypr:format(Node)]
   );
 format_error({?E_BAD__MSG_TYPE, Node}) ->

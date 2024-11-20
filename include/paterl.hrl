@@ -41,11 +41,11 @@
 -define(mb_use(Mailbox), {'use', Mailbox}).
 
 
--record(t_info, {
+-record(type_info, {
   types = #{} :: paterl_types:types(), % Global type def names to AST.
   specs = #{} :: paterl_types:specs(), % Function signatures to AST.
-  mb_defs = #{} :: paterl_types:mb_defs(),  % Mailbox names to mailbox modality and function signatures.
-  mb_names = [] :: paterl_types:mb_names()
+  mb_funs = #{} :: paterl_types:mb_funs(),  % Mailbox names to mailbox modality and function signatures.
+  mb_defs = [] :: paterl_types:mb_defs()
 }).
 
 %%-define(M_NEW, new).

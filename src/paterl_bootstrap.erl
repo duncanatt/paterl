@@ -33,7 +33,7 @@
 -define(launchFunName(Name), list_to_atom(atom_to_list(Name) ++ "'")).
 
 
-forms(Forms, TInfo = #t_info{specs = Specs, mb_defs = MbDefs}) ->
+forms(Forms, TInfo = #type_info{specs = Specs, mb_funs = MbDefs}) ->
 
   % Bootstrap function name. The auxiliary bootstrapping function closes the
   % program and serves as the main entry point that launches the main function
@@ -49,7 +49,7 @@ forms(Forms, TInfo = #t_info{specs = Specs, mb_defs = MbDefs}) ->
   Specs0 = Specs#{
     {BsFunName, erl_anno:new(0)} => {spec, erl_anno:new(0), [FunType]}
   },
-  TInfo0 = TInfo#t_info{specs = Specs0},
+  TInfo0 = TInfo#type_info{specs = Specs0},
 
   % Create bootstrap function using the interface of the main user-defined
   % function.
