@@ -192,7 +192,7 @@ expand_msg_type(Type = {user_type, _, Name, []}, TypesCtx, Acc) when is_map(Type
 annotate_forms([], _, Error) ->
   {[], Error};
 
-annotate_forms([Mod = {attribute, _, module, _} | Forms], TInfo = #type_info{types = TypesCtx}, Error) ->
+annotate_forms([Mod = {attribute, _, module, _} | Forms], TInfo = #type_info{type_defs = TypesCtx}, Error) ->
   Interfaces = get_interfaces(TypesCtx),
   ?TRACE("Interfaces: ~p", [Interfaces]),
   {Forms0, Error0} = annotate_forms(Forms, TInfo, Error),
@@ -224,7 +224,7 @@ annotate_forms([_ | Forms], TInfo, Error) ->
 -spec annotate_function(erl_syntax:syntaxTree(), paterl_types:type_info(), errors:error()) ->
   {erl_syntax:syntaxTree(), errors:error()}.
 annotate_function({function, Anno, Name, Arity, Clauses},
-    TInfo = #type_info{specs = SpecsCtx, mb_funs = MbDefsCtx}, Error) ->
+    TInfo = #type_info{spec_defs = SpecsCtx, mb_funs = MbDefsCtx}, Error) ->
 
   % Recover function signature.
   Sig = {Name, Arity},
@@ -652,7 +652,7 @@ annotate_expr(Expr = {'receive', Anno, Clauses}, _, Signature, MbScope = undefin
   {_, Error1} = annotate_clauses(Clauses, Signature, MbScope, TInfo, Error0), % Find other errors.
   {Expr, Error1};
 
-annotate_expr({'receive', Anno, Clauses}, _MbAnno = {state, Regex}, Signature, MbScope, TInfo = #type_info{specs = Specs}, Error) ->
+annotate_expr({'receive', Anno, Clauses}, _MbAnno = {state, Regex}, Signature, MbScope, TInfo = #type_info{spec_defs = Specs}, Error) ->
   % Mailbox-annotated blocking receive expression. Mailbox name can be inferred
   % from enclosing mailbox scope.
   {Clauses0, Error0} = annotate_clauses(Clauses, Signature, MbScope, TInfo, Error),

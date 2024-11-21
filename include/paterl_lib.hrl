@@ -33,8 +33,8 @@
 }).
 
 -record(type_info, {
-  types = #{} :: paterl_types:type_defs(), % Global type def names to AST.
-  specs = #{} :: paterl_types:specs(), % Function signatures to AST.
+  type_defs = #{} :: paterl_types:type_defs(), % Global type def names to AST.
+  spec_defs = #{} :: paterl_types:spec_defs(), % Function signatures to AST.
   mb_funs = #{} :: paterl_types:mb_funs(),  % Mailbox names to mailbox modality and function signatures.
   mb_defs = [] :: paterl_types:mb_defs()
 }).

@@ -173,7 +173,7 @@ type_forms(File, Forms) ->
   % warnings.
   io:fwrite("[TYPE] Extract type annotations.~n"),
   case paterl_types:module(Forms) of
-    {ok, TInfo = #type_info{types = Types, specs = Specs, mb_funs = MbDefs, mb_defs = MbNames}, Warnings0} ->
+    {ok, TInfo = #type_info{type_defs = Types, spec_defs = Specs, mb_funs = MbDefs, mb_defs = MbNames}, Warnings0} ->
       paterl_errors:show_warnings(Warnings0), %TODO: Encapsulate this in the paterl_types module and use the file attribute.
 
       io:format("~n~s TINFO ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
@@ -186,8 +186,8 @@ type_forms(File, Forms) ->
       {Desugared0, TInfo0} = paterl_bootstrap:forms(Forms, TInfo),
 
       io:format("~n~s TINFO BOOTSTRAPPED~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
-      io:format("Types: ~p~n", [TInfo0#type_info.types]),
-      io:format("Specs: ~p~n", [TInfo0#type_info.specs]),
+      io:format("Types: ~p~n", [TInfo0#type_info.type_defs]),
+      io:format("Specs: ~p~n", [TInfo0#type_info.spec_defs]),
       io:format("MbDefs: ~p~n", [TInfo0#type_info.mb_funs]),
       io:format("MbNames: ~p~n", [TInfo0#type_info.mb_defs]),
       io:format("~s SIGS & TINFO BOOTSTRAPPED ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
@@ -303,7 +303,7 @@ compile2(File, Opts) when is_list(File), is_list(Opts) ->
 
 %%          case paterl_types:table(Forms) of
               case paterl_types:module(Desugared) of
-                {ok, TInfo = #type_info{types = Types, specs = Specs, mb_funs = MbDefs, mb_defs = MbNames}, Warnings1} ->
+                {ok, TInfo = #type_info{type_defs = Types, spec_defs = Specs, mb_funs = MbDefs, mb_defs = MbNames}, Warnings1} ->
                   % Type table valid but possible warnings.
                   errors:show_warnings({File, Warnings1}),
 
@@ -317,8 +317,8 @@ compile2(File, Opts) when is_list(File), is_list(Opts) ->
                   {Desugared0, TInfo0} = paterl_bootstrap:forms(Desugared, TInfo),
 
                   io:format("~n~s TINFO BOOTSTRAPPED~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),
-                  io:format("Types: ~p~n", [TInfo0#type_info.types]),
-                  io:format("Specs: ~p~n", [TInfo0#type_info.specs]),
+                  io:format("Types: ~p~n", [TInfo0#type_info.type_defs]),
+                  io:format("Specs: ~p~n", [TInfo0#type_info.spec_defs]),
                   io:format("MbDefs: ~p~n", [TInfo0#type_info.mb_funs]),
                   io:format("MbNames: ~p~n", [TInfo0#type_info.mb_defs]),
                   io:format("~s SIGS & TINFO BOOTSTRAPPED ~s~n", [lists:duplicate(40, $-), lists:duplicate(40, $-)]),

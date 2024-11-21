@@ -144,7 +144,7 @@ def_fun_spec() -> {
       fun() ->
         % Successful result with no warnings.
         ?assertMatch({ok, #type_info{}, []}, Result),
-        {ok, #type_info{specs = Specs}, _Warnings = []} = Result,
+        {ok, #type_info{spec_defs = Specs}, _Warnings = []} = Result,
 
         % Function definition with corresponding function spec.
         ?assertMatch(#{{f, 0} := {spec, _, _}}, Specs)
@@ -194,7 +194,7 @@ def_mb_fun_ref() -> {
       fun() ->
         % Successful result with no warnings.
         ?assertMatch({ok, #type_info{}, []}, Result),
-        {ok, #type_info{types = Types, specs = Specs}, _Warnings = []} = Result,
+        {ok, #type_info{type_defs = Types, spec_defs = Specs}, _Warnings = []} = Result,
 
         % Defined fun reference in -new and -use mailbox interface attribute.
         ?assertMatch(#{mb := {mbox, _, {type, _, pid, []}, []}}, Types),
@@ -271,7 +271,7 @@ def_mb_type() -> {
       fun() ->
         % Successful result with no warnings.
         ?assertMatch({ok, #type_info{}, []}, Result),
-        {ok, #type_info{types = Types}, _Warnings = []} = Result,
+        {ok, #type_info{type_defs = Types}, _Warnings = []} = Result,
 
         % Defined mailbox interface type.
         ?assertMatch(#{mb := {mbox, _, {type, _, pid, []}, []}}, Types)
@@ -291,7 +291,7 @@ mb_inline_msg_type() -> {
       fun() ->
         % Successful result with one warning.
         ?assertMatch({ok, #type_info{}, [{_, [_]}]}, Result),
-        {ok, #type_info{types = Types}, _Warnings = [{_, [_]}]} = Result,
+        {ok, #type_info{type_defs = Types}, _Warnings = [{_, [_]}]} = Result,
 
         % Inline message type in mailbox interface type definition.
         ?assertMatch(#{
@@ -335,7 +335,7 @@ def_mb_msg_type() -> {
       fun() ->
         % Successful result with no warnings.
         ?assertMatch({ok, #type_info{}, []}, Result),
-        {ok, #type_info{types = Types}, _Warnings = []} = Result,
+        {ok, #type_info{type_defs = Types}, _Warnings = []} = Result,
 
         % Defined message type in mailbox interface type definition.
         ?assertMatch(#{
@@ -421,7 +421,7 @@ no_pid_mb_type() -> {
       fun() ->
         % Successful result with one warning.
         ?assertMatch({ok, #type_info{}, [{_, [_]}]}, Result),
-        {ok, #type_info{types = Types}, [{_, [Warning = {_, _, Code}]}]} = Result,
+        {ok, #type_info{type_defs = Types}, [{_, [Warning = {_, _, Code}]}]} = Result,
 
         % Missing Pid type in mailbox interface type definition.
         ?assertMatch(
@@ -445,7 +445,7 @@ pid_mb_type() -> {
       fun() ->
         % Successful result with no warnings.
         ?assertMatch({ok, #type_info{}, []}, Result),
-        {ok, #type_info{types = Types}, _Warnings = []} = Result,
+        {ok, #type_info{type_defs = Types}, _Warnings = []} = Result,
 
         % Present Pid type in mailbox interface type definition.
         ?assertMatch(#{
@@ -473,7 +473,7 @@ pid_mb_simple_msg_type() -> {
       fun() ->
         % Successful result with no warnings.
         ?assertMatch({ok, #type_info{}, []}, Result),
-        {ok, #type_info{types = Types}, _Warnings = []} = Result,
+        {ok, #type_info{type_defs = Types}, _Warnings = []} = Result,
 
         % Present Pid type in second-level simple message type in mailbox
         % interface type definition
@@ -503,7 +503,7 @@ pid_mb_union_msg_type() -> {
       fun() ->
         % Successful result with no warnings.
         ?assertMatch({ok, #type_info{}, []}, Result),
-        {ok, #type_info{types = Types}, _Warnings = []} = Result,
+        {ok, #type_info{type_defs = Types}, _Warnings = []} = Result,
 
         % Present Pid type in second-level union message type in mailbox
         % interface type definition.
@@ -580,7 +580,7 @@ def_inline_msg_type() -> {
       fun() ->
         % Successful result with one warning.
         ?assertMatch({ok, #type_info{}, [{_, [_]}]}, Result),
-        {ok, #type_info{types = Types}, _Warnings = [{_, [_]}]} = Result,
+        {ok, #type_info{type_defs = Types}, _Warnings = [{_, [_]}]} = Result,
 
         % Defined type in inline message type definition
         ?assertMatch(#{
@@ -651,7 +651,7 @@ inline_msg_mb_type() -> {
       fun() ->
         % Successful result with one warning.
         ?assertMatch({ok, #type_info{}, [{_, [_]}]}, Result),
-        {ok, #type_info{types = Types}, _Warnings = [{_, [_]}]} = Result,
+        {ok, #type_info{type_defs = Types}, _Warnings = [{_, [_]}]} = Result,
 
         % Valid mailbox interface type in inline message type definition.
         ?assertMatch(#{
@@ -744,7 +744,7 @@ def_msg_type() -> {
       fun() ->
         % Successful result with one warning.
         ?assertMatch({ok, #type_info{}, [{_, [_]}]}, Result),
-        {ok, #type_info{types = Types}, _Warnings = [{_, [_]}]} = Result,
+        {ok, #type_info{type_defs = Types}, _Warnings = [{_, [_]}]} = Result,
 
         % Defined type in message type definition.
         ?assertMatch(#{
@@ -819,7 +819,7 @@ valid_msg_mb_type() -> {
       fun() ->
         % Successful result with one warning.
         ?assertMatch({ok, #type_info{}, [{_, [_]}]}, Result),
-        {ok, #type_info{types = Types}, _Warnings = [{_, [_]}]} = Result,
+        {ok, #type_info{type_defs = Types}, _Warnings = [{_, [_]}]} = Result,
 
         % Valid mailbox interface type in message type definition.
         ?assertMatch(#{
@@ -878,7 +878,7 @@ use_new_mb() -> {
       fun() ->
         % Successful result with no warnings.
         ?assertMatch({ok, #type_info{}, []}, Result),
-        {ok, #type_info{types = Types}, _Warnings = []} = Result,
+        {ok, #type_info{type_defs = Types}, _Warnings = []} = Result,
 
         % Valid use of new mailbox interface.
         ?assertMatch(#{mb := {mbox, _, {type, _, pid, []}, []}}, Types)
