@@ -24,25 +24,7 @@
 %%% Includes.
 -include("log.hrl").
 -include("paterl_lib.hrl").
-%%-include("errors.hrl").
 -include("paterl.hrl").
-
-%%% Imports.
--import(erl_syntax, [
-type/1,
-concrete/1,
-get_pos/1,
-copy_pos/2,
-attribute_name/1,
-function_name/1,
-function_arity/1,
-erl_parse/0,
-atom/1,
-integer/1,
-implicit_fun/2,
-revert/1,
-set_pos/2
-]).
 
 %%% Public API.
 -export([module/1]).
@@ -82,9 +64,6 @@ set_pos/2
 %% Invalid message tag.
 -define(E_BAD__MSG_TAG, e_bad__msg_tag).
 
-%% Invalid message element type. Supported types are integers and strings.
--define(E_BAD__MSG_ELEM_TYPE, e_bad__msg_elem_type).
-
 %% No pid() associated with mailbox type.
 -define(W_NO__MB_FUN_REF, w_no__mb_fun_ref).
 
@@ -94,15 +73,15 @@ set_pos/2
 %% Mailbox not initialized with new modality.
 -define(E_NO__MB_NEW, e_no__mb_new).
 
-%% User-defined mailbox interface type contains types other than a message.
+%% User-defined mailbox interface type contains types other than a message set.
 -define(E_BAD__MSG_TYPE, e_bad__msg_type).
 
-%% User-defined message type contains types other than a built-in or a
+%% User-defined message type contains payload types other than a built-in or a
 %% user-defined mailbox interface type.
--define(E_BAD__MB_TYPE, e_bad__mb_type).
+-define(E_BAD__PAY_TYPE, e_bad__pay_type).
 
 %% Undefined type.
--define(E__UNDEF_TYPE, e__undef_type).
+-define(E__UNDEF_TYPE, e_undef__type).
 
 
 %%% ----------------------------------------------------------------------------
@@ -111,9 +90,6 @@ set_pos/2
 
 -doc "Mailbox usage modality.".
 -type modality() :: ?M_NEW | ?M_USE.
-
-%%-doc "Erlang abstract syntax type.".
-%%-type type() :: erl_parse:abstract_type().
 
 -doc "Function form.".
 -type f_function() :: {function, paterl_syntax:anno(), paterl_syntax:fun_ref()}.
@@ -431,7 +407,7 @@ check_unused_mb_defs(MbDefs) when is_list(MbDefs) ->
     fun({mailbox, _, {{_, _}, _FunRef = {_, _}}}, Analysis) ->
       Analysis;
       ({mailbox, Anno, {{_, MbName}, _FunRef = undefined}}, Analysis) ->
-        ?pushWarning(?W_NO__MB_FUN_REF, to_erl_af(Anno, MbName), Analysis)
+        ?pushWarning(?W_NO__MB_FUN_REF, paterl_syntax:name(MbName, Anno), Analysis)
     end,
   lists:foldl(Fun, #analysis{}, MbDefs).
 
@@ -701,33 +677,22 @@ check_mb_types_valid(Types) when is_map(Types) ->
       ?TRACE("Check mailbox interface type '~s() :: ~s'.", [
         Name, erl_prettypr:format(Type)]
       ),
-
-      % Check user-defined mailbox interface type.
-      % TODO: Document why we reset the status here. Can it possibly be that I
-      % TODO: need to do reset result, not reset status.
-      % We can test this by two successive missing pids.
-      ?TRACE("Analysis BEFORE check_mb_type_valid: ~p.", [Analysis]),
+      % Reset success status. This is required since the called functions reuse
+      % the analysis record to track success or error. Failing to reset the
+      % status would mean that a possible error status in the previous analysis
+      % is carried in this one.
       Analysis0 = paterl_lib:reset_status(Analysis),
-
-      Anal = check_mb_type_valid(Name, Anno, Type, Types, Analysis0),
-      ?TRACE("Analysis AFTER check_mb_type_valid: ~p.", [Anal]),
-      Anal;
+      check_mb_type_valid(Name, Anno, Type, Types, Analysis0);
       (_, {?T_TYPE, _, _, _}, Analysis) ->
         % Skip user-defined non-mailbox interface types.
         Analysis
     end,
-
-  % Check validity of mailbox types definition including missing PIDs.
   Analysis = maps:fold(Fun, #analysis{}, Types),
 
 
   % Result is internal and should not be visible to callers. Only status is
   % relevant.
-%%  Analysis#analysis{result = undefined}.
   paterl_lib:reset_result(paterl_lib:set_status(Analysis)).
-
-
-
 
 -doc """
 Checks that a mailbox interface type is correctly defined.
@@ -771,7 +736,7 @@ check_mb_type_valid(Name, Anno, Type, Types, Analysis) ->
     Analysis0 = #analysis{result = false} ?=
     check_msg_type_set(Type, Types, Analysis#analysis{result = false}),
     ?WARN("Missing built-in 'pid()' type."),
-    ?pushWarning(?W_NO__PID, to_erl_af(Anno, Name), Analysis0)
+    ?pushWarning(?W_NO__PID, paterl_syntax:name(Name, Anno), Analysis0)
   end.
 
 %%  case check_msg_type_set(Type, Types, Analysis#analysis{result = false}) of
@@ -929,7 +894,7 @@ check_msg_elems([_Type = {user_type, _ANNO, Name, _} | Elems], Types, Analysis) 
       % Invalid type used as a mailbox interface type.
       ?ERROR("Bad mailbox interface type '~s'.", [erl_prettypr:format(_Type)]),
       % User-defined type is a normal type.
-      ?pushError(?E_BAD__MB_TYPE, _Type, Analysis);
+      ?pushError(?E_BAD__PAY_TYPE, _Type, Analysis);
     undefined ->
       % Undefined type. Ruled out be the Erlang preprocessor. This case arises
       % only when erl_lint is not used in prior passes.
@@ -939,7 +904,7 @@ check_msg_elems([_Type = {user_type, _ANNO, Name, _} | Elems], Types, Analysis) 
 check_msg_elems([Elem | Elems], Types, Analysis) ->
   % Invalid type.
   ?TRACE("Bad type '~s'.", [erl_prettypr:format(Elem)]),
-  Analysis0 = ?pushError(?E_BAD__MSG_ELEM_TYPE, Elem, Analysis),
+  Analysis0 = ?pushError(?E_BAD__PAY_TYPE, Elem, Analysis),
   check_msg_elems(Elems, Types, Analysis0).
 
 -doc """
@@ -954,6 +919,7 @@ Checks that a message tag is valid.
   Analysis :: paterl_lib:analysis(),
   Analysis0 :: paterl_lib:analysis().
 check_valid_tag(_Tag = {atom, _, _}, Analysis) ->
+  ?TRACE("In check_valid_tag analysis ~p", [Analysis]),
   ?TRACE("Valid '~s' tag.", [erl_prettypr:format(_Tag)]),
   Analysis;
 check_valid_tag(Term, Analysis) ->
@@ -997,11 +963,11 @@ format_error({?E_BAD__MSG_TAG, Node}) ->
     "bad message tag '~s'",
     [erl_prettypr:format(Node)]
   );
-format_error({?E_BAD__MSG_ELEM_TYPE, Node}) -> %TODO: See if this is used. It is but remove it and use ?E_BAD__MB_TYPE instead.
-  io_lib:format(
-    "bad message element type '~s'",
-    [erl_prettypr:format(Node)]
-  );
+%%format_error({?E_BAD__MSG_ELEM_TYPE, Node}) -> %TODO: See if this is used. It is but remove it and use ?E_BAD__MB_TYPE instead.
+%%  io_lib:format(
+%%    "bad message element type '~s'",
+%%    [erl_prettypr:format(Node)]
+%%  );
 format_error({?W_NO__PID, Node}) ->
   io_lib:format(
     "mailbox interface type '~s' does not contain pid(), which makes it incompatible with Dialyzer",
@@ -1017,7 +983,7 @@ format_error({?E_BAD__MSG_TYPE, Node}) ->
     "bad type '~s' in mailbox interface type; use a message or pid() type",
     [erl_prettypr:format(Node)]
   );
-format_error({?E_BAD__MB_TYPE, Node}) ->
+format_error({?E_BAD__PAY_TYPE, Node}) ->
   io_lib:format(
     "bad type '~s' in message type; use a built-in or mailbox interface type",
     [erl_prettypr:format(Node)]
@@ -1029,18 +995,16 @@ format_error({?E__UNDEF_TYPE, Node}) ->
   ).
 
 
-%%REARRANGE check_msgs_types_valid2 to use list
-%%
-%%REFACTOR WITH NON anonymous functions
+%% TODO: REFACTOR WITH NON anonymous functions
 
-%% REFACTOR WITH maybe
+%% TODO: REFACTOR WITH maybe
 
-% TODO: Move to paterl syntax.
-to_erl_af(ANNO, Name) when is_atom(Name) ->
-  revert(set_pos(atom(Name), ANNO));
-to_erl_af(ANNO, {Name, Arity})
-  when is_atom(Name), is_integer(Arity) ->
-  revert(set_pos(implicit_fun(atom(Name), integer(Arity)), ANNO)).
+%%% TODO: Move to paterl syntax.
+%%to_erl_af(ANNO, Name) when is_atom(Name) ->
+%%  revert(set_pos(atom(Name), ANNO));
+%%to_erl_af(ANNO, {Name, Arity})
+%%  when is_atom(Name), is_integer(Arity) ->
+%%  revert(set_pos(implicit_fun(atom(Name), integer(Arity)), ANNO)).
 
 
 

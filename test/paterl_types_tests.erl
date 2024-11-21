@@ -40,16 +40,16 @@
 %%% ----------------------------------------------------------------------------
 
 -doc """
-Function definitions and signatures in mailbox interface attributes tests.
+Function definitions and references in mailbox interface attributes tests.
 """.
-mb_interface_fun_sig_test_() ->
+mb_interface_fun_ref_test_() ->
   {foreachx, fun startup/1, [
     T() || T <- [
       fun undef_fun_spec/0,
       fun def_fun_spec/0,
-      fun undef_mb_fun_sig/0,
-      fun def_mb_fun_sig/0,
-      fun non_unique_mb_fun_sig/0
+      fun undef_mb_fun_ref/0,
+      fun def_mb_fun_ref/0,
+      fun non_unique_mb_fun_ref/0
     ]]}.
 
 -doc "Mailbox interface type definition tests.".
@@ -94,17 +94,22 @@ mb_usage_test_() ->
   {foreachx, fun startup/1, [
     T() || T <- [
       fun use_non_new_mb/0,
-      fun use_new_mb/0,
-      fun use_new_mb2/0
+      fun use_new_mb/0
+    ]]}.
+
+-doc "Generic sanity tests.".
+sanity_test_() ->
+  {foreachx, fun startup/1, [
+    T() || T <- [
+      fun error_isolate/0
     ]]}.
 
 
 %%% ----------------------------------------------------------------------------
-%%% Function definitions and signatures in mailbox interface attributes tests.
+%%% Function definitions and references in mailbox interface attributes tests.
 %%% ----------------------------------------------------------------------------
 
 -doc "Tests function definition with no corresponding function spec.".
-%%-spec undef_fun_spec() -> {Erl :: paterl_test_lib:erl(), fun((Erl0 :: paterl_test_lib:erl(), Result :: any()) -> {Desc :: string(), Test :: fun(() -> any())})}.
 -spec undef_fun_spec() -> test_x().
 undef_fun_spec() -> {
   """
@@ -148,11 +153,10 @@ def_fun_spec() -> {
 }.
 
 -doc """
-Tests undefined function signature in `-new` and `-use` mailbox interface
-attribute.
+Tests undefined fun reference in `-new` and `-use` mailbox interface attribute.
 """.
--spec undef_mb_fun_sig() -> test_x().
-undef_mb_fun_sig() -> {
+-spec undef_mb_fun_ref() -> test_x().
+undef_mb_fun_ref() -> {
   """
   -module(test).
   -new({mb, [f/0]}).
@@ -164,8 +168,7 @@ undef_mb_fun_sig() -> {
         ?assertMatch({error, [{_, [_]}], []}, Result),
         {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
-        % Undefined function signature in -new and -use mailbox interface
-        % attribute.
+        % Undefined fun reference in -new and -use mailbox interface attribute.
         ?assertMatch(
           {_, _, {e_undef__fun_ref, {'fun', _, {function, f, 0}}}}, Error
         ),
@@ -174,11 +177,11 @@ undef_mb_fun_sig() -> {
   end}.
 
 -doc """
-Tests defined function signature in `-new` and `-use` mailbox interface
+Tests defined fun reference in `-new` and `-use` mailbox interface
 attribute.
 """.
--spec def_mb_fun_sig() -> test_x().
-def_mb_fun_sig() -> {
+-spec def_mb_fun_ref() -> test_x().
+def_mb_fun_ref() -> {
   """
   -module(test).
   -new({mb, [f/0]}).
@@ -187,14 +190,13 @@ def_mb_fun_sig() -> {
   f() -> ok.
   """,
   fun(_, Result) ->
-    {"Test defined function signature in -new and -use mailbox interface attribute",
+    {"Test defined fun reference in -new and -use mailbox interface attribute",
       fun() ->
         % Successful result with no warnings.
         ?assertMatch({ok, #type_info{}, []}, Result),
         {ok, #type_info{types = Types, specs = Specs}, _Warnings = []} = Result,
 
-        % Defined function signature in -new and -use mailbox interface
-        % attribute.
+        % Defined fun reference in -new and -use mailbox interface attribute.
         ?assertMatch(#{mb := {mbox, _, {type, _, pid, []}, []}}, Types),
         ?assertMatch(#{
           {f, 0} := {spec, _, [
@@ -204,25 +206,25 @@ def_mb_fun_sig() -> {
   end}.
 
 -doc """
-Tests non-unique function signature association with `-new` or `-use` mailbox
+Tests non-unique fun reference association with `-new` or `-use` mailbox
 interface attribute.
 """.
 % TODO: This will eventually be removed, which is why I did not include the positive test.
--spec non_unique_mb_fun_sig() -> test_x().
-non_unique_mb_fun_sig() -> {
+-spec non_unique_mb_fun_ref() -> test_x().
+non_unique_mb_fun_ref() -> {
   """
   -module(test).
   -new({mb, [f/0]}).
   -use({mb, [f/0]}).
   """,
   fun(_, Result) ->
-    {"Test non-unique function signature association with -new or -use mailbox interface attribute",
+    {"Test non-unique fun reference association with -new or -use mailbox interface attribute",
       fun() ->
         % Unsuccessful result with no warnings.
         ?assertMatch({error, [{_, [_]}], []}, Result),
         {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
-        % Non-unique function signature association with -new or -use mailbox
+        % Non-unique fun reference association with -new or -use mailbox
         % interface attribute.
         ?assertMatch(
           {_, _, {e_dup__mb_fun_ref, {'fun', _, {function, f, 0}}}}, Error
@@ -314,7 +316,7 @@ undef_mb_msg_type() -> {
         {error, [{_, [Error = {_, _, Code}]}], _Warnings = [{_, [_]}]} = Result,
 
         % Undefined message type in mailbox interface type definition.
-        ?assertMatch({_, _, {e__undef_type, {user_type, _, msg, []}}}, Error),
+        ?assertMatch({_, _, {e_undef__type, {user_type, _, msg, []}}}, Error),
         ?debugMsg(paterl_types:format_error(Code))
       end}
   end}.
@@ -559,7 +561,7 @@ undef_inline_msg_type() -> {
 
         % Undefined type in inline message type definition.
         ?assertMatch(
-          {_, _, {e__undef_type, {user_type, _, undef_type, []}}}, Error
+          {_, _, {e_undef__type, {user_type, _, undef_type, []}}}, Error
         ),
         ?debugMsg(paterl_types:format_error(Code))
       end}
@@ -606,7 +608,7 @@ bad_inline_msg_built_in_type() -> {
 
         % Bad built-in type in inline message type definition.
         ?assertMatch(
-          {_, _, {e_bad__msg_elem_type, {type, _, binary, []}}}, Error
+          {_, _, {e_bad__pay_type, {type, _, binary, []}}}, Error
         ),
         ?debugMsg(paterl_types:format_error(Code))
       end}
@@ -630,7 +632,7 @@ bad_inline_msg_msg_type() -> {
 
         % Bad message type in inline message type definition.
         ?assertMatch(
-          {_, _, {e_bad__mb_type, {user_type, _, msg_1, []}}}, Error
+          {_, _, {e_bad__pay_type, {user_type, _, msg_1, []}}}, Error
         ),
         ?debugMsg(paterl_types:format_error(Code))
       end}
@@ -722,7 +724,7 @@ undef_msg_type() -> {
 
         % Undefined type in message type definition.
         ?assertMatch(
-          {_, _, {e__undef_type, {user_type, _, undef_type, []}}}, Error
+          {_, _, {e_undef__type, {user_type, _, undef_type, []}}}, Error
         ),
         ?debugMsg(paterl_types:format_error(Code))
       end}
@@ -772,7 +774,7 @@ bad_msg_built_in_type() -> {
 
         % Bad built-in type in message type definition.
         ?assertMatch(
-          {_, _, {e_bad__msg_elem_type, {type, _, binary, []}}}, Error
+          {_, _, {e_bad__pay_type, {type, _, binary, []}}}, Error
         ),
         ?debugMsg(paterl_types:format_error(Code))
       end}
@@ -797,7 +799,7 @@ bad_msg_msg_type() -> {
 
         % Bad mailbox interface type in message type definition.
         ?assertMatch(
-          {_, _, {e_bad__mb_type, {user_type, _, msg_1, []}}}, Error
+          {_, _, {e_bad__pay_type, {user_type, _, msg_1, []}}}, Error
         ),
         ?debugMsg(paterl_types:format_error(Code))
       end}
@@ -858,7 +860,7 @@ use_non_new_mb() -> {
       end}
   end}.
 
--doc "Tests valid use of new mailbox interface.". %TODO: Fix this.
+-doc "Tests valid use of new mailbox interface.".
 -spec use_new_mb() -> test_x().
 use_new_mb() -> {
   """
@@ -883,34 +885,48 @@ use_new_mb() -> {
       end}
   end}.
 
-% This should NOT fail and is redundant and covered by the previous test.
-use_new_mb2() -> {
+
+%%% ----------------------------------------------------------------------------
+%%% Generic sanity tests.
+%%% ----------------------------------------------------------------------------
+
+-doc """
+Tests error isolation between mailbox interface type definition checking.
+""".
+error_isolate() -> {
   """
   -module(test).
-  -use({mb0, []}).
-  -new({mb, [f/0]}).
-  -use({mb, [g/0]}).
-  -type mb() :: pid().
-  -type mb0() :: pid().
-  -spec f() -> ok.
-  f() -> ok.
-  -spec f(ok) -> ok.
-  f(ok) -> ok.
-  -spec g() -> ok.
-  g() -> ok.
+  -new({mb_0, []}).
+  -new({mb_1, []}).
+  -type mb_0() :: {5}.
+  -type mb_1() :: {msg_1, binary()}.
   """,
   fun(_, Result) ->
-    {"Test valid use of new mailbox interface",
+    {"Tests error isolation between mailbox interface type definition checking",
       fun() ->
-        ?TRACE("Result = ~p", [Result])
-        % Successful result with no warnings.
-%%        ?assertMatch({ok, #t_info{}, []}, Result),
-%%        {ok, #t_info{types = Types}, _Warnings = []} = Result,
-%%
-%%        % Valid use of new mailbox interface.
-%%        ?assertMatch(#{mb := {mbox, _, {type, _, pid, []}, []}}, Types)
+        ?TRACE("Result = ~p", [Result]),
+
+        % Unsuccessful result with two warnings.
+        ?assertMatch({error, [{_, [_, _]}], [{_, [_, _]}]}, Result),
+        {error,
+          [{_, [Error0 = {_, _, Code0}, Error1 = {_, _, Code1}]}],
+          _Warnings = [{_, [_, _]}]} = Result,
+
+        % Error isolation between mailbox interface type definition checking
+        % where all errors and warnings are detected.
+        ?assertMatch(
+          {_, _, {e_bad__msg_tag, {integer, _, _}}},
+          Error0
+        ),
+        ?assertMatch(
+          {_, _, {e_bad__pay_type, {type, _, binary, []}}},
+          Error1
+        ),
+        ?debugMsg(paterl_types:format_error(Code0)),
+        ?debugMsg(paterl_types:format_error(Code1))
       end}
   end}.
+
 
 %%% ----------------------------------------------------------------------------
 %%% Helpers.
