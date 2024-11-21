@@ -54,7 +54,7 @@ Erlang syntactic subset and mailbox interface well-formedness syntax checks.
 %%% Type definitions.
 %%% ----------------------------------------------------------------------------
 
--doc "Abstract form.".
+-doc "An erlparse FILL HERE FOR THE REST Abstract form.".
 -type form() :: erl_parse:abstract_form().
 
 -doc "Abstract forms.".

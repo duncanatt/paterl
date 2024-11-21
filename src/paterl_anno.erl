@@ -110,7 +110,7 @@ module(Forms, TypeInfo = #type_info{}) when is_list(Forms) ->
 %% @param TypesCtx: Mailbox types context.
 %%
 %% @returns List of interface AST nodes.
--spec get_interfaces(paterl_types:types()) -> [erl_syntax:syntaxTree()].
+-spec get_interfaces(paterl_types:type_defs()) -> [erl_syntax:syntaxTree()].
 get_interfaces(TypesCtx) when is_map(TypesCtx) ->
   lists:reverse(
     erl_syntax:revert_forms(
@@ -151,7 +151,7 @@ get_interfaces(TypesCtx) when is_map(TypesCtx) ->
   ).
 
 %% @private Expands message types to their full tuple definition form.
--spec expand_msg_types(atom(), paterl_types:types()) -> [erl_syntax:syntaxTree()].
+-spec expand_msg_types(atom(), paterl_types:type_defs()) -> [erl_syntax:syntaxTree()].
 expand_msg_types(Name, TypesCtx) ->
   {mbox, _, Type, _TypeVars} = maps:get(Name, TypesCtx),
 
@@ -160,7 +160,7 @@ expand_msg_types(Name, TypesCtx) ->
   lists:reverse(expand_msg_type(Type, TypesCtx, [])).
 
 %% @private Expands a message type to its full definition.
--spec expand_msg_type(tuple(), paterl_types:types(), [erl_syntax:syntaxTree()]) -> [erl_syntax:syntaxTree()].
+-spec expand_msg_type(tuple(), paterl_types:type_defs(), [erl_syntax:syntaxTree()]) -> [erl_syntax:syntaxTree()].
 expand_msg_type(Type = {type, _, pid, []}, TypesCtx, Acc) when is_map(TypesCtx) ->
   ?assertEqual(erl_syntax:type(Type), type_application),
   ?TRACE("Found pid() type"),

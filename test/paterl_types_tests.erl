@@ -57,7 +57,7 @@ mb_interface_type_test_() ->
   {foreachx, fun startup/1, [
     T() || T <- [
       fun undef_mb_type/0,
-      fun def_mb_type/0, % This
+      fun def_mb_type/0,
       fun mb_inline_msg_type/0,
       fun undef_mb_msg_type/0,
       fun def_mb_msg_type/0,
@@ -93,8 +93,8 @@ mb_message_type_test_() ->
 mb_usage_test_() ->
   {foreachx, fun startup/1, [
     T() || T <- [
-%%      fun use_non_new_mb/0%,
-%%      fun use_new_mb/0%,
+      fun use_non_new_mb/0,
+      fun use_new_mb/0,
       fun use_new_mb2/0
     ]]}.
 
