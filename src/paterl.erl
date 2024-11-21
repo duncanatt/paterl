@@ -1,8 +1,8 @@
 -module(paterl).
 -author("duncan").
 
--include("errors.hrl").
--include("paterl.hrl").
+%%-include("errors.hrl").
+-include("paterl_lib.hrl").
 
 %% API
 -export([compile/2]).

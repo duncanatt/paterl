@@ -24,7 +24,7 @@
 %%% Includes.
 -include("log.hrl").
 -include("paterl_lib.hrl").
--include("paterl.hrl").
+%%-include("paterl.hrl").
 
 %%% Public API.
 -export([module/1]).
@@ -38,6 +38,8 @@
 %%% ----------------------------------------------------------------------------
 %%% Macro and record definitions.
 %%% ----------------------------------------------------------------------------
+
+% TODO: Change names of types() to type_defs() and document them.
 
 %% Erlang abstract syntax form information.
 -record(form_info, {

@@ -14,8 +14,8 @@
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("syntax_tools/include/merl.hrl").
 -include("log.hrl").
--include("errors.hrl").
--include("paterl.hrl").
+%%-include("errors.hrl").
+-include("paterl_lib.hrl").
 
 %% API
 -export([module/2]).

@@ -24,7 +24,7 @@
 %%% Includes.
 -include_lib("eunit/include/eunit.hrl").
 -include("log.hrl").
--include_lib("paterl.hrl").
+-include_lib("paterl_lib.hrl").
 
 
 %%% ----------------------------------------------------------------------------
