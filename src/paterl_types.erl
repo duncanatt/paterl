@@ -39,8 +39,6 @@
 %%% Macro and record definitions.
 %%% ----------------------------------------------------------------------------
 
-% TODO: Change names of types() to type_defs() and document them.
-
 %% Erlang abstract syntax form information.
 -record(form_info, {
   functions = [] :: [f_function()],
@@ -51,38 +49,38 @@
 
 %%% Error types.
 
-%% Untyped function signature. e_mb_sig_type_undef
+%% Function omits corresponding spec.
 -define(E_UNDEF__FUN_SPEC, e_undef__fun_spec).
 
-%% Fun reference associated with more than one mailbox interface.
+%% Mailbox interface associated with multiple fun references.
 -define(E_DUP__MB_FUN_REF, e_dup__mb_fun_ref).
 
-%% Undefined function reference.
+%% Fun reference in mailbox interface definition undefined.
 -define(E_UNDEF__FUN_REF, e_undef__fun_ref).
 
-%% Undefined mailbox type.
+%% Mailbox interface type undefined.
 -define(E_UNDEF__MB_TYPE, e_undef__mb_type).
 
-%% Invalid message tag.
+%% Message type has an invalid message tag.
 -define(E_BAD__MSG_TAG, e_bad__msg_tag).
 
-%% No pid() associated with mailbox type.
+%% Mailbox interface not associated with fun references. TODO: Move to syntax checking. Add test as well.
 -define(W_NO__MB_FUN_REF, w_no__mb_fun_ref).
 
-%% No pid() associated with mailbox type.
+%% pid() type omitted from mailbox interface type definition.
 -define(W_NO__PID, w_no__pid).
 
-%% Mailbox not initialized with new modality.
+%% Mailbox interface not initialized with new modality.
 -define(E_NO__MB_NEW, e_no__mb_new).
 
-%% User-defined mailbox interface type contains types other than a message set.
+%% Mailbox interface type contains types other than a message set.
 -define(E_BAD__MSG_TYPE, e_bad__msg_type).
 
-%% User-defined message type contains payload types other than a built-in or a
+%% Message type contains payload other than a primitive built-in or a
 %% user-defined mailbox interface type.
 -define(E_BAD__PAY_TYPE, e_bad__pay_type).
 
-%% Undefined type.
+%% Type undefined.
 -define(E_UNDEF__TYPE, e_undef__type).
 
 
@@ -105,17 +103,16 @@
 -doc "Mailbox form.".
 -type f_mailbox(FunRef) :: {mailbox, paterl_syntax:anno(), {{modality(), paterl_syntax:name()}, FunRef}}.
 
-
-
-
-
-% TODO: change variables and function names that depend on these types.
+-doc "Type mapping from type names to type definitions.".
 -type type_defs() :: #{paterl_syntax:name() => {type | mbox, paterl_syntax:anno(), Type :: paterl_syntax:type(), Vars :: []}}.
 
+-doc "Function spec mapping from fun references to spec definitions.".
 -type spec_defs() :: #{paterl_syntax:fun_ref() => {spec, paterl_syntax:anno(), FunTypes :: [paterl_syntax:type()]}}.
 
+-doc "Used mailbox mapping from fun references to mailbox names.".
 -type mb_funs() :: #{paterl_syntax:fun_ref() => {modality(), paterl_syntax:anno(), paterl_syntax:name()}}.
 
+-doc "Mailbox mapping from mailbox names to mailbox definitions.".
 -type mb_defs() :: #{paterl_syntax:name() => {paterl_syntax:anno(), modality()}}.
 
 -doc "Module type information.".
@@ -133,12 +130,32 @@
 %%% Public API.
 %%% ----------------------------------------------------------------------------
 
-% Errors that can arise in addition to analyse_type_info.
-% 0. See the errors by analyze_type_info
-% 1. Mailbox interface is used without new
-% 2. Mailbox interface are not defined.
-% 3. Mailbox interface types and message types are invalid defined.
+-doc """
+Analyzes the list of `Forms` and extracts the type information.
 
+Type information extraction can fail with the following errors.
+
+| Code               | Error                                                   |
+| ------------------ | ------------------------------------------------------- |
+| `e_no__mb_new`     | mailbox interface is not initialized with new modality  |
+| `e_undef__mb_type` | when a mailbox interface type is undefined              |
+| `e_bad__msg_type`  | mailbox interface type contains types other than a message set |
+| `e_bad__pay_type`  | message type contains a payload other than a primitive built-in [`integer()`](`t:integer/0`), [`float()`](`t:float/0`), [`string`](`t:string/0`), [`pid()`](`t:pid/0`) or a user-defined mailbox interface type |
+| `e_bad__msg_tag`   | message type has an invalid message tag                 |
+| `e_undef__type`    | type is undefined                                       |
+| `e_undef__fun_spec` | function does omits the corresponding spec             |
+| `e_dup__mb_fun_ref` | mailbox interface is associated with multiple fun references |
+| `e_undef__fun_ref`  | fun reference in a mailbox interface definition is undefined |
+
+The `w_no__pid` warning can also be returned whenever the [`pid()`](`t:pid/0`)
+type is omitted from mailbox interface type definitions.
+
+See also `format_error/1`.
+
+### Returns
+- `{ok, TypeInfo, Warnings}` if type information extraction is successful
+- `{error, Errors, Warnings}` otherwise
+""".
 -spec module(paterl_syntax:forms()) -> result().
 module(Forms) when is_list(Forms) ->
   Analysis =
@@ -164,82 +181,30 @@ module(Forms) when is_list(Forms) ->
   paterl_lib:return(Analysis).
 
 
+%%% ----------------------------------------------------------------------------
+%%% Program mailbox interface, type spec, and type information extraction.
+%%% ----------------------------------------------------------------------------
 
+-doc """
+Analyzes the list of `Forms` and extracts the type information.
 
+Type information extraction can fail with the following errors.
 
--spec analyze_forms(paterl_syntax:forms()) -> form_info().
-analyze_forms(Forms) ->
-  lists:foldl(fun analyze_form/2, #form_info{}, Forms).
+| Code                | Error                                                  |
+| ------------------- | ------------------------------------------------------ |
+| `e_undef__fun_spec` | function does omits the corresponding spec             |
+| `e_dup__mb_fun_ref` | mailbox interface is associated with multiple fun references |
+| `e_undef__fun_ref`  | fun reference in a mailbox interface definition is undefined |
 
--spec analyze_form(Form, FormInfo) -> FormInfo0
-  when
-  Form :: paterl_syntax:form(),
-  FormInfo :: form_info(),
-  FormInfo0 :: form_info().
-analyze_form(Form, FormInfo) ->
-  Anno = erl_syntax:get_pos(Form),
-  case erl_syntax_lib:analyze_form(Form) of
-    {attribute, _} ->
-      case erl_syntax_lib:analyze_attribute(Form) of
-        Wild = {Name, _}
-          when Name =:= type; Name =:= spec; Name =:= ?M_NEW; Name =:= ?M_USE ->
-          ?TRACE("Attribute '~p'.", [Wild]),
-          add_form_info(Wild, Anno, FormInfo);
-        _ ->
-          ?TRACE("Skip attribute '~s'", [erl_prettypr:format(Form)]),
-          FormInfo
-      end;
-    Fun = {function, {_Name, _Arity}} ->
-      % Function definition.
-      ?TRACE("Function '~s/~b'.", [_Name, _Arity]),
-      add_form_info(Fun, Anno, FormInfo);
-    _ ->
-      % Other form.
-      ?TRACE("Skip form '~s'.", [erl_prettypr:format(Form)]),
-      FormInfo
-  end.
+The `w_no__pid` warning can also be returned whenever the [`pid()`](`t:pid/0`)
+type is omitted from mailbox interface type definitions.
 
--spec add_form_info(InfoPair, Anno, FormInfo) -> FormInfo0
-  when
-  InfoPair :: {atom(), term()},
-  Anno :: paterl_syntax:anno(),
-  FormInfo :: form_info(),
-  FormInfo0 :: form_info().
-add_form_info({function, Info}, Anno, FormInfo = #form_info{functions = FunRefs}) ->
-  {_Fun, _Arity} = Info,
-  FormInfo#form_info{functions = [{function, Anno, Info} | FunRefs]};
-add_form_info({type, Info}, Anno, FormInfo = #form_info{types = Types}) ->
-  {_Name, _Type, _Vars = []} = Info,
-  FormInfo#form_info{types = [{type, Anno, Info} | Types]};
-add_form_info({spec, Info}, Anno, FormInfo = #form_info{specs = Specs}) ->
-  {_FunRef = {_Fun, _Arity}, _Type} = Info,
-  FormInfo#form_info{specs = [{spec, Anno, Info} | Specs]};
-add_form_info({MbMod, Info}, Anno, FormInfo = #form_info{mailboxes = MbDefs})
-  when MbMod =:= ?M_NEW; MbMod =:= ?M_USE ->
-  FlatMbDefs =
-    case Info of
-      {MbName, []} ->
-        % Mailbox interface definition with no fun references.
-        [{mailbox, Anno, {{MbMod, MbName}, undefined}}];
-      {MbName, FunRefs} ->
-        % Mailbox interface definition with fun references.
-        [{mailbox, Anno, {{MbMod, MbName}, FunRef}} || FunRef <- FunRefs]
-    end,
-  FormInfo#form_info{mailboxes = MbDefs ++ FlatMbDefs}.
-
-
-
-
-
-% Errors can arise due to:
-% One or more function signatures do not have specs.
-% One or more function signatures are associated with the same mailbox.
-% One or more function signatures in mailbox definitions are not
-% declared as types.
-% Warnings can arise due to:
-% Mailbox interface definitions not being used by functions.
-
-
+### Returns
+a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
+- `status=ok`, `result=TypeInfo`, and possible warnings if type information
+  extraction is successful
+- `status=error` with details otherwise
+""".
 -spec analyze_type_info(paterl_syntax:forms()) -> paterl_lib:analysis().
 analyze_type_info(Forms) ->
 
@@ -279,6 +244,87 @@ analyze_type_info(Forms) ->
     #analysis{result = TypeInfo, warnings = Warnings}
   end.
 
+-doc """
+Analyzes the list of `Forms` and extracts the type information.
+
+### Returns
+-  [`form_info()`](`t:form_info/0`), which preserves the lists of `Forms` that
+can be checked for duplicate defintions, etc.
+""".
+-spec analyze_forms(paterl_syntax:forms()) -> form_info().
+analyze_forms(Forms) ->
+  lists:foldl(fun analyze_form/2, #form_info{}, Forms).
+
+-doc "Analyzes `Form`.".
+-spec analyze_form(Form, FormInfo) -> FormInfo0
+  when
+  Form :: paterl_syntax:form(),
+  FormInfo :: form_info(),
+  FormInfo0 :: form_info().
+analyze_form(Form, FormInfo) ->
+  Anno = erl_syntax:get_pos(Form),
+  case erl_syntax_lib:analyze_form(Form) of
+    {attribute, _} ->
+      case erl_syntax_lib:analyze_attribute(Form) of
+        Wild = {Name, _}
+          when Name =:= type; Name =:= spec; Name =:= ?M_NEW; Name =:= ?M_USE ->
+          ?TRACE("Attribute '~p'.", [Wild]),
+          add_form_info(Wild, Anno, FormInfo);
+        _ ->
+          ?TRACE("Skip attribute '~s'", [erl_prettypr:format(Form)]),
+          FormInfo
+      end;
+    Fun = {function, {_Name, _Arity}} ->
+      % Function definition.
+      ?TRACE("Function '~s/~b'.", [_Name, _Arity]),
+      add_form_info(Fun, Anno, FormInfo);
+    _ ->
+      % Other form.
+      ?TRACE("Skip form '~s'.", [erl_prettypr:format(Form)]),
+      FormInfo
+  end.
+
+-doc """
+Adds `InfoPair` to [`form_info()`](`t:form_info/0`).
+
+`InfoPair` describes the form information, and is one of:
+- `function` as [`f_function()`](`t:f_function/0`)
+- user-defined or built-in `type` as [`f_type()`](`t:f_type/0`)
+- function `spec` as [`f_spec()`](`t:f_spec/0`)
+- mailbox `new` or `use` modality as [`f_mailbox(FunRef)`](`t:f_mailbox/1`),
+  where `FunRef` is the type
+  ([`paterl_syntax:fun_ref()`](`t:paterl_syntax:fun_ref/0`) | `undefined`)
+""".
+-spec add_form_info(InfoPair, Anno, FormInfo) -> FormInfo0
+  when
+  InfoPair :: {atom(), term()},
+  Anno :: paterl_syntax:anno(),
+  FormInfo :: form_info(),
+  FormInfo0 :: form_info().
+add_form_info({function, Info}, Anno, FormInfo = #form_info{functions = FunRefs}) ->
+  {_Fun, _Arity} = Info,
+  FormInfo#form_info{functions = [{function, Anno, Info} | FunRefs]};
+add_form_info({type, Info}, Anno, FormInfo = #form_info{types = Types}) ->
+  {_Name, _Type, _Vars = []} = Info,
+  FormInfo#form_info{types = [{type, Anno, Info} | Types]};
+add_form_info({spec, Info}, Anno, FormInfo = #form_info{specs = Specs}) ->
+  {_FunRef = {_Fun, _Arity}, _Type} = Info,
+  FormInfo#form_info{specs = [{spec, Anno, Info} | Specs]};
+add_form_info({MbMod, Info}, Anno, FormInfo = #form_info{mailboxes = MbDefs})
+  when MbMod =:= ?M_NEW; MbMod =:= ?M_USE ->
+  FlatMbDefs =
+    case Info of
+      {MbName, []} ->
+        % Mailbox interface definition with no fun references.
+        [{mailbox, Anno, {{MbMod, MbName}, undefined}}];
+      {MbName, FunRefs} ->
+        % Mailbox interface definition with fun references.
+        [{mailbox, Anno, {{MbMod, MbName}, FunRef}} || FunRef <- FunRefs]
+    end,
+  FormInfo#form_info{mailboxes = MbDefs ++ FlatMbDefs}.
+
+%% TODO: eliminate the mb_defs from type_info record.
+%% TODO: Move the warning of unused mailboxes to the syntax check.
 % TODO: Move to syntax module.
 check_unused_mb_defs(MbDefs) when is_list(MbDefs) ->
   Fun =
@@ -289,17 +335,8 @@ check_unused_mb_defs(MbDefs) when is_list(MbDefs) ->
     end,
   lists:foldl(Fun, #analysis{}, MbDefs).
 
-
-%% TODO: eliminate the mb_defs from type_info record.
-%% TODO: Move the warning of unused mailboxes to the syntax check.
-
-
-%%% ----------------------------------------------------------------------------
-%%% Program mailbox interface and type spec extraction.
-%%% ----------------------------------------------------------------------------
-
 -doc """
-Creates the list of used mailbox interface names.
+Returns the list of mailbox interface names with fun references.
 
 Used mailbox interface names are ones that are paired with **at least one** fun
 reference. In code, unused mailbox interfaces look thus:
@@ -320,13 +357,10 @@ used_mailboxes(Mailboxes) when is_list(Mailboxes) ->
   lists:filter(Fun, Mailboxes).
 
 -doc """
-Creates a [`specs()`](`t:specs/0`) mapping from fun references to corresponding
+Returns a [`specs()`](`t:specs/0`) mapping from fun references to corresponding
 type specs.
 
-Assumes that function specs are unique, as enforced by the Erlang linter.
-
-### Returns
-- [`specs()`](`t:specs/0`) mapping
+Assumes that function `Specs` are unique, as enforced by the Erlang linter.
 """.
 -spec make_spec_defs([f_spec()]) -> spec_defs().
 make_spec_defs(Specs) when is_list(Specs) ->
@@ -337,11 +371,8 @@ make_spec_defs(Specs) when is_list(Specs) ->
   lists:foldl(Fun, #{}, Specs).
 
 -doc """
-Creates a [`mb_funs()`](`t:mb_funs/0`) mapping from fun references to
+Returns a [`mb_funs()`](`t:mb_funs/0`) mapping from fun references to
 corresponding mailbox interface names.
-
-### Returns
-- [`mb_funs()`](`t:mb_funs/0`) [`mb_funs()`](`t:mb_funs/0`) mapping
 """.
 -spec make_mb_funs(Mailboxes) -> mb_funs()
   when Mailboxes :: [f_mailbox(paterl_syntax:fun_ref())].
@@ -353,7 +384,7 @@ make_mb_funs(Mailboxes) when is_list(Mailboxes) ->
   lists:foldl(Fun, #{}, Mailboxes).
 
 -doc """
-Creates a [`mb_defs()`](`t:mb_defs/0`) mapping from mailbox interface names to
+Returns a [`mb_defs()`](`t:mb_defs/0`) mapping from mailbox interface names to
 corresponding `-new` or `-use` modalities.
 
 Each mailbox interface definition name is tagged with its latest usage modality
@@ -367,9 +398,6 @@ Returned mailbox defintion interface names paired with the `-new` modality
 indicate that the corresponding mailbox is properly utilized in code. Mailbox
 interface definition names paired with the `-use` modality identify names that
 are improperly uninitialized.
-
-### Returns
-- [`mb_defs()`](`t:mb_defs/0`) mapping
 """.
 -spec make_mb_defs(Mailboxes) -> mb_defs()
   when
@@ -384,11 +412,8 @@ make_mb_defs(Mailboxes) when is_list(Mailboxes) ->
   lists:foldl(Fun, #{}, Mailboxes).
 
 -doc """
-Creates a [`types()`](`t:types/0`) mapping from type names to corresponding type
+Returns a [`types()`](`t:types/0`) mapping from type names to corresponding type
 definitions.
-
-### Returns
-- [`types()`](`t:types/0`) mapping
 """.
 -spec make_type_defs([f_type()], mb_defs()) -> type_defs().
 make_type_defs(Types, MbDefs) when is_list(Types), is_map(MbDefs) ->
@@ -411,9 +436,10 @@ make_type_defs(Types, MbDefs) when is_list(Types), is_map(MbDefs) ->
 -doc """
 Checks that functions have corresponding specs.
 
-# Returns
-- `ok` if all functions have corresponding specs
-- `error` with details otherwise
+### Returns
+a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
+- `status=ok` if all functions have corresponding specs
+- `status=error` with details otherwise
 """.
 -spec check_fun_specs([f_function()], spec_defs()) -> paterl_lib:analysis().
 check_fun_specs(Functions, SpecDefs)
@@ -439,8 +465,9 @@ This means that a fun reference is permitted the use of at most one mailbox name
 in either the `-new` or `-use` modality.
 
 ### Returns
-- `ok` if all fun references use a mailbox interface name at most once
-- `error` with details otherwise
+a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
+- `status=ok` if all fun references use a mailbox interface name at most once
+- `status=error` with details otherwise
 """.
 -spec check_mb_dup_fun_use(Mailboxes) -> paterl_lib:analysis()
   when
@@ -470,8 +497,9 @@ check_mb_dup_fun_use(Mailboxes) when is_list(Mailboxes) ->
 Checks that fun references using mailbox interfaces are defined.
 
 ### Returns
-- `ok` if all fun references using mailbox interfaces are defined
-- `error` with details otherwise
+a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
+- `status=ok` if all fun references using defined mailbox interfaces
+- `status=error` with details otherwise
 """.
 -spec check_mb_fun_refs_defined(mb_funs(), spec_defs()) -> paterl_lib:analysis().
 check_mb_fun_refs_defined(MbFuns, SpecDefs)
@@ -495,8 +523,9 @@ check_mb_fun_refs_defined(MbFuns, SpecDefs)
 Checks that mailbox interface names have corresponding types defined.
 
 ### Returns
-- `ok` if all mailbox interface names have corresponding types defined
-- `error` with details otherwise
+a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
+- `status=ok` if all mailbox interface names have corresponding types defined
+- `status=error` with details otherwise
 """.
 -spec check_mb_types_defined(mb_defs(), type_defs()) -> paterl_lib:analysis().
 check_mb_types_defined(MbDefs, TypeDefs)
@@ -516,8 +545,9 @@ check_mb_types_defined(MbDefs, TypeDefs)
 Checks that mailbox interface names are initialized with `-new`.
 
 ### Returns
-- `ok` if all mailbox interface names are initialized with `-new`
-- `error` with details otherwise
+a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
+- `status=ok` if all mailbox interface names are initialized with `-new`
+- `status=error` with details otherwise
 """.
 -spec check_mb_new(mb_defs()) -> paterl_lib:analysis().
 check_mb_new(MbDefs) when is_map(MbDefs) ->
@@ -537,15 +567,16 @@ check_mb_new(MbDefs) when is_map(MbDefs) ->
 -doc """
 Checks that mailbox interface types are correctly defined.
 
+A warning is emitted whenever [`pid()`](`t:pid/0`) is missing in the mailbox
+type definition.
+
 See `check_msg_type_set/3` for details on correct mailbox interface type
 definitions.
 
 ### Returns
-- `ok` if all mailbox interface types are correctly defined
-- `error` with details otherwise
-
-A warning is emitted whenever [`pid()`](`t:pid/0`) is missing in the mailbox
-type definition.
+a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
+- `status=ok` if all mailbox interface types are correctly defined
+- `status=error` with details otherwise
 """.
 -spec check_mb_types_valid(type_defs()) -> paterl_lib:analysis().
 check_mb_types_valid(TypeDefs) when is_map(TypeDefs) ->
@@ -580,13 +611,14 @@ required by tools, such as Dialyzer, to successfully type check them.
 This recursive check is performed to detect if the mailbox interface type
 includes [`pid()`](`t:pid/0`) in its definition hierarchy.
 
+A warning is emitted whenever [`pid()`](`t:pid/0`) is missing.
+
 See `check_msg_type_set/3` for details.
 
 ### Returns
-- `ok` if the mailbox interface type is correctly defined
-- `error` with details otherwise
-
-A warning is emitted whenever [`pid()`](`t:pid/0`) is missing.
+a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
+- `status=ok` if the mailbox interface type is correctly defined
+- `status=error` with details otherwise
 """.
 -spec check_mb_type_valid(Name, Anno, Type, TypeDefs, Analysis) -> Analysis0
   when
@@ -614,20 +646,21 @@ A mailbox interface type definition consists of a set of messages, namely the:
 3. non-trivial set, expressed as a type union
 4. another messsage set, expressed as another type abiding by 1, 2, and 3.
 
-A message type `{msg, Elements}` is a tuple with an atomic tag and list of
-payload types. Payload types can themselves be:
+A message type `{msg, Payload}` is a tuple with an atomic tag and list of
+payload types. `Payload` types can themselves be:
 1. primitive built-in types, such as, [`integer()`](`t:integer/0`),
 [`float`](`t:float/0`), and [`string`](`t:string/0`)
 2. mailbox types
 
-Any other primitieve type, in particular, [`pid()`](`t:pid/0`), and other
+Any other primitive type, in particular, [`pid()`](`t:pid/0`), and other
 user-defined types are invalid message payload types.
 
-### Returns
-- `ok` if the message type set is correctly defined
-- `error` with details otherwise
-
 A warning is emitted whenever [`pid()`](`t:pid/0`) is missing.
+
+### Returns
+a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
+- `status=ok` if the message type set is correctly defined
+- `status=error` with details otherwise
 """.
 -spec check_msg_type_set(Type, TypeDefs, Analysis) -> Analysis0
   when
@@ -677,11 +710,12 @@ check_msg_type_set(Type, _, Analysis) ->
 -doc """
 Checks that a message type list is correctly defined.
 
-### Returns
-- `ok` if the message type list is correctly defined
-- `error` with details otherwise
-
 A warning is emitted whenever [`pid()`](`t:pid/0`) is missing.
+
+### Returns
+a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
+- `status=ok` if the message type list is correctly defined
+- `status=error` with details otherwise
 """.
 -spec check_msg_types([paterl_syntax:type()], type_defs(), Analysis) -> Analysis0
   when
@@ -697,8 +731,9 @@ check_msg_types([Type | Types], TypeDefs, Analysis) ->
 Checks that a message type is correctly defined.
 
 ### Returns
-- `ok` if the message type is correctly defined
-- `error` with details otherwise
+a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
+- `status=ok` if the message type is correctly defined
+- `status=error` with details otherwise
 """.
 -spec check_msg_type(Type, TypeDefs, Analysis) -> Analysis0
   when
@@ -720,8 +755,9 @@ check_msg_type({type, _, tuple, [Tag | Elems]}, TypeDefs, Analysis) ->
 Checks that a types in a message element list are correctly defined.
 
 ### Returns
-- `ok` if the types in the message element list are correctly defined
-- `error` with details otherwise
+a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
+- `status=ok` if the types in the message element list are correctly defined
+- `status=error` with details otherwise
 """.
 -spec check_msg_elems(Elems, TypeDefs, Analysis) -> Analysis0
   when
@@ -765,8 +801,9 @@ check_msg_elems([Elem | Elems], TypeDefs, Analysis) ->
 Checks that a message tag is valid.
 
 ### Returns
-- `ok` if the message tag is valid
-- `error` with details otherwise
+a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
+- `status=ok` if the message tag is valid
+- `status=error` with details otherwise
 """.
 -spec check_valid_tag(Term, Analysis) -> Analysis0
   when Term :: term(),
@@ -791,7 +828,15 @@ check_valid_tag(Term, Analysis) ->
 %%% Error handling and reporting.
 %%% ----------------------------------------------------------------------------
 
-%% @doc Formats the specified error to human-readable form.
+-doc """
+Formats `Detail` to human-readable form.
+
+See `module/1` for error and warnings codes.
+
+### Returns
+- message as a possibly deep [`io_lib:chars()`](`t:io_lib:chars/0`) list
+""".
+-spec format_error(Detail :: paterl_lib:detail()) -> io_lib:chars().
 format_error({?E_UNDEF__FUN_SPEC, Node}) ->
   io_lib:format(
     "function '~s' has missing spec",
@@ -817,11 +862,6 @@ format_error({?E_BAD__MSG_TAG, Node}) ->
     "bad message tag '~s'",
     [erl_prettypr:format(Node)]
   );
-%%format_error({?E_BAD__MSG_ELEM_TYPE, Node}) -> %TODO: See if this is used. It is but remove it and use ?E_BAD__MB_TYPE instead.
-%%  io_lib:format(
-%%    "bad message element type '~s'",
-%%    [erl_prettypr:format(Node)]
-%%  );
 format_error({?W_NO__PID, Node}) ->
   io_lib:format(
     "mailbox interface type '~s' does not contain pid(), which makes it incompatible with Dialyzer",
