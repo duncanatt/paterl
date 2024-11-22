@@ -43,11 +43,14 @@ Erlang syntactic subset and mailbox interface well-formedness syntax checks.
 
 %%% Error types.
 
-%% Incorrect mailbox interface definition.
+%% Mailbox interface definition invalid.
 -define(E_BAD__MB_DEF, e_bad__mb_def).
 
-%% Incorrect function reference in mailbox interface definition.
+%% Function reference in mailbox interface definition invalid.
 -define(E_BAD__FUN_REF, e_bad__fun_ref).
+
+%% Mailbox interface not associated with fun references.
+-define(W_NO__MB_FUN_REF, w_no__mb_fun_ref).
 
 
 %%% ----------------------------------------------------------------------------
@@ -98,8 +101,8 @@ The function also checks the well-formedness of mailbox interface definitions
 encoded as the `-new` and `-use` wild attributes.
 
 ### Returns
-- `{ok, Forms, Warnings}` if check is successful
-- `{error, Errors, Warnings}` if check fails
+- `{ok, Forms, Warnings}` if syntax check is successful
+- `{error, Errors, Warnings}` otherwise
 """.
 -spec module(forms()) -> result().
 module(Forms) when is_list(Forms) ->
@@ -132,7 +135,7 @@ get_file([Form | _]) ->
 -doc """
 Sets the annotation of Erlang `Tree`.
 
-The [annotation](`m:erl_anno`) is only set for the root of `Tree`.
+[`Anno`](`m:erl_anno`) is only set for the root of `Tree`.
 
 ### Returns
 - updated `Tree`
@@ -146,11 +149,11 @@ set_anno(Tree, Anno) ->
   erl_syntax:revert(erl_syntax:set_pos(Tree, Anno)).
 
 -doc """
-Creates an atomic name abstract syntax representation with the specified
-[annotation](`m:erl_anno`).
+Creates an atom name abstract syntax representation with the specified
+[`Anno`](`m:erl_anno`).
 
 ### Returns.
-- atomic name abstract syntax representation
+- atom name abstract syntax representation
 """.
 -spec name(Name, Anno) -> Tree0
   when
@@ -194,6 +197,7 @@ accepted by **Pat**.
   Analysis :: paterl_lib:analysis(),
   Analysis0 :: paterl_lib:analysis().
 check_forms(Forms, Analysis) ->
+  % TODO: Sometime in the future.
   Analysis#analysis{status = ok, result = Forms}.
 
 
@@ -203,7 +207,7 @@ check_forms(Forms, Analysis) ->
 
 -doc """
 Checks the well-formedness of mailbox interface `-new` and `-use` wild
-attributes.
+attributes, skipping the rest.
 """.
 -spec check_mb_attribs(Forms, Analysis) -> Analysis0
   when
@@ -211,82 +215,23 @@ attributes.
   Analysis :: paterl_lib:analysis(),
   Analysis0 :: paterl_lib:analysis().
 check_mb_attribs(Forms, Analysis) when is_list(Forms) ->
-  lists:foldl(fun check_attr3/2, Analysis, Forms).
+  lists:foldl(fun check_attr/2, Analysis, Forms).
 
 -doc """
-Checks the well-formedness of mailbox interface `-new` and `-use` wild
-attributes, skipping the rest.
+Checks the well-formedness of a mailbox interface `-new` and `-use` wild
+attribute, skipping it otherwise.
+
+### Returns
+a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
+- `status=ok` if the mailbox interface wild attribute is well-formed
+- `status=error` with details otherwise
 """.
--spec check_attr(Attr, Analysis) -> Analysis0
-  when
-  Attr :: form(),
-  Analysis :: paterl_lib:analysis(),
-  Analysis0 :: paterl_lib:analysis().
-check_attr(Attr = {attribute, ANNO, Modality, Value}, Analysis)
-  when Modality =:= ?M_NEW; Modality =:= ?M_USE ->
-  ?TRACE("Check mailbox interface definition '~s'.", [erl_prettypr:format(Attr)]),
-
-  case Value of
-    {MbName, Terms} when is_atom(MbName), is_list(Terms) ->
-      % Valid mailbox interface definition wild attribute.
-      CheckFunRefFun =
-        fun(Term, Analysis0) -> check_fun_ref(Term, ANNO, Analysis0) end,
-
-      % Check well-formedness of function references.
-      lists:foldl(CheckFunRefFun, Analysis, Terms);
-    _ ->
-      % Bad mailbox interface definition attribute.
-      ?ERROR("Bad mailbox interface definition '~s'", [
-        erl_prettypr:format((Attr))
-      ]),
-      ?pushError(?E_BAD__MB_DEF, Attr, Analysis)
-  end;
-check_attr(_Form, Analysis) ->
-  ?TRACE("Skip form '~s'.", [erl_prettypr:format(_Form)]),
-  Analysis.
-
-check_attr2(Form, Analysis) ->
-  case erl_syntax:type(Form) of
-    attribute ->
-      case erl_syntax_lib:analyze_attribute(Form) of
-        {Modality, Value} when Modality =:= ?M_NEW; Modality =:= ?M_USE ->
-          case Value of
-            {MbName, Terms} when is_atom(MbName), is_list(Terms) ->
-              % Valid mailbox interface definition wild attribute.
-              ANNO = erl_syntax:get_pos(Form),
-              CheckFunRefFun =
-                fun(Term, Analysis0) -> check_fun_ref(Term, ANNO, Analysis0) end,
-
-              % Check well-formedness of function references.
-              lists:foldl(CheckFunRefFun, Analysis, Terms);
-            _ ->
-              % Bad mailbox interface definition attribute.
-              ?ERROR("Bad mailbox interface definition '~s'", [
-                erl_prettypr:format((Form))
-              ]),
-              ?pushError(?E_BAD__MB_DEF, Form, Analysis)
-          end;
-        _ ->
-          % Other attribute.
-          ?TRACE("Skip attribute '~s'.", [erl_prettypr:format(Form)]),
-          Analysis
-      end;
-    _ ->
-      % Other form.
-      ?TRACE("Skip form '~s'.", [erl_prettypr:format(Form)]),
-      Analysis
-  end.
-
--doc """
-Checks the well-formedness of mailbox interface `-new` and `-use` wild
-attributes, skipping the rest.
-""".
--spec check_attr3(Form, Analysis) -> Analysis0
+-spec check_attr(Form, Analysis) -> Analysis0
   when
   Form :: form(),
   Analysis :: paterl_lib:analysis(),
   Analysis0 :: paterl_lib:analysis().
-check_attr3(Form, Analysis) ->
+check_attr(Form, Analysis) ->
   maybe
     attribute ?= erl_syntax:type(Form),
     {Modality, Value} ?= erl_syntax_lib:analyze_attribute(Form),
@@ -294,12 +239,16 @@ check_attr3(Form, Analysis) ->
 
     ?TRACE("Check mailbox interface definition '~s'.", [erl_prettypr:format(Form)]),
     case Value of
-      {MbName, Terms} when is_atom(MbName), is_list(Terms) ->
+      {MbName, Terms = [_ | _]} when is_atom(MbName) ->
         % Check well-formedness of function references.
         check_fun_refs(Terms, erl_syntax:get_pos(Form), Analysis);
+      {MbName, []} when is_atom(MbName) ->
+        % Unused mailbox interface definition (i.e. no fun references).
+        ?WARN("Unused mailbox interface '~s'.", [erl_prettypr:format(Form)]),
+        ?pushWarning(?W_NO__MB_FUN_REF, Form, Analysis);
       _ ->
         % Bad mailbox interface definition attribute.
-        ?ERROR("Bad mailbox interface definition '~s'", [erl_prettypr:format((Form))]),
+        ?ERROR("Bad mailbox interface definition '~s'", [erl_prettypr:format(Form)]),
         ?pushError(?E_BAD__MB_DEF, Form, Analysis)
     end
   else
@@ -320,7 +269,16 @@ check_fun_refs(Terms, Anno, Analysis) when is_list(Terms) ->
   Fun = fun(Term, Analysis0) -> check_fun_ref(Term, Anno, Analysis0) end,
   lists:foldl(Fun, Analysis, Terms).
 
--doc "Checks the well-formedness of fun references.".
+
+
+-doc """
+Checks the well-formedness of fun references.
+
+### Returns
+a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
+- `status=ok` if the fun reference is well formed
+- `status=error` with details otherwise
+""".
 -spec check_fun_ref({Name, Arity}, Anno, Analysis) -> Analysis0
   when
   Name :: atom(),
@@ -343,7 +301,14 @@ check_fun_ref(Term, ANNO, Analysis) ->
   ?ERROR("Bad fun reference '~s',", [erl_prettypr:format(Term0)]),
   ?pushError(?E_BAD__FUN_REF, Term0, Analysis).
 
--doc "Checks the arity of fun references encoded as implicit funs.".
+-doc """
+Checks the arity of a fun reference encoded as implicit funs.
+
+### Returns
+a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
+- `status=ok` if the fun reference has valid arity
+- `status=error` with details otherwise
+""".
 -spec check_implicit_fun(Fun, Analysis) -> Analysis0
   when
   Fun :: expr(),
@@ -367,8 +332,10 @@ check_implicit_fun(Fun = {'fun', _, {function, _, _}}, Analysis) ->
 -doc """
 Formats `Detail` to human-readable form.
 
+See `module/1` for error and warnings codes.
+
 ### Returns
-- stringified error as deep list of [`chars()`](`t:io_lib:chars/0`)s
+- message as a possibly deep [`io_lib:chars()`](`t:io_lib:chars/0`) list
 """.
 -spec format_error(Detail :: paterl_lib:detail()) -> io_lib:chars().
 format_error({?E_BAD__MB_DEF, Node}) ->
@@ -379,5 +346,10 @@ format_error({?E_BAD__MB_DEF, Node}) ->
 format_error({?E_BAD__FUN_REF, Node}) ->
   io_lib:format(
     "mailbox interface definition has bad fun reference '~s'",
+    [erl_prettypr:format(Node)]
+  );
+format_error({?W_NO__MB_FUN_REF, Node}) ->
+  io_lib:format(
+    "unused mailbox interface definition '~s'",
     [erl_prettypr:format(Node)]
   ).

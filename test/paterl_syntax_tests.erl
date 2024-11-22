@@ -45,6 +45,7 @@ mb_interface_attribute_test_() ->
       fun bad_mb_def/0,
       fun bad_fun_ref_list/0,
       fun valid_mb_def/0,
+      fun unused_mb_def/0,
       fun bad_fun_ref_form/0,
       fun bad_fun_ref_arity/0,
       fun valid_fun_ref_arity/0
@@ -99,12 +100,14 @@ bad_fun_ref_list() -> {
       end}
   end}.
 
--doc "Test valid fun reference list in mailbox interface definition attribute.".
+-doc """
+Tests valid fun reference list in mailbox interface definition attribute.
+""".
 -spec valid_mb_def() -> test_x().
 valid_mb_def() -> {
   """
   -module(test).
-  -new({mb, []}).
+  -new({mb, [f/0]}).
   """,
   fun(_, Result) ->
     {"Test valid fun reference list in mailbox interface definition attribute",
@@ -115,7 +118,34 @@ valid_mb_def() -> {
 
         % Valid fun reference list in mailbox interface definition attribute.
         ?assertMatch({attribute, _, module, test}, Module),
-        ?assertMatch({attribute, _, new, {mb, []}}, New)
+        ?assertMatch({attribute, _, new, {mb, [{f, 0}]}}, New)
+      end}
+  end}.
+
+-doc "Tests valid unused mailbox interface definition attribute.".
+-spec unused_mb_def() -> test_x().
+unused_mb_def() -> {
+  """
+  -module(test).
+  -new({mb, []}).
+  """,
+  fun(_, Result) ->
+    {"Test valid unused mailbox interface definition attribute",
+      fun() ->
+        ?TRACE("Result = ~p", [Result]),
+        % Successful result with one warning.
+        ?assertMatch({ok, [_, _], [{_, [_]}]}, Result),
+        {ok, [Module, New], [{_, [Warning = {_, _, Code}]}]} = Result,
+
+        % Valid unused mailbox interface definition attribute.
+        ?assertMatch({attribute, _, module, test}, Module),
+        ?assertMatch({attribute, _, new, {mb, []}}, New),
+        ?assertMatch(
+          {_, _,
+            {w_no__mb_fun_ref, {attribute, _, new, {mb, []}}}},
+          Warning
+        ),
+        ?debugMsg(paterl_syntax:format_error(Code))
       end}
   end}.
 

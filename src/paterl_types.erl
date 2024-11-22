@@ -64,9 +64,6 @@
 %% Message type has an invalid message tag.
 -define(E_BAD__MSG_TAG, e_bad__msg_tag).
 
-%% Mailbox interface not associated with fun references. TODO: Move to syntax checking. Add test as well.
--define(W_NO__MB_FUN_REF, w_no__mb_fun_ref).
-
 %% pid() type omitted from mailbox interface type definition.
 -define(W_NO__PID, w_no__pid).
 
@@ -222,9 +219,7 @@ analyze_type_info(Forms) ->
   % Check that functions have corresponding specs defined.
     #analysis{status = ok} ?= check_fun_specs(Functions, SpecDefs),
 
-    % Check that mailbox interface definitions are used. %TODO: Move it to syntax checking module.
-    #analysis{status = ok, warnings = Warnings} ?=
-    check_unused_mb_defs(Mailboxes),
+    % Get used mailboxes (i.e. ones with fun references).
     UsedMailboxes = used_mailboxes(Mailboxes),
 
     % Check that mailbox interface definitions are used by at most one function.
@@ -241,7 +236,7 @@ analyze_type_info(Forms) ->
         mb_defs = MbDefs,
         mb_funs = MbFuns
       },
-    #analysis{result = TypeInfo, warnings = Warnings}
+    #analysis{result = TypeInfo}
   end.
 
 -doc """
@@ -322,18 +317,6 @@ add_form_info({MbMod, Info}, Anno, FormInfo = #form_info{mailboxes = MbDefs})
         [{mailbox, Anno, {{MbMod, MbName}, FunRef}} || FunRef <- FunRefs]
     end,
   FormInfo#form_info{mailboxes = MbDefs ++ FlatMbDefs}.
-
-%% TODO: eliminate the mb_defs from type_info record.
-%% TODO: Move the warning of unused mailboxes to the syntax check.
-% TODO: Move to syntax module.
-check_unused_mb_defs(MbDefs) when is_list(MbDefs) ->
-  Fun =
-    fun({mailbox, _, {{_, _}, _FunRef = {_, _}}}, Analysis) ->
-      Analysis;
-      ({mailbox, Anno, {{_, MbName}, _FunRef = undefined}}, Analysis) ->
-        ?pushWarning(?W_NO__MB_FUN_REF, paterl_syntax:name(MbName, Anno), Analysis)
-    end,
-  lists:foldl(Fun, #analysis{}, MbDefs).
 
 -doc """
 Returns the list of mailbox interface names with fun references.
