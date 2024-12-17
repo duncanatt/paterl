@@ -62,9 +62,9 @@ fib() ->
           true ->
             % Inductive case (n - 1) and (n - 2). Delegate computation of the
             % (n - 1)st and (n - 2)nd term to fib process replicas.
-            ?mb_new(fib_mb),
+%%            ?mb_new(fib_mb),
             FibPid1 = spawn(?MODULE, fib, []),
-            ?mb_new(fib_mb),
+%%            ?mb_new(fib_mb),
             FibPid2 = spawn(?MODULE, fib, []),
 
             Self = self(),
@@ -88,7 +88,7 @@ fib() ->
 %% @doc Launcher.
 -spec main() -> any().
 main() ->
-  ?mb_new(fib_mb),
+%%  ?mb_new(fib_mb),
   FibPid1 = spawn(?MODULE, fib, []),
 
   Self = self(),

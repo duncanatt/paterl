@@ -126,10 +126,10 @@ counter_exit() ->
 %% @doc Launcher.
 -spec main() -> any().
 main() ->
-  ?mb_new(counter_mb),
+%%  ?mb_new(counter_mb),
   Counter = spawn(?MODULE, counter, [0]),
 
-  ?mb_new(producer_mb),
+%%  ?mb_new(producer_mb),
   Producer = spawn(?MODULE, producer, [Counter, 16]),
 
   Producer ! {inc}.

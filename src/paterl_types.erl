@@ -24,16 +24,16 @@
 %%% Includes.
 -include("log.hrl").
 -include("paterl_lib.hrl").
-%%-include("paterl.hrl").
+-include("paterl_syntax.hrl").
 
 %%% Public API.
--export([module/1]).
+-export([module/1, format_error/1]).
+-compile(export_all).
 
 %%% Public types.
 -export_type([type_defs/0, spec_defs/0, mb_funs/0, mb_defs/0, type_info/0]).
 -export_type([result/0]).
 
--compile(export_all).
 
 %%% ----------------------------------------------------------------------------
 %%% Macro and record definitions.
@@ -45,6 +45,13 @@
   types = [] :: [f_type()],
   specs = [] :: [f_spec()],
   mailboxes = [] :: [f_mailbox(paterl_syntax:fun_ref() | undefined)]
+}).
+
+-define(OPAQUE_FUNS, #{
+  {format, [any, any]} => ok,
+  {uniform, [integer]} => integer,
+  {system_time, []} => integer,
+  {sleep, [integer]} => ok
 }).
 
 %%% Error types.
@@ -86,25 +93,25 @@
 %%% ----------------------------------------------------------------------------
 
 -doc "Mailbox usage modality.".
--type modality() :: ?M_NEW | ?M_USE.
+-type modality() :: ?MOD_NEW | ?MOD_USE.
 
 -doc "Function form.".
 -type f_function() :: {function, paterl_syntax:anno(), paterl_syntax:fun_ref()}.
 
 -doc "Type form.".
--type f_type() :: {type, paterl_syntax:anno(), {paterl_syntax:name(), Type :: paterl_syntax:type(), Vars :: []}}.
+-type f_type() :: {?T_TYPE, paterl_syntax:anno(), {paterl_syntax:name(), Type :: paterl_syntax:type(), Vars :: []}}.
 
 -doc "Function form.".
--type f_spec() :: {spec, paterl_syntax:anno(), {paterl_syntax:fun_ref(), Type :: paterl_syntax:type()}}.
+-type f_spec() :: {?T_SPEC, paterl_syntax:anno(), {paterl_syntax:fun_ref(), Type :: paterl_syntax:type()}}.
 
 -doc "Mailbox form.".
 -type f_mailbox(FunRef) :: {mailbox, paterl_syntax:anno(), {{modality(), paterl_syntax:name()}, FunRef}}.
 
 -doc "Type mapping from type names to type definitions.".
--type type_defs() :: #{paterl_syntax:name() => {type | mbox, paterl_syntax:anno(), Type :: paterl_syntax:type(), Vars :: []}}.
+-type type_defs() :: #{paterl_syntax:name() => {?T_TYPE | ?T_MBOX, paterl_syntax:anno(), Type :: paterl_syntax:type(), Vars :: []}}.
 
 -doc "Function spec mapping from fun references to spec definitions.".
--type spec_defs() :: #{paterl_syntax:fun_ref() => {spec, paterl_syntax:anno(), FunTypes :: [paterl_syntax:type()]}}.
+-type spec_defs() :: #{paterl_syntax:fun_ref() => {?T_SPEC, paterl_syntax:anno(), FunTypes :: [paterl_syntax:type()]}}.
 
 -doc "Used mailbox mapping from fun references to mailbox names.".
 -type mb_funs() :: #{paterl_syntax:fun_ref() => {modality(), paterl_syntax:anno(), paterl_syntax:name()}}.
@@ -172,6 +179,10 @@ module(Forms) when is_list(Forms) ->
       #analysis{file = paterl_syntax:get_file(Forms), result = TInfo,
         warnings = Warnings
       }
+    else
+      Analysis0 = #analysis{status = error} ->
+        % Error.
+        Analysis0#analysis{file = paterl_syntax:get_file(Forms)}
     end,
 
   % Return analysis with possible errors as result.
@@ -214,10 +225,11 @@ analyze_type_info(Forms) ->
   ?TRACE("Mailboxes: ~p", [FormInfo#form_info.mailboxes]),
 
   SpecDefs = make_spec_defs(FormInfo#form_info.specs),
+  SpecDefs0 = make_opaque_funs_spec(SpecDefs, ?OPAQUE_FUNS),
 
   maybe
   % Check that functions have corresponding specs defined.
-    #analysis{status = ok} ?= check_fun_specs(Functions, SpecDefs),
+    #analysis{status = ok} ?= check_fun_specs(Functions, SpecDefs0),
 
     % Get used mailboxes (i.e. ones with fun references).
     UsedMailboxes = used_mailboxes(Mailboxes),
@@ -227,12 +239,12 @@ analyze_type_info(Forms) ->
     MbFuns = make_mb_funs(UsedMailboxes),
 
     % Check that fun references in mailbox interface definitions are defined.
-    #analysis{status = ok} ?= check_mb_fun_refs_defined(MbFuns, SpecDefs),
+    #analysis{status = ok} ?= check_mb_fun_refs_defined(MbFuns, SpecDefs0),
     MbDefs = make_mb_defs(Mailboxes),
     TypeInfo =
       #type_info{
         type_defs = make_type_defs(FormInfo#form_info.types, MbDefs),
-        spec_defs = SpecDefs,
+        spec_defs = SpecDefs0,
         mb_defs = MbDefs,
         mb_funs = MbFuns
       },
@@ -262,7 +274,7 @@ analyze_form(Form, FormInfo) ->
     {attribute, _} ->
       case erl_syntax_lib:analyze_attribute(Form) of
         Wild = {Name, _}
-          when Name =:= type; Name =:= spec; Name =:= ?M_NEW; Name =:= ?M_USE ->
+          when Name =:= type; Name =:= spec; Name =:= ?MOD_NEW; Name =:= ?MOD_USE ->
           ?TRACE("Attribute '~p'.", [Wild]),
           add_form_info(Wild, Anno, FormInfo);
         _ ->
@@ -306,7 +318,7 @@ add_form_info({spec, Info}, Anno, FormInfo = #form_info{specs = Specs}) ->
   {_FunRef = {_Fun, _Arity}, _Type} = Info,
   FormInfo#form_info{specs = [{spec, Anno, Info} | Specs]};
 add_form_info({MbMod, Info}, Anno, FormInfo = #form_info{mailboxes = MbDefs})
-  when MbMod =:= ?M_NEW; MbMod =:= ?M_USE ->
+  when MbMod =:= ?MOD_NEW; MbMod =:= ?MOD_USE ->
   FlatMbDefs =
     case Info of
       {MbName, []} ->
@@ -411,6 +423,20 @@ make_type_defs(Types, MbDefs) when is_list(Types), is_map(MbDefs) ->
     end,
   lists:foldl(Fun, #{}, Types).
 
+make_opaque_funs_spec(Specs, OpaqueFuns)
+  when is_map(Specs), is_map(OpaqueFuns) ->
+  Fun =
+    fun({FunName, ArgTypes}, RetType, Ctx) ->
+      FunRef = {FunName, length(ArgTypes)},
+
+      ArgTypes0 = [erl_syntax:type_application(erl_syntax:atom(ArgType), []) || ArgType <- ArgTypes],
+      RetType0 = erl_syntax:type_application(erl_syntax:atom(RetType), []),
+      Spec = erl_syntax:function_type(ArgTypes0, RetType0),
+      Ctx#{FunRef => {spec, erl_anno:new(0), erl_syntax:revert(Spec)}}
+    end,
+
+%%  Ctx#{FunRef => {spec, Anno, Type}}
+  maps:fold(Fun, Specs, OpaqueFuns).
 
 %%% ----------------------------------------------------------------------------
 %%% Type consistency checks.
@@ -535,10 +561,10 @@ a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
 -spec check_mb_new(mb_defs()) -> paterl_lib:analysis().
 check_mb_new(MbDefs) when is_map(MbDefs) ->
   Fun =
-    fun(_, {?M_NEW, _}, Analysis) ->
+    fun(_, {?MOD_NEW, _}, Analysis) ->
       % Mailbox interface definition utilized with new.
       Analysis;
-      (MbName, {?M_USE, Anno}, Analysis) ->
+      (MbName, {?MOD_USE, Anno}, Analysis) ->
         % Mailbox interface definition not utilized with new.
         ?ERROR("Mailbox interface definiton '~s' uninitialized with '-new'.", [
           MbName
@@ -627,7 +653,7 @@ A mailbox interface type definition consists of a set of messages, namely the:
 1. empty set, expressed by the built-in [`pid()`](`t:pid/0`) type
 2. singleton set, expressed by an inline message type
 3. non-trivial set, expressed as a type union
-4. another messsage set, expressed as another type abiding by 1, 2, and 3.
+4. a message set alias, expressed as another type abiding by 1, 2, and 3.
 
 A message type `{msg, Payload}` is a tuple with an atomic tag and list of
 payload types. `Payload` types can themselves be:
@@ -659,26 +685,26 @@ check_msg_type_set(Type = {type, _, tuple, _}, TypeDefs, Analysis) ->
   % Tuple type. Check message type validity. Denotes the singleton message set.
   ?TRACE("Check inline message type '~s'.", [erl_prettypr:format(Type)]),
   check_msg_type(Type, TypeDefs, Analysis);
-check_msg_type_set(_Type = {user_type, _, Name, _Vars}, TypeDefs, Analysis) ->
+check_msg_type_set(Type = {user_type, _, Name, _Vars}, TypeDefs, Analysis) ->
   % User-defined type. Check message type validity. Denotes another message type
   % which is itself a message set.
-  ?TRACE("Check user-defined type '~s'.", [erl_prettypr:format(_Type)]),
+  ?TRACE("Check user-defined type '~s'.", [erl_prettypr:format(Type)]),
 
   case maps:get(Name, TypeDefs, undefined) of
     {?T_TYPE, _, Type0, _} ->
       % Possibly valid message type.
       check_msg_type_set(Type0, TypeDefs, Analysis);
-    {?T_MBOX, _, Type0, _} ->
+    {?T_MBOX, _, _, _} ->
       % Invalid mailbox interface type used as a message type.
       ?ERROR("Mailbox interface type '~s' is a bad message type.", [
-        erl_prettypr:format(_Type)
+        erl_prettypr:format(Type)
       ]),
-      ?pushError(?E_BAD__MSG_TYPE, _Type, Analysis);
+      ?pushError(?E_BAD__MSG_TYPE, Type, Analysis);
     undefined ->
       % Undefined type. Ruled out be the Erlang preprocessor. This case arises
       % only when erl_lint is not used in prior passes.
-      ?ERROR("Undefined type '~s'.", [erl_prettypr:format(_Type)]),
-      ?pushError(?E_UNDEF__TYPE, _Type, Analysis)
+      ?ERROR("Undefined type '~s'.", [erl_prettypr:format(Type)]),
+      ?pushError(?E_UNDEF__TYPE, Type, Analysis)
   end;
 check_msg_type_set(_Type = {type, _, union, MsgTypes}, TypeDefs, Analysis) ->
   % User-defined type union. Check message set validity. This case is handled
@@ -883,7 +909,38 @@ format_error({?E_UNDEF__TYPE, Node}) ->
 %%  when is_atom(Name), is_integer(Arity) ->
 %%  revert(set_pos(implicit_fun(atom(Name), integer(Arity)), ANNO)).
 
+-spec type_def(Name, TypeInfo) -> Type | undefined_type
+  when
+  Name :: paterl_syntax:name(),
+  TypeInfo :: type_info(),
+  Type :: {type | mbox, paterl_syntax:anno(), Type :: paterl_syntax:type(), Vars :: []}.
+type_def(Name, #type_info{type_defs = TypeDefs}) when is_atom(Name) ->
+  case maps:find(Name, TypeDefs) of
+    {ok, Type} -> Type;
+    error -> undefined_type
+  end.
 
+-spec spec_def(FunRef, TypeInfo) -> Spec | undefined_spec
+  when
+  FunRef :: paterl_syntax:fun_ref(),
+  TypeInfo :: type_info(),
+  Spec :: {spec, paterl_syntax:anno(), FunTypes :: [paterl_syntax:type()]}.
+spec_def(FunRef = {_, _}, #type_info{spec_defs = SpecDefs}) ->
+  case maps:find(FunRef, SpecDefs) of
+    {ok, Spec} -> Spec;
+    error -> undefined_spec
+  end.
+
+-spec mb_fun(FunRef, TypeInfo) -> Mb | undefined_mb
+  when
+  FunRef :: paterl_syntax:fun_ref(),
+  TypeInfo :: type_info(),
+  Mb :: {modality(), paterl_syntax:anno(), paterl_syntax:name()}.
+mb_fun(FunRef = {_, _}, #type_info{mb_funs = MbFuns}) ->
+  case maps:find(FunRef, MbFuns) of
+    {ok, Mb} -> Mb;
+    error -> undefined_mb
+  end.
 
 
 

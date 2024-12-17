@@ -132,10 +132,10 @@ pong_exit() ->
 %% @doc Launcher.
 -spec main() -> any().
 main() ->
-  ?mb_new(pong_mb),
+%%  ?mb_new(pong_mb),
   Pong = spawn(?MODULE, pong, []),
 
-  ?mb_new(ping_mb),
+%%  ?mb_new(ping_mb),
   Ping = spawn(?MODULE, ping, [Pong, 5]),
 
   Ping ! {start}.

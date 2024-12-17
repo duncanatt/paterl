@@ -120,7 +120,7 @@ farm(Count, Chunks, Pool) ->
     ok;
     true ->
       Task = Count + 1,
-      ?mb_new(worker_mb),
+%%      ?mb_new(worker_mb),
       Worker = spawn(?MODULE, worker, []),
       Worker ! {work, Pool, Task},
 
@@ -183,10 +183,10 @@ client(N, Master) ->
 %% @doc Launcher.
 -spec main() -> any().
 main() ->
-  ?mb_new(master_mb),
+%%  ?mb_new(master_mb),
   MasterMb = spawn(?MODULE, master, []),
 
-  ?mb_new(client_mb),
+%%  ?mb_new(client_mb),
   spawn(?MODULE, client, [5, MasterMb]),
   ok.
 

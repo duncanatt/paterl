@@ -174,13 +174,13 @@ arbiter() ->
 -spec main() -> no_return().
 main() ->
 
-  ?mb_new(alice_mb),
+%%  ?mb_new(alice_mb),
   ArbiterMB = self(),
 
-  ?mb_new(alice_mb),
+%%  ?mb_new(alice_mb),
   spawn(?MODULE, alice, [ArbiterMB]),
 
-  ?mb_new(carol_mb),
+%%  ?mb_new(carol_mb),
   spawn(?MODULE, carol, [ArbiterMB]),
 
   arbiter().

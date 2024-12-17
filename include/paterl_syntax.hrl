@@ -10,6 +10,43 @@
 
 
 %%% ----------------------------------------------------------------------------
+%%% General mailbox annotation macros.
+%%% ----------------------------------------------------------------------------
+
+%% "New" mailbox annotation used in ?new(MbName) macro.
+-define(ANNO_NEW, '@new').
+
+%% "Use" mailbox annotation used in ?use(MbName) macro.
+-define(ANNO_USE, '@use').
+
+%% "As" mailbox attribute used in ?as(MbName) macro.
+-define(ANNO_AS, '@as').
+
+%% "Has" mailbox annotation used in ?has(MbName, Pattern) macro.
+-define(ANNO_EXPECTS, '@expects').
+
+%% New mailbox modality.
+-define(MOD_NEW, new).
+
+%% Use mailbox modality.
+-define(MOD_USE, use).
+
+
+%%% ----------------------------------------------------------------------------
+%%% Data type macros.
+%%% ----------------------------------------------------------------------------
+
+%% Erlang data type type.
+-define(T_TYPE, type).
+
+%% Erlang type spec type.
+-define(T_SPEC, spec).
+
+%% Paterl mailbox type.
+-define(T_MBOX, mbox).
+
+
+%%% ----------------------------------------------------------------------------
 %%% General guard macros.
 %%% ----------------------------------------------------------------------------
 

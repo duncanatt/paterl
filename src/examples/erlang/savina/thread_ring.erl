@@ -137,7 +137,7 @@ init_ring(NumActors, Main) ->
     ok;
     true ->
       % Create first mailbox and spawn corresponding actor.
-      ?mb_new(actor_mb),
+%%      ?mb_new(actor_mb),
       FirstActor = spawn(?MODULE, actor, [NumActors]),
 
       % Create list of actors and close loop.
@@ -152,7 +152,7 @@ init_ring(NumActors, Main) ->
 %% by sending the address of its mailbox to the previous actor.
 -spec create_actors(integer(), integer(), actor_mb()) -> actor_mb().
 create_actors(Count, NumActors, PrevActor) ->
-  ?mb_new(actor_mb),
+%%  ?mb_new(actor_mb),
   Actor = spawn(?MODULE, actor, [NumActors]),
 
   %% Link current actor to previous one.
@@ -172,7 +172,7 @@ main() ->
   NumActors = 5,
   NumRounds = 5,
 
-  ?mb_new(actor_mb),
+%%  ?mb_new(actor_mb),
   Self = self(),
   init_ring(NumActors, Self),
 

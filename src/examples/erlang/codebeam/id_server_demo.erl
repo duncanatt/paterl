@@ -42,6 +42,7 @@
 %% Main.
 -type main_mb() :: pid().
 
+
 %%% Interface-function associations.
 
 %% ID server and client.
@@ -90,7 +91,7 @@ id_client(Server) ->
 %% @doc Launcher.
 -spec main() -> any().
 main() ->
-  ?mb_new(id_server_mb),
+%%  ?mb_new(id_server_mb),
   Server = spawn(?MODULE, id_server, []),
   Server ! {init, 5},
 %%  Server ! {init, 5}, % Uncomment for "extra Init request".

@@ -853,12 +853,11 @@ use_non_new_mb() -> {
       fun() ->
         % Unsuccessful result with no warnings.
         ?assertMatch({error, [{_, [_]}], []}, Result),
-        {error, X = [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Invalid use of non-new mailbox interface.
         ?assertMatch({_, _, {e_no__mb_new, {atom, _, mb}}}, Error),
-        ?debugMsg(paterl_types:format_error(Code)),
-        paterl_errors:show_errors(X)
+        ?debugMsg(paterl_types:format_error(Code))
       end}
   end}.
 
@@ -906,8 +905,6 @@ error_isolate() -> {
   fun(_, Result) ->
     {"Tests error isolation between mailbox interface type definition checking",
       fun() ->
-        ?TRACE("Result = ~p", [Result]),
-
         % Unsuccessful result with two warnings.
         ?assertMatch({error, [{_, [_, _]}], [{_, [_, _]}]}, Result),
         {error,
@@ -929,6 +926,18 @@ error_isolate() -> {
       end}
   end}.
 
+% TODO: Add test to ensure that only function specs of the correct primitive types are accepted, eg. no binary, no term, etc.
+
+% TODO: This succeed the newness test but should fail. Correct it and add a test for it.
+%%"""
+%%  -module(test).
+%%  -new({mb, []}).
+%%  -use({mb, [f/0]}).
+%%  -type mb() :: pid().
+%%  -spec f() -> ok.
+%%  f() ->
+%%     spawn(test, f, []).
+%%  """
 
 %%% ----------------------------------------------------------------------------
 %%% Helpers.

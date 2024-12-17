@@ -23,12 +23,18 @@ Module description
 """.
 -author("duncan").
 
+%%% Includes.
+-include("log.hrl").
+-include("paterl_syntax.hrl").
+
 %%% Public API.
 -export([erl_forms/1, expand_erl_forms/2]).
+-export([banner_msg/1]).
 
 %%% Public types.
 -export_type([test/0, pair/2]).
--export_type([erl/0, assert_spec/0, erl_spec/0]).
+-export_type([erl/0, mb_anno_spec/0, erl_spec/0]).
+-compile(export_all).
 
 
 %%% ----------------------------------------------------------------------------
@@ -97,10 +103,13 @@ See more on [fixtures](https://www.erlang.org/doc/apps/eunit/chapter#fixtures).
 -doc "Erlang code as text.".
 -type erl() :: string().
 
--type assert_spec() :: {Name :: atom(), Value :: string()}.
+%%-type mb_spec() :: {assert, Pattern :: string(), MbName :: paterl_syntax:name()}
+%%| {new, MbName :: paterl_syntax:name()}
+%%| {use, MbName :: paterl_syntax:name()}.
 
--type erl_spec() :: {erl(), [assert_spec()]}.
+-type mb_anno_spec() :: {Key :: atom(), paterl_syntax:mb_anno()}.
 
+-type erl_spec() :: {erl(), [mb_anno_spec()]}.
 
 
 %%% ----------------------------------------------------------------------------
@@ -112,18 +121,60 @@ erl_forms(Erl) ->
   merl:quote(Erl).
 
 -spec expand_erl_forms(erl(), [erl_spec()]) -> erl_syntax:forms().
-expand_erl_forms(Erl, AssertSpecs) ->
-  Expanded = [{Key, expand_assert(Value)} || {Key, Value} <- AssertSpecs],
-  erl_syntax:revert_forms(merl:qquote(Erl, Expanded)).
+expand_erl_forms(Erl, ErlSpecs) ->
+  % Expand
+  ExpErlSpecs = [{Key, expand(Value)} || {Key, Value} <- ErlSpecs],
+  if length(ExpErlSpecs) =/= length(ErlSpecs) ->
+    error({badarg, ErlSpecs});
+    true -> ok
+  end,
+
+  % Handles the case when Erl contains multiple expressions that need to be
+  % reverted; revert does not work on expression lists but only individual
+  % expressions, which is why these need to be reverted separately.
+  case merl:qquote(Erl, ExpErlSpecs) of
+    Trees when is_list(Trees) ->
+      [erl_syntax:revert(Tree) || Tree <- Trees];
+    Tree ->
+      erl_syntax:revert(Tree)
+  end.
 
 
+banner_msg(Text) ->
+  Tail = [$= || _ <- lists:seq(0, 80 - 4 - length(Text))],
+  [10, 10, $=, $=, $ , Text, $ , Tail, 10, 10].
 
 
 %%% ----------------------------------------------------------------------------
 %%% Helpers.
 %%% ----------------------------------------------------------------------------
 
--spec expand_assert(string()) -> erl_syntax:forms().
-expand_assert(Regex) ->
-  String = merl:quote("\"" ++ Regex ++ "\""),
-  merl:qquote("{state, '@regex'}", [{regex, String}]).
+%%-spec expand_assert(string()) -> erl_syntax:forms().
+%%expand_assert(Regex) ->
+%%  String = merl:quote("\"" ++ Regex ++ "\""),
+%%  merl:qquote("{state, '@regex'}", [{regex, String}]).
+
+
+%%HERE: expand macros for new, use, and assert separately.
+
+
+-spec expand(paterl_syntax:mb_anno()) -> erl_syntax:syntaxTree().
+%%expand({assert, Pattern, MbName}) ->
+%%  erl_syntax:tuple([
+%%    erl_syntax:atom(state), erl_syntax:string(Pattern), erl_syntax:atom(MbName)
+%%  ]);
+expand({assert, Pattern}) ->
+  erl_syntax:tuple([erl_syntax:atom(state), erl_syntax:string(Pattern)]);
+expand({MbMod, MbName}) when MbMod =:= ?MOD_NEW; MbMod =:= ?MOD_USE ->
+  erl_syntax:tuple([erl_syntax:atom(MbMod), erl_syntax:atom(MbName)]);
+expand({Key = ?ANNO_AS, MbName}) when is_atom(MbName) ->
+  erl_syntax:tuple([erl_syntax:atom(Key), erl_syntax:atom(MbName)]);
+expand({Key = ?ANNO_EXPECTS, MbName, Pattern})
+  when is_atom(MbName), is_list(Pattern) ->
+  erl_syntax:tuple([
+    erl_syntax:atom(Key), erl_syntax:atom(MbName), erl_syntax:string(Pattern)
+  ]);
+expand(MbAnno) ->
+  error({badarg, MbAnno}).
+
+

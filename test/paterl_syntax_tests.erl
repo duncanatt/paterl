@@ -26,6 +26,7 @@
 -include("log.hrl").
 -include_lib("paterl_lib.hrl").
 
+
 %%% ----------------------------------------------------------------------------
 %%% Type definitions.
 %%% ----------------------------------------------------------------------------
@@ -292,10 +293,10 @@ set_anno_valid_tree_test_() -> {
   fun() ->
     Tree = erl_syntax:tuple([erl_syntax:atom(atom)]),
     Tree0 = paterl_syntax:set_anno(Tree, erl_anno:new(1)),
-    ANNO = erl_syntax:get_pos(Tree0),
+    Anno = erl_syntax:get_pos(Tree0),
 
     % Valid syntax tree annotation.
-    ?assertMatch(1, erl_anno:location(ANNO))
+    ?assertMatch(1, erl_anno:location(Anno))
   end
 }.
 

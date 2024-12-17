@@ -50,12 +50,12 @@ pushWarning(Code, Node, Analysis),
   paterl_lib:push_warning(?MODULE, {Code, Node}, Analysis)
 ).
 
-%% New mailbox wild attribute.
--define(M_NEW, new).
+%%%% New mailbox wild attribute.
+%%-define(M_NEW, new).
+%%
+%%%% Use mailbox wild attribute.
+%%-define(M_USE, use).
 
-%% Use mailbox wild attribute.
--define(M_USE, use).
-
--define(T_TYPE, type).
--define(T_SPEC, spec).
--define(T_MBOX, mbox).
+%%-define(T_TYPE, type).
+%%-define(T_SPEC, spec).
+%%-define(T_MBOX, mbox).

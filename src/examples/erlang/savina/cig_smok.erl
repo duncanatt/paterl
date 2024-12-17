@@ -77,11 +77,11 @@
 -spec arbiter(integer()) -> no_return().
 arbiter(NumRounds) ->
   Self = self(),
-  ?mb_new(smoker_mb),
+%%  ?mb_new(smoker_mb),
   Smoker1 = spawn(?MODULE, smoker, [Self]),
-  ?mb_new(smoker_mb),
+%%  ?mb_new(smoker_mb),
   Smoker2 = spawn(?MODULE, smoker, [Self]),
-  ?mb_new(smoker_mb),
+%%  ?mb_new(smoker_mb),
   Smoker3 = spawn(?MODULE, smoker, [Self]),
 
   ?mb_assert_regex("Start . *Started_smoking"),
@@ -179,7 +179,7 @@ smoker_exit() ->
 %% @doc Launcher.
 -spec main() -> any().
 main() ->
-  ?mb_new(arbiter_mb),
+%%  ?mb_new(arbiter_mb),
   ArbiterMb = spawn(?MODULE, arbiter, [10]),
   ArbiterMb ! {start}.
 

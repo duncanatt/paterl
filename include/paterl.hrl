@@ -40,7 +40,9 @@
 
 -define(mb_use(Mailbox), {'use', Mailbox}).
 
+-define(as(MbName), {'@as', MbName}).
 
+-define(expects(MbName, Pattern), {'@expects', MbName, Pattern}).
 
 
 %%-define(M_NEW, new).

@@ -83,9 +83,10 @@ bs_fun_def(BsFunName, Interface) ->
     erl_syntax:type_application(erl_syntax:atom(any), [])
   ),
 
-  Anno = erl_syntax:tuple([erl_syntax:atom(new), erl_syntax:atom(Interface)]),
+%%  Anno = erl_syntax:tuple([erl_syntax:atom(new), erl_syntax:atom(Interface)]),
   Call = erl_syntax:application(erl_syntax:atom(main), []),
-  Clause = erl_syntax:clause([], [Anno, Call]),
+%%  Clause = erl_syntax:clause([], [Anno, Call]),
+  Clause = erl_syntax:clause([], [Call]),
 
   erl_syntax:revert(
     erl_syntax:set_pos(

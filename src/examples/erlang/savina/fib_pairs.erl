@@ -57,11 +57,11 @@ fib_actor() ->
         Parent ! {response, 1};
         true ->
           Self = self(),
-          ?mb_new(fib_actor_mb),
+%%          ?mb_new(fib_actor_mb),
           Child1 = spawn(?MODULE, fib_actor, []),
           Child1 ! {request, N - 1, Self},
 
-          ?mb_new(fib_actor_mb),
+%%          ?mb_new(fib_actor_mb),
           Child2 = spawn(?MODULE, fib_actor, []),
           Child2 ! {request, N - 2, Self},
 
@@ -83,7 +83,7 @@ fib_actor() ->
 -spec main() -> any().
 main() ->
   Self = self(),
-  ?mb_new(fib_actor_mb),
+%%  ?mb_new(fib_actor_mb),
   First_actor = spawn(?MODULE, fib_actor, []),
   First_actor ! {request, 16, Self},
 

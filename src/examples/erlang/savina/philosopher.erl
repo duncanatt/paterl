@@ -179,14 +179,14 @@ arbiter_exit() ->
 main() ->
   NumRounds = 5,
 
-  ?mb_new(arbiter_mb),
+%%  ?mb_new(arbiter_mb),
   Arbiter = spawn(?MODULE, arbiter, [2, false, false]),
 
-  ?mb_new(philosopher_mb),
+%%  ?mb_new(philosopher_mb),
   Philosopher1 = spawn(?MODULE, philosopher, [0, NumRounds, Arbiter]),
   Philosopher1 ! {start},
 
-  ?mb_new(philosopher_mb),
+%%  ?mb_new(philosopher_mb),
   Philosopher2 = spawn(?MODULE, philosopher, [1, NumRounds, Arbiter]),
   Philosopher2 ! {start}.
 
