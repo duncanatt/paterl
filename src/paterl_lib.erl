@@ -131,10 +131,10 @@ new_error() ->
   Analysis :: analysis().
 push_error(Mod, {Code, Node}, Analysis = #analysis{errors = Reasons}) ->
   Reason = {erl_syntax:get_pos(Node), Mod, {Code, Node}},
-  Analysis#analysis{errors = [Reason | Reasons], status = error};
-push_error(Mod, {Code, Node}, Analysis = #error{errors = Reasons}) ->
-  Reason = {erl_syntax:get_pos(Node), Mod, {Code, Node}},
-  Analysis#error{errors = [Reason | Reasons]}. % TODO: Remove after the very final refactoring.
+  Analysis#analysis{errors = [Reason | Reasons], status = error}.
+%%push_error(Mod, {Code, Node}, Analysis = #error{errors = Reasons}) ->
+%%  Reason = {erl_syntax:get_pos(Node), Mod, {Code, Node}},
+%%  Analysis#error{errors = [Reason | Reasons]}. % TODO: Remove after the very final refactoring.
 
 
 
