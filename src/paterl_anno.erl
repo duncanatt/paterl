@@ -11,8 +11,7 @@
 -author("duncan").
 
 %%% Includes.
--include_lib("stdlib/include/assert.hrl").
--include_lib("syntax_tools/include/merl.hrl").
+-include_lib("stdlib/include/assert.hrl"). % TODO: Eliminate this.
 -include("log.hrl").
 -include("paterl_lib.hrl").
 -include("paterl_syntax.hrl").
@@ -156,13 +155,16 @@
 -spec module([erl_syntax:syntaxTree()], paterl_types:type_info()) ->
   {ok, erl_syntax:forms()} | errors:error().
 module(Forms, TypeInfo = #type_info{}) when is_list(Forms) ->
-  case annotate_forms(Forms, TypeInfo, #analysis{}) of
+  Analysis = #analysis{file = paterl_syntax:get_file(Forms)},
+  case annotate_forms(Forms, TypeInfo, Analysis) of
     {Forms0, #analysis{status = ok}} ->
       {ok, Forms0};
     {_, #analysis{status = error, errors = Errors}} ->
       #error{errors = lists:reverse(Errors)}
   end.
 
+% Return analysis with possible errors as result.
+%%paterl_lib:return(Analysis).
 
 %%% ----------------------------------------------------------------------------
 %%% Helpers.
