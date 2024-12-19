@@ -155,21 +155,23 @@
 -spec module([erl_syntax:syntaxTree()], paterl_types:type_info()) ->
   {ok, erl_syntax:forms()} | errors:error().
 module(Forms, TypeInfo = #type_info{}) when is_list(Forms) ->
-  Analysis = #analysis{file = paterl_syntax:get_file(Forms)},
+%%  Analysis = #analysis{file = paterl_syntax:get_file(Forms)},
 %%  case annotate_forms(Forms, TypeInfo, Analysis) of
 %%    {Forms0, #analysis{status = ok}} ->
 %%      {ok, Forms0};
 %%    {_, #analysis{status = error, errors = Errors}} ->
 %%      #error{errors = lists:reverse(Errors)}
 %%  end.
-  case annotate_forms(Forms, TypeInfo, Analysis) of
-    X = #analysis{status = ok, result = Forms0} ->
-      ?INFO("Module OK analysis = ~p", [X]),
-      {ok, Forms0};
-    X = #analysis{status = error, errors = Errors} ->
-      ?INFO("Module ERROR analysis = ~p", [X]),
-      #error{errors = lists:reverse(Errors)}
-  end.
+%%  case annotate_forms(Forms, TypeInfo, Analysis) of
+%%    X = #analysis{status = ok, result = Forms0} ->
+%%      ?INFO("Module OK analysis = ~p", [X]),
+%%      {ok, Forms0};
+%%    X = #analysis{status = error, errors = Errors} ->
+%%      ?INFO("Module ERROR analysis = ~p", [X]),
+%%      #error{errors = lists:reverse(Errors)}
+%%  end.
+  Analysis = annotate_forms(Forms, TypeInfo, #analysis{}),
+  paterl_lib:return(Analysis#analysis{file = paterl_syntax:get_file(Forms)}).
 
 % Return analysis with possible errors as result.
 %%paterl_lib:return(Analysis).

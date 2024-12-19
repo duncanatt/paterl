@@ -69,8 +69,8 @@ no_mb() -> {
     {"Test no mailbox interface definitions",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % No mailbox interface definitions.
         ?assertMatch([
@@ -94,8 +94,8 @@ mb_pid_type() -> {
     {"Test mailbox interface type with Pid (an empty message set)",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Mailbox interface type with Pid (an empty message set).
         ?assertMatch([
@@ -121,8 +121,8 @@ mb_inline_empty_msg_type() -> {
     {"Test mailbox interface type with empty inline message (a singleton message set)",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Mailbox interface type with empty inline message (a singleton message
         % set).
@@ -150,8 +150,8 @@ mb_inline_primitive_msg_type() -> {
     {"Test mailbox interface type with inline message with built-in primitive type (a singleton message set)",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Mailbox interface type with inline message with built-in primitive
         % type (a singleton message set)
@@ -180,8 +180,8 @@ mb_inline_mb_msg_type() -> {
     {"Test mailbox interface type with inline message with mailbox interface type (a singleton message set)",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Mailbox interface type with inline message with mailbox interface
         % type (a singleton message set).
@@ -209,8 +209,8 @@ mb_type_union() -> {
     {"Test mailbox interface type with type union (a non-trivial set)",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Mailbox interface type with type union (a non-trivial set).
         ?assertMatch([
@@ -240,8 +240,8 @@ mb_msg_type() -> {
     {"Test mailbox interface type with message type (a message set alias)",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Mailbox interface type with message type (a message set alias).
         % Message set alias is expanded in place.
@@ -268,8 +268,8 @@ mb_msg_all_type() -> {
     {"Test mailbox interface type with all message types",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Mailbox interface type with all message types.
         % Message set alias is expanded in place.
@@ -320,8 +320,8 @@ fun_no_guard_no_mb_scope() -> {
     {"Test unguarded function outside mailbox interface scope",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unguarded function outside mailbox interface scope.
         ?assertMatch([
@@ -349,8 +349,8 @@ fun_guard_no_mb_scope() -> {
     {"Test guarded function outside mailbox interface scope",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Guarded function outside mailbox interface scope.
         ?assertMatch({_, _,
@@ -379,8 +379,8 @@ fun_no_guard_in_mb_scope() -> {
     {"Test unguarded function inside mailbox interface scope",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unguarded function inside mailbox interface scope.
         ?assertMatch([
@@ -414,8 +414,8 @@ fun_guard_in_mb_scope() -> {
     {"Test guarded function inside mailbox interface scope",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Guarded function inside mailbox interface scope.
         ?assertMatch({_, _,
@@ -441,8 +441,8 @@ fun_no_guard_params_no_mb_scope() -> {
     {"Test unguarded function with parameters outside mailbox interface scope",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unguarded function with parameters outside mailbox interface scope.
         ?assertMatch([
@@ -473,8 +473,8 @@ fun_guard_params_no_mb_scope() -> {
     {"Test guarded function with parameters outside mailbox interface scope",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Guarded function with parameters outside mailbox interface scope.
         ?assertMatch({_, _,
@@ -505,8 +505,8 @@ fun_no_guard_params_in_mb_scope() -> {
     {"Test unguarded function with parameters inside mailbox interface scope",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unguarded function with parameters inside mailbox interface scope.
         ?assertMatch([
@@ -542,8 +542,8 @@ fun_guard_params_in_mb_scope() -> {
     {"Test guarded function with parameters inside mailbox interface scope.",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Guarded function with parameters inside mailbox interface scope.
         ?assertMatch({_, _,
@@ -588,8 +588,8 @@ mb_anno_end_expr_seq() -> {{
     {"Test mailbox annotation at end of expression list",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Mailbox annotation at end of expression list.
         ?assertMatch(
@@ -622,8 +622,8 @@ mb_anno_succ_expr_seq() -> {{
     {"Test successive mailbox annotations in expression list",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Successive mailbox annotations in expression list.
         ?assertMatch(
@@ -676,8 +676,8 @@ spawn_undef_static_fun_in_mb_scope() -> {{
     {"Test unannotated spawn call with undefined static function inside mailbox interface scope",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Unannotated spawn call with undefined static function inside mailbox
         % scope.
@@ -709,8 +709,8 @@ spawn_static_fun_undef_mb_in_mb_scope() -> {{
     {"Test unannotated spawn call with defined static function and undefined mailbox interface inside mailbox interface scope",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Unannotated spawn call with defined static function and undefined
         % mailbox interface inside mailbox interface scope.
@@ -742,8 +742,8 @@ spawn_static_fun_in_mb_scope() -> {{
     {"Test unannotated spawn call with defined static function and defined mailbox interface inside mailbox interface scope",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated spawn call with defined static function and defined
         % mailbox interface inside mailbox interface scope.
@@ -793,8 +793,8 @@ spawn_static_fun_override_in_mb_scope() -> {{
     {"Test unannotated spawn call with defined static function and defined mailbox interface override inside mailbox interface scope",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated spawn call with defined static function and defined
         % mailbox interface override inside mailbox interface scope.
@@ -838,8 +838,8 @@ spawn_undef_static_fun_no_mb_scope() -> {{
     {"Test unannotated spawn call with undefined static function outside mailbox interface scope",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Unannotated spawn call with undefined static function outside mailbox
         % scope.
@@ -869,8 +869,8 @@ spawn_static_fun_undef_mb_no_mb_scope() -> {{
     {"Test unannotated spawn call with defined static function and undefined mailbox interface outside mailbox interface scope",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Unannotated spawn call with defined static function and undefined
         % mailbox interface outside mailbox interface scope.
@@ -902,8 +902,8 @@ spawn_static_fun_no_mb_scope() -> {{
     {"Test unannotated spawn call with defined static function and defined mailbox interface outside mailbox interface scope",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated spawn call with defined static function and defined
         % mailbox interface outside mailbox interface scope.
@@ -945,8 +945,8 @@ anno_spawn() -> {{
     {"Test annotated spawn call",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Annotated spawn call.
         ?assertMatch(
@@ -973,8 +973,8 @@ spawn_dynamic_fun() -> {{
     {"Test spawn call with dynamic function",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Spawn call with dynamic function.
         ?assertMatch({_, _, {e_bad__expr, {var, _, 'F'}}}, Error),
@@ -1015,8 +1015,8 @@ self_no_mb_scope() -> {{
     {"Test unannotated self call outside mailbox interface scope",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Unannotated self call outside mailbox interface scope.
         ?assertMatch({_, _,
@@ -1042,8 +1042,8 @@ anno_self_no_mb_scope() -> {{
     {"Test annotated self call outside mailbox interface scope",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Annotated self call outside mailbox interface scope.
         ?assertMatch(
@@ -1071,8 +1071,8 @@ self_in_mb_scope() -> {{
     {"Test unannotated self call inside mailbox interface scope",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated self call inside mailbox interface scope.
         ?assertMatch([
@@ -1110,8 +1110,8 @@ anno_self_in_mb_scope() -> {{
     {"Test annotated self call with defined mailbox interface inside mailbox interface scope",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Annotated self call with defined mailbox interface inside mailbox
         % scope.
@@ -1153,8 +1153,8 @@ anno_self_undef_mb_in_mb_scope() -> {{
     {"Test annotated self call with undefined mailbox interface inside mailbox interface scope",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Annotated self call with undefined mailbox interface inside mailbox
         % interface scope.
@@ -1181,8 +1181,8 @@ bad_anno_self() -> {{
     {"Test annotated self call with wrong annotation",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Annotated self call with wrong annotation.
         ?assertMatch({_, _,
@@ -1239,8 +1239,8 @@ fun_in_mb_scope_to_static_fun_new_in_mb_scope() -> {{
     {"Test unannotated function call inside mailbox interface scope to defined static function with -new modality inside mailbox interface scope",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated function call inside mailbox interface scope to defined
         % static function with -new modality inside mailbox interface scope.
@@ -1292,8 +1292,8 @@ fun_in_mb_scope_to_static_fun_use_in_mb_scope() -> {{
     {"Test unannotated function call inside mailbox interface scope to defined static function with -use modality inside mailbox interface scope",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated function call inside mailbox interface scope to defined
         % static function with -use modality inside mailbox interface scope.
@@ -1343,8 +1343,8 @@ fun_in_mb_scope_to_static_fun_no_mb_scope() -> {{
     {"Test unannotated function call inside mailbox interface scope to defined static function outside mailbox interface scope",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated function call inside mailbox interface scope to defined
         % static function outside mailbox interface scope.
@@ -1387,8 +1387,8 @@ fun_in_mb_scope_to_undef_static_fun() -> {{
     {"Test unannotated function call inside mailbox interface scope to undefined static function",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Unannotated function call inside mailbox interface scope to undefined
         % static function.
@@ -1417,8 +1417,8 @@ fun_in_mb_scope_to_static_direct_rec_fun_in_mb_scope() -> {{
     {"Test unannotated function call inside mailbox interface scope to defined static direct recursive function inside defined mailbox interface scope",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated function call inside mailbox interface scope to defined
         % static direct recursive function inside defined mailbox interface
@@ -1485,8 +1485,8 @@ fun_no_mb_scope_to_static_fun_in_mb_scope() -> {{
     {"Test unannotated function call outside mailbox interface scope to defined static function inside mailbox interface scope",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated function call outside mailbox interface scope to defined
         % static function inside mailbox interface scope.
@@ -1532,8 +1532,8 @@ fun_no_mb_scope_to_static_fun_no_mb_scope() -> {{
     {"Test unannotated function call outside mailbox interface scope to defined static function outside mailbox interface scope",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated function call outside mailbox interface scope to defined
         % static function outside mailbox interface scope.
@@ -1571,8 +1571,8 @@ fun_no_mb_scope_undef_static_fun() -> {{
     {"Name",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Unannotated function call outside mailbox interface scope to undefined
         % static function.
@@ -1599,8 +1599,8 @@ fun_no_mb_scope_static_direct_rec_fun_no_mb_scope() -> {{
     {"Test unannotated function call outside mailbox interface scope to defined static direct recursive function outside mailbox interface scope",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated function call outside mailbox interface scope to defined
         % static direct recursive function outside mailbox interface scope.
@@ -1635,8 +1635,8 @@ fun_no_mb_scope_static_mutual_rec_fun_no_mb_scope() -> {{
     {"Test unannotated function call outside mailbox interface scope to defined static mutual recursive function outside mailbox interface scope",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated function call outside mailbox interface scope to defined
         % static mutual recursive function outside mailbox interface scope.
@@ -1673,8 +1673,8 @@ fun_dynamic_fun() -> {{
     {"Test dynamic function call",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Dynamic function call.
         ?assertMatch({_, _,
@@ -1699,8 +1699,8 @@ anno_fun_static_fun() -> {{
     {"Test annotated static function call",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Annotated static function call.
         ?assertMatch({_, _,
@@ -1747,8 +1747,8 @@ receive_no_mb_scope() -> {{
     {"Test unannotated receive call outside mailbox interface scope",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Unannotated receive call outside mailbox interface scope.
         ?assertMatch({_, _,
@@ -1773,8 +1773,8 @@ anno_receive_no_mb_scope() -> {{
     {"Test annotated receive call outside mailbox interface scope",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Annotated receive call outside mailbox interface scope.
         ?assertMatch({_, paterl_anno,
@@ -1801,8 +1801,8 @@ receive_in_mb_scope() -> {{
     {"Test unannotated receive call inside mailbox interface scope",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Unannotated receive call inside mailbox interface scope.
         ?assertMatch({_, paterl_anno,
@@ -1831,8 +1831,8 @@ anno_receive_in_mb_scope() -> {{
     {"Test annotated receive call with defined mailbox interface inside mailbox interface scope",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Annotated receive call with defined mailbox interface inside mailbox
         % interface scope.
@@ -1877,8 +1877,8 @@ anno_receive_undef_mb_in_mb_scope() -> {{
     {"Test annotated receive call with undefined mailbox interface inside mailbox scope",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Annotated receive call with undefined mailbox interface inside mailbox
         % scope.
@@ -1906,8 +1906,8 @@ bad_anno_receive() -> {{
     {"Test annotated receive with wrong annotation",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Annotated receive with wrong annotation.
         ?assertMatch({_, _,
@@ -1933,10 +1933,10 @@ expr_receive_no_mb_scope() -> {{
     {"Test inner expression error in unannotated receive call outside mailbox interface scope",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_, _], []}, Result),
-        {error, [
+        ?assertMatch({error, [{_, [_, _]}], []}, Result),
+        {error, [{_, [
           Error0 = {_, _, Code0}, Error1 = {_, _, Code1}
-        ], _Warnings = []} = Result,
+        ]}], _Warnings = []} = Result,
 
         % Inner expression error in unannotated receive call outside mailbox
         % interface scope.
@@ -1966,10 +1966,10 @@ expr_anno_receive_no_mb_scope() -> {{
     {"Test inner expression error in annotated receive call outside mailbox interface scope",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_, _], []}, Result),
-        {error, [
+        ?assertMatch({error, [{_, [_, _]}], []}, Result),
+        {error, [{_, [
           Error0 = {_, _, Code0}, Error1 = {_, _, Code1}
-        ], _Warnings = []} = Result,
+        ]}], _Warnings = []} = Result,
 
         % Inner expression error in annotated receive call outside mailbox
         % interface scope.
@@ -2001,10 +2001,10 @@ expr_receive_in_mb_scope() -> {{
     {"Test inner expression error in unannotated receive call inside mailbox interface scope",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_, _], []}, Result),
-        {error, [
+        ?assertMatch({error, [{_, [_, _]}], []}, Result),
+        {error, [{_, [
           Error0 = {_, _, Code0}, Error1 = {_, _, Code1}
-        ], _Warnings = []} = Result,
+        ]}], _Warnings = []} = Result,
 
         % Inner expression error in unannotated receive call inside mailbox
         % interface scope.
@@ -2038,8 +2038,8 @@ expr_anno_receive_in_mb_scope() -> {{
     {"Test inner expression error in annotated receive call with defined mailbox interface inside mailbox interface scope.",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Inner expression error in annotated receive call with defined mailbox
         % interface inside mailbox interface scope.
@@ -2067,10 +2067,10 @@ expr_anno_receive_undef_mb_in_mb_scope() -> {{
     {"Test inner expression error in annotated receive call with undefined mailbox interface inside mailbox scope",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_, _], []}, Result),
-        {error, [
+        ?assertMatch({error, [{_, [_, _]}], []}, Result),
+        {error, [{_, [
           Error0 = {_, _, Code0}, Error1 = {_, _, Code1}
-        ], _Warnings = []} = Result,
+        ]}], _Warnings = []} = Result,
 
         % Inner expression error in annotated receive call with undefined
         % mailbox interface inside mailbox scope.
@@ -2101,10 +2101,10 @@ expr_bad_anno_receive() -> {{
     {"Test inner expression error in annotated receive with wrong annotation",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_, _], []}, Result),
-        {error, [
+        ?assertMatch({error, [{_, [_, _]}], []}, Result),
+        {error, [{_, [
           Error0 = {_, _, Code0}, Error1 = {_, _, Code1}
-        ], _Warnings = []} = Result,
+        ]}], _Warnings = []} = Result,
 
         % Inner expression error in annotated receive with wrong annotation.
         ?assertMatch({_, _,
@@ -2145,8 +2145,8 @@ Tests unannotated `if`.
     {"Test unannotated if",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated if.
         ?assertMatch([
@@ -2184,8 +2184,8 @@ anno_if() -> {{
     {"Test annotated if",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Annotated if.
         ?assertMatch({_, _, {e_bad__anno_on, {'if', _, []}}}, Error),
@@ -2242,8 +2242,8 @@ match_pat_no_var() -> {{
       fun() ->
 
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Match pattern with non-variable.
         ?assertMatch({_, _,
@@ -2270,8 +2270,8 @@ match_spawn() -> {{
     {"Test unannotated match on spawn call",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated match on spawn call.
         ?assertMatch([
@@ -2311,8 +2311,8 @@ anno_match_spawn() -> {{
     {"Test annotated match on spawn call",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Annotated match on spawn call.
         ?assertMatch({_, _,
@@ -2339,8 +2339,8 @@ match_self() -> {{
     {"Test unannotated match on self call",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated match on self call.
         ?assertMatch([
@@ -2380,8 +2380,8 @@ anno_match_self() -> {{
     {"Test annotated match on self call",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Annotated match on self call.
         ?assertMatch([
@@ -2421,8 +2421,8 @@ bad_anno_match_self() -> {{
     {"Test annotated match on self call with wrong annotation",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Annotated match on self call with wrong annotation.
         ?assertMatch({_, _,
@@ -2449,8 +2449,8 @@ match_fun() -> {{
     {"Test unannotated match on function call",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated match on function call.
         ?assertMatch([
@@ -2492,8 +2492,8 @@ anno_match_fun() -> {{
     {"Test annotated match on function call",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Annotated match on function call.
         ?assertMatch({_, _,
@@ -2520,8 +2520,8 @@ match_receive() -> {{
     {"Test unannotated match on receive",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Unannotated match on receive.
         ?assertMatch({_, _,
@@ -2549,8 +2549,8 @@ anno_match_receive() -> {{
     {"Test annotated match on receive",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Annotated match on receive.
         ?assertMatch([
@@ -2595,8 +2595,8 @@ bad_anno_match_receive() -> {{
     {"Test annotated match on receive with wrong annotation",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Annotated match on receive with wrong annotation.
         ?assertMatch({_, _,
@@ -2623,8 +2623,8 @@ match_if() -> {{
     {"Test unannotated match on if",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated match on if.
         ?assertMatch([
@@ -2665,8 +2665,8 @@ anno_match_if() -> {{
     {"Test annotated match on if",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Annotated match on if.
         ?assertMatch({_, _, {e_bad__anno_on, {'if', _, []}}}, Error),
@@ -2692,8 +2692,8 @@ match_var() -> {{
     {"Test unannotated match on variable",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated match on variable.
         ?assertMatch([
@@ -2731,8 +2731,8 @@ anno_match_var() -> {{
     {"Test annotated match on variable",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Annotated match on variable.
         ?assertMatch({_, _, {e_bad__anno_on, {var, _, 'Y'}}}, Error),
@@ -2758,8 +2758,8 @@ match_bin_op() -> {{
     {"Test unannotated match on binary operator",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated match on binary operator.
         ?assertMatch([
@@ -2798,8 +2798,8 @@ anno_match_bin_op() -> {{
     {"Test annotated match on binary operator",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Annotated match on binary operator.
         ?assertMatch({_, _,
@@ -2827,8 +2827,8 @@ match_lit() -> {{
     {"Test unannotated match on literal",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated match on literal.
         ?assertMatch([
@@ -2863,8 +2863,8 @@ anno_match_lit() -> {{
     {"Test annotated match on literal",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Annotated match on literal.
         ?assertMatch({_, _, {e_bad__anno_on, {integer, _, 1}}}, Error),
@@ -2907,8 +2907,8 @@ bin_op() -> {{
     {"Test unannotated binary operator",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated binary operator.
         ?assertMatch([
@@ -2946,8 +2946,8 @@ anno_bin_op() -> {{
     {"Test annotated binary operator",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Annotated binary operator.
         ?assertMatch({_, _,
@@ -2975,8 +2975,8 @@ var() -> {{
     {"Test unannotated variable",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated variable.
         ?assertMatch([
@@ -3014,8 +3014,8 @@ anno_var() -> {{
     {"Test annotated variable",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Annotated variable.
         ?assertMatch({_, _, {e_bad__anno_on, {var, _, 'X'}}}, Error),
@@ -3041,8 +3041,8 @@ lit() -> {{
     {"Test unannotated literal",
       fun() ->
         % Successful result with no warnings.
-        ?assertMatch({ok, _}, Result),
-        {ok, Forms} = Result,
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
 
         % Unannotated literal.
         ?assertMatch([
@@ -3077,10 +3077,9 @@ anno_lit() -> {{
   fun(_, Result) ->
     {"Test annotated literal",
       fun() ->
-        ?TRACE("Result = ~p", [Result]),
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [_], []}, Result),
-        {error, [Error = {_, _, Code}], _Warnings = []} = Result,
+        ?assertMatch({error, [{_, [_]}], []}, Result),
+        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
 
         % Annotated literal.
         ?assertMatch({_, _, {e_bad__anno_on, {float, 5, 1.5}}}, Error),
