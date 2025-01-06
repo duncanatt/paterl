@@ -211,7 +211,7 @@ anno_forms(File, Forms, TInfo) ->
   % Annotate Erlang forms.
   io:fwrite(color:green("[ANNOTATE] Annotate Erlang forms.~n")),
   case paterl_anno:module(Forms, TInfo) of
-    {ok, Annotated} ->
+    {ok, Annotated, _} ->
       io:format("~n~n~nOriginal forms:~n~p~n", [Forms]),
       io:format("~n~n~nAnnotated forms:~n~p~n", [Annotated]),
 

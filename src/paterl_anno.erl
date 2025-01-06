@@ -88,29 +88,13 @@
 %%% Error types.
 
 %% Expected mailbox-annotated expression.
--define(E_EXPECTED_EXPR, e_expected_expr).
-
-%% Unexpected mailbox annotation.
--define(E_BAD__ANNO, e_bad__anno).
+-define(E_EXP__EXPR, e_exp__expr).
 
 %% Expected mailbox annotation.
 -define(E_EXP__ANNO, e_exp__anno).
 
 %% Unexpected mailbox annotation before expression.
 -define(E_BAD__ANNO_ON, e_bad__anno_on).
-
-%% Inferred mailbox annotation mismatch.
--define(E_MISMATCH_ANNO, e_mismatch_anno).
-
-%% Expected spawn mailbox annotation.
--define(E_SPAWN_ANNO, e_spawn_anno).
-
-%% Expected receive mailbox annotation.
--define(E_RECEIVE_ANNO, e_receive_anno).
-
-%% Receive expression lives in an undefined (i.e. outside a) mailbox scope.
-%% May have to be moved to a prior pass, such as the paterl_types pass.
--define(E_RECEIVE_MB_SCOPE_UNDEF, e_receive_mb_scope_undef).
 
 %% Unsupported expression.
 -define(E_BAD__EXPR, e_bad__expr).
@@ -155,26 +139,10 @@
 -spec module([erl_syntax:syntaxTree()], paterl_types:type_info()) ->
   {ok, erl_syntax:forms()} | errors:error().
 module(Forms, TypeInfo = #type_info{}) when is_list(Forms) ->
-%%  Analysis = #analysis{file = paterl_syntax:get_file(Forms)},
-%%  case annotate_forms(Forms, TypeInfo, Analysis) of
-%%    {Forms0, #analysis{status = ok}} ->
-%%      {ok, Forms0};
-%%    {_, #analysis{status = error, errors = Errors}} ->
-%%      #error{errors = lists:reverse(Errors)}
-%%  end.
-%%  case annotate_forms(Forms, TypeInfo, Analysis) of
-%%    X = #analysis{status = ok, result = Forms0} ->
-%%      ?INFO("Module OK analysis = ~p", [X]),
-%%      {ok, Forms0};
-%%    X = #analysis{status = error, errors = Errors} ->
-%%      ?INFO("Module ERROR analysis = ~p", [X]),
-%%      #error{errors = lists:reverse(Errors)}
-%%  end.
+  % Return annotated Erlang AST with as result.
   Analysis = annotate_forms(Forms, TypeInfo, #analysis{}),
   paterl_lib:return(Analysis#analysis{file = paterl_syntax:get_file(Forms)}).
 
-% Return analysis with possible errors as result.
-%%paterl_lib:return(Analysis).
 
 %%% ----------------------------------------------------------------------------
 %%% Helpers.
@@ -199,7 +167,7 @@ get_interfaces(TypeDefs) when is_map(TypeDefs) ->
           ?TRACE("Create interface for mailbox '~p'.", [Name]),
 
           MsgTypesAS =
-            case expand_msg_types(Name, TypeDefs) of
+            case expand_msg_type_set(Name, TypeDefs) of
               [Type] ->
                 % Mailbox type is a singleton.
                 Type;
@@ -230,52 +198,52 @@ get_interfaces(TypeDefs) when is_map(TypeDefs) ->
     )
   ).
 
-% TODO: Rename to expand_msg_type_set
 %% @private Expands message types to their full tuple definition form.
--spec expand_msg_types(atom(), paterl_types:type_defs()) -> [erl_syntax:syntaxTree()].
-expand_msg_types(Name, TypesCtx) ->
+-spec expand_msg_type_set(atom(), paterl_types:type_defs()) -> [erl_syntax:syntaxTree()].
+expand_msg_type_set(Name, TypeDefs) ->
   % Type variables not supported.
-  {mbox, _, Type, _Vars = []} = maps:get(Name, TypesCtx),
-  lists:reverse(expand_msg_type(Type, TypesCtx, [])).
+  {?T_MBOX, _, Type, _Vars = []} = maps:get(Name, TypeDefs),
+  lists:reverse(expand_msg_type(Type, TypeDefs, [])).
 
 %% @private Expands a message type to its full definition.
 -spec expand_msg_type(tuple(), paterl_types:type_defs(), [erl_syntax:syntaxTree()]) -> [erl_syntax:syntaxTree()].
-expand_msg_type(Type = {type, _, pid, []}, TypesCtx, Acc) when is_map(TypesCtx) ->
+expand_msg_type(Type = {type, _, pid, []}, TypeDefs, Acc) when is_map(TypeDefs) ->
+  % Built-in pid type. Denotes the empty message set.
   ?assertEqual(erl_syntax:type(Type), type_application),
   ?TRACE("Found type '~s'.", [erl_prettypr:format(Type)]),
   [Type | Acc];
-expand_msg_type(Type = {type, _, tuple, _}, TypesCtx, Acc) when is_map(TypesCtx) ->
+expand_msg_type(Type = {type, _, tuple, _}, TypeDefs, Acc) when is_map(TypeDefs) ->
+  % Tuple type. Denotes the singleton message set.
   ?assertEqual(erl_syntax:type(Type), tuple_type),
   ?TRACE("Found type '~s'.", [erl_prettypr:format(Type)]),
   [Type | Acc];
-expand_msg_type(Type = {type, _, union, Union}, TypesCtx, Acc) when is_map(TypesCtx) ->
-  ?assertEqual(erl_syntax:type(Type), type_union),
-  ?TRACE("Inspect type '~s'.", [erl_prettypr:format(Type)]),
+expand_msg_type(_Type = {type, _, union, Union}, TypeDefs, Acc) when is_map(TypeDefs) ->
+  % User-defined type. Denotes another message type which is a message set
+  % alias.
+  ?assertEqual(erl_syntax:type(_Type), type_union),
+  ?TRACE("Inspect type '~s'.", [erl_prettypr:format(_Type)]),
   lists:foldl(
     fun(Type0, Acc0) ->
-      expand_msg_type(Type0, TypesCtx, Acc0)
+      expand_msg_type(Type0, TypeDefs, Acc0)
     end,
     Acc, Union);
-expand_msg_type(Type = {user_type, _, Name, []}, TypesCtx, Acc) when is_map(TypesCtx) ->
-  ?TRACE("Inspect type '~s'.", [erl_prettypr:format(Type)]),
-  {type, _, UserType, _Vars = _} = maps:get(Name, TypesCtx),
-%%  ?TRACE("Expanding user_type() type ~p", [UserType]),
-  Typ = expand_msg_type(UserType, TypesCtx, Acc),
-%%  ?TRACE("Expanded user_type() type ~p", [Typ]),
-  Typ.
-
+expand_msg_type(_Type = {user_type, _, Name, []}, TypeDefs, Acc) when is_map(TypeDefs) ->
+  % User-defined type union. Check message set validity. This case is handled
+  % using check_msgs_types because MsgTypes is a list.
+  ?TRACE("Inspect type '~s'.", [erl_prettypr:format(_Type)]),
+  {?T_TYPE, _, UserType, _Vars = _} = maps:get(Name, TypeDefs),
+  expand_msg_type(UserType, TypeDefs, Acc).
 
 %% @private Annotates forms.
 -spec annotate_forms(erl_syntax:forms(), paterl_types:type_info(), errors:error()) ->
   {erl_syntax:forms(), errors:error()}.
 annotate_forms([], _, Analysis) ->
-%%  {[], Analysis};
   % Empty forms.
   Analysis#analysis{result = []};
 
-annotate_forms([Form = {attribute, _, module, _} | Forms], TypeInfo = #type_info{type_defs = TypesCtx}, Analysis) ->
+annotate_forms([Form = {attribute, _, module, _} | Forms], TypeInfo = #type_info{type_defs = TypeDefs}, Analysis) ->
   % Module attribute.
-  Interfaces = get_interfaces(TypesCtx),
+  Interfaces = get_interfaces(TypeDefs),
   ?TRACE("Interfaces: ~p", [Interfaces]),
 
   Analysis0 = annotate_forms(Forms, TypeInfo, Analysis),
@@ -617,7 +585,7 @@ annotate_expr_seq([_MbAnno = {tuple, Anno, [{atom, _, Name}, {_, _, Value}]}], _
     erl_prettypr:format(ErrNode)
   ]),
 %%  {[], ?pushError(?E_EXPECTED_EXPR, Node, Analysis)};
-  ?pushError(?E_EXPECTED_EXPR, ErrNode, Analysis#analysis{result = []});
+  ?pushError(?E_EXP__EXPR, ErrNode, Analysis#analysis{result = []});
 
 %%annotate_expr_seq(Expr = [{match, _, Pat, _MbAnno = {tuple, Anno, [Name = {atom, _, _}, Arg = {_, _, _}]}}], MbScope, TInfo, Error) ->
 %%  % Mailbox-annotation as match RHS, which is not followed by another expression.
@@ -630,7 +598,7 @@ annotate_expr_seq([_MbAnno = {tuple, _, [{atom, _, Name}, {_, _, Value}]}, MbAnn
   ?ERROR("Expected expression after annotation '~s'.", [
     erl_prettypr:format(ErrNode)
   ]),
-  Analysis0 = ?pushError(?E_EXPECTED_EXPR, ErrNode, Analysis),
+  Analysis0 = ?pushError(?E_EXP__EXPR, ErrNode, Analysis),
 %%  {_, Analysis1} = annotate_expr_seq(ExprSeq, Signature, MbScope, TInfo, Analysis0),
   Analysis1 = annotate_expr_seq(ExprSeq, Signature, MbScope, TInfo, Analysis0),
   Analysis1;
@@ -1365,14 +1333,9 @@ format_error({?E_UNDEF__FUN_SPEC, Node}) ->
     "function '~s' has missing spec",
     [erl_prettypr:format(Node)]
   );
-format_error({?E_EXPECTED_EXPR, Node}) ->
+format_error({?E_EXP__EXPR, Node}) ->
   io_lib:format(
     "expected expression after annotation '~s'",
-    [erl_prettypr:format(Node)]
-  );
-format_error({?E_BAD__ANNO, Node}) ->
-  io_lib:format(
-    "unexpected annotation '~s'",
     [erl_prettypr:format(Node)]
   );
 format_error({?E_EXP__ANNO, Node}) ->
@@ -1383,27 +1346,6 @@ format_error({?E_EXP__ANNO, Node}) ->
 format_error({?E_BAD__ANNO_ON, Node}) ->
   io_lib:format(
     "unexpected annotation on '~s'",
-    [erl_prettypr:format(Node)]
-  );
-
-format_error({?E_MISMATCH_ANNO, {Modality, _, MbName}}) ->
-  io_lib:format(
-    "incorrect annotation on function call; expected '?~s(~s)'",
-    [Modality, MbName]
-  );
-format_error({?E_SPAWN_ANNO, Node}) ->
-  io_lib:format(
-    "expected ?new annotation before '~s'",
-    [erl_prettypr:format(Node)]
-  );
-format_error({?E_RECEIVE_ANNO, Node}) ->
-  io_lib:format(
-    "expected ?assert annotation before '~s'",
-    [erl_prettypr:format(Node)]
-  );
-format_error({?E_RECEIVE_MB_SCOPE_UNDEF, Node}) ->
-  io_lib:format(
-    "function enclosing expression '~s' is not mailbox annotated",
     [erl_prettypr:format(Node)]
   );
 format_error({?E_BAD__EXPR, Node}) ->

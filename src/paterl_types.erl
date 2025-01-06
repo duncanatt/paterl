@@ -438,6 +438,7 @@ make_opaque_funs_spec(Specs, OpaqueFuns)
 %%  Ctx#{FunRef => {spec, Anno, Type}}
   maps:fold(Fun, Specs, OpaqueFuns).
 
+
 %%% ----------------------------------------------------------------------------
 %%% Type consistency checks.
 %%% ----------------------------------------------------------------------------
@@ -677,17 +678,17 @@ a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
   TypeDefs :: type_defs(),
   Analysis :: paterl_lib:analysis(),
   Analysis0 :: paterl_lib:analysis().
-check_msg_type_set(_Type = {type, _, pid, _}, _, Analysis) ->
+check_msg_type_set(_Type = {type, _, pid, []}, _, Analysis) ->
   % Built-in pid type. Denotes the empty message set.
   ?TRACE("Valid built-in type '~s'.", [erl_prettypr:format(_Type)]),
   Analysis#analysis{result = _HasPidType = true};
 check_msg_type_set(Type = {type, _, tuple, _}, TypeDefs, Analysis) ->
-  % Tuple type. Check message type validity. Denotes the singleton message set.
+  % Tuple type. Denotes the singleton message set.
   ?TRACE("Check inline message type '~s'.", [erl_prettypr:format(Type)]),
   check_msg_type(Type, TypeDefs, Analysis);
 check_msg_type_set(Type = {user_type, _, Name, _Vars}, TypeDefs, Analysis) ->
-  % User-defined type. Check message type validity. Denotes another message type
-  % which is itself a message set.
+  % User-defined type. Denotes another message type which is a message set
+  % alias.
   ?TRACE("Check user-defined type '~s'.", [erl_prettypr:format(Type)]),
 
   case maps:get(Name, TypeDefs, undefined) of
@@ -707,8 +708,8 @@ check_msg_type_set(Type = {user_type, _, Name, _Vars}, TypeDefs, Analysis) ->
       ?pushError(?E_UNDEF__TYPE, Type, Analysis)
   end;
 check_msg_type_set(_Type = {type, _, union, MsgTypes}, TypeDefs, Analysis) ->
-  % User-defined type union. Check message set validity. This case is handled
-  % using check_msgs_types because MsgTypes is a list.
+  % User-defined type union. Denotes a non-trivial message set. This case is
+  % handled using check_msgs_types because MsgTypes is a list.
   ?TRACE("Check union type '~s'.", [erl_prettypr:format(_Type)]),
   check_msg_types(MsgTypes, TypeDefs, Analysis);
 check_msg_type_set(Type, _, Analysis) ->

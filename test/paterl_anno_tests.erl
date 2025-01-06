@@ -594,7 +594,7 @@ mb_anno_end_expr_seq() -> {{
         % Mailbox annotation at end of expression list.
         ?assertMatch(
           {_, _,
-            {e_expected_expr,
+            {e_exp__expr,
               {tree, macro,
                 {attr, _, [], none},
                 {macro, {atom, _, as}, [{atom, _, mb}]}}}},
@@ -628,7 +628,7 @@ mb_anno_succ_expr_seq() -> {{
         % Successive mailbox annotations in expression list.
         ?assertMatch(
           {_, _,
-            {e_expected_expr,
+            {e_exp__expr,
               {tree, macro,
                 {attr, _, [], none},
                 {macro, {atom, _, as}, [{atom, _, mb}]}}}},
