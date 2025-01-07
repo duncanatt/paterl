@@ -678,7 +678,7 @@ a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
   TypeDefs :: type_defs(),
   Analysis :: paterl_lib:analysis(),
   Analysis0 :: paterl_lib:analysis().
-check_msg_type_set(_Type = {type, _, pid, []}, _, Analysis) ->
+check_msg_type_set(_Type = {type, _, pid, _Vars = []}, _, Analysis) ->
   % Built-in pid type. Denotes the empty message set.
   ?TRACE("Valid built-in type '~s'.", [erl_prettypr:format(_Type)]),
   Analysis#analysis{result = _HasPidType = true};
@@ -686,7 +686,7 @@ check_msg_type_set(Type = {type, _, tuple, _}, TypeDefs, Analysis) ->
   % Tuple type. Denotes the singleton message set.
   ?TRACE("Check inline message type '~s'.", [erl_prettypr:format(Type)]),
   check_msg_type(Type, TypeDefs, Analysis);
-check_msg_type_set(Type = {user_type, _, Name, _Vars}, TypeDefs, Analysis) ->
+check_msg_type_set(Type = {user_type, _, Name, _Vars = []}, TypeDefs, Analysis) ->
   % User-defined type. Denotes another message type which is a message set
   % alias.
   ?TRACE("Check user-defined type '~s'.", [erl_prettypr:format(Type)]),

@@ -73,10 +73,10 @@
 %% Determines whether the specified Erlang abstract syntax node represents a
 %% literal type annotation.
 -define(isLitType(Type), (?isBooleanType(Type)
-    orelse ?isIntegerType(Type)
-    orelse ?isFloatType(Type)
-    orelse ?isStringType(Type)
-    orelse ?isAtomType(Type)
+  orelse ?isIntegerType(Type)
+  orelse ?isFloatType(Type)
+  orelse ?isStringType(Type)
+  orelse ?isAtomType(Type)
 )).
 %%-define(isLitType(Type), (?isType(Type)
 %%  andalso (?litValue(Type) =:= boolean
@@ -136,6 +136,12 @@
 %% atom expression.
 -define(isAtom(Expr), ?synCat(Expr) =:= atom).
 
+%% Determines whether the specified Erlang abstract syntax node represents an
+%% atom expression with the specified value.
+-define(isAtomValue(Expr, Value), (
+    ?isAtom(Expr) andalso ?litValue(Expr) =:= Value)
+).
+
 %% Determines whether the specified Erlang abstract syntax node represents a
 %% literal expression.
 -define(isLit(Expr), (?isInteger(Expr)
@@ -189,16 +195,16 @@
 %% local function call expression.
 -define(isCall(Expr), ?synCat(Expr) =:= call).
 
-%% Determines whether the specified Erlang abstract syntax node represents an
-%% implicit function call (i.e., function name is an atom).
--define(isImplicitCall(Expr), ?isCall(Expr)
+%% Determines whether the specified Erlang abstract syntax node represents a
+%% static function call (i.e., function name is an atom).
+-define(isStaticCall(Expr), ?isCall(Expr)
   andalso ?isAtom(element(3, Expr))
   andalso is_list(element(4, Expr))
 ).
 
-%% Determines whether the specified Erlang abstract syntax node represents an
-%% explicit function call (i.e., function name is an expression).
--define(isExplicitCall(Expr), (?isCall(Expr)
+%% Determines whether the specified Erlang abstract syntax node represents a
+%% dynamic function call (i.e., function name is an expression).
+-define(isDynamicCall(Expr), (?isCall(Expr)
   andalso not(?isAtom(element(3, Expr)))
   andalso is_list(element(4, Expr))
 )).
@@ -206,11 +212,18 @@
 %% Determines whether the specified Erlang abstract syntax node represents a
 %% mailbox annotation expression.
 -define(isMbAnno(Expr), (?isTuple(Expr)
-  andalso length(element(3, Expr)) =:= 2
-%%  andalso ?isAtom(hd(element(3, Expr)))
-  andalso (?litValue(hd(element(3, Expr))) =:= new
-    orelse ?litValue(hd(element(3, Expr))) =:= use
-    orelse ?litValue(hd(element(3, Expr))) =:= state
+  andalso is_list(element(3, Expr))
+  andalso length(element(3, Expr)) > 1
+%%  andalso (?litValue(hd(element(3, Expr))) =:= new
+%%    orelse ?litValue(hd(element(3, Expr))) =:= use
+%%    orelse ?litValue(hd(element(3, Expr))) =:= state
+  andalso (?isAtomValue(hd(?litValue(Expr)), new)
+    orelse ?isAtomValue(hd(?litValue(Expr)), use)
+    orelse ?isAtomValue(hd(?litValue(Expr)), state)
+    orelse ?isAtomValue(hd(?litValue(Expr)), ?ANNO_NEW)
+    orelse ?isAtomValue(hd(?litValue(Expr)), ?ANNO_USE)
+    orelse ?isAtomValue(hd(?litValue(Expr)), ?ANNO_AS)
+    orelse ?isAtomValue(hd(?litValue(Expr)), ?ANNO_EXPECTS)
   )
 )).
 

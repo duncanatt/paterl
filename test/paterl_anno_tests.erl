@@ -356,7 +356,7 @@ fun_guard_no_mb_scope() -> {
         ?assertMatch({_, _,
           {e_bad__clause,
             {clause, _,
-              [], [[{atom, _, true}]], [{var, _, '_'}]}}},
+              [], [[{atom, _, true}]], []}}},
           Error),
         ?debugMsg(paterl_anno:format_error(Code))
       end}
@@ -420,7 +420,7 @@ fun_guard_in_mb_scope() -> {
         % Guarded function inside mailbox interface scope.
         ?assertMatch({_, _,
           {e_bad__clause,
-            {clause, _, [], [[{atom, _, true}]], [{var, _, '_'}]}}},
+            {clause, _, [], [[{atom, _, true}]], []}}},
           Error),
         ?debugMsg(paterl_anno:format_error(Code))
       end}
@@ -483,7 +483,7 @@ fun_guard_params_no_mb_scope() -> {
               [{var, _, 'X'}, {var, _, 'Y'}],
               [[{op, _, '>', {var, _, 'X'}, {integer, _, 0}},
                 {op, _, '=:=', {var, _, 'Y'}, {integer, _, 1}}]],
-              [{var, _, '_'}]}}}, Error),
+              []}}}, Error),
         ?debugMsg(paterl_anno:format_error(Code))
       end}
   end}.
@@ -552,7 +552,7 @@ fun_guard_params_in_mb_scope() -> {
               [{var, _, 'X'}, {var, _, 'Y'}],
               [[{op, _, '>', {var, _, 'X'}, {integer, _, 0}},
                 {op, _, '=:=', {var, _, 'Y'}, {integer, _, 1}}]],
-              [{var, _, '_'}]}}}, Error),
+              []}}}, Error),
         ?debugMsg(paterl_anno:format_error(Code))
       end}
   end}.

@@ -33,8 +33,13 @@ Erlang syntactic subset and mailbox interface well-formedness syntax checks.
 -export([get_file/1, set_anno/2]).
 -export([name/2, fun_reference/2, mb_anno/3, mb_anno/1, mb_anno_name/1, mb_anno_args/1, is_mb_anno/1, mb_definition/3, application/3]).
 
+-ifdef(test).
+-export([is_atom_value/2, is_mb_anno2/1]).
+-endif.
+
 %%% Public types.
--export_type([form/0, forms/0, clause/0, expr/0, type/0, tree/0, anno/0]).
+-export_type([form/0, forms/0, clause/0, expr/0, type/0, pattern/0, tree/0]).
+-export_type([anno/0]).
 -export_type([name/0, fun_ref/0, mb_anno/0]).
 -export_type([result/0]).
 
@@ -73,8 +78,11 @@ Erlang syntactic subset and mailbox interface well-formedness syntax checks.
 -doc "Abstract type.".
 -type type() :: erl_parse:abstract_type().
 
+-doc "Abstract pattern.".
+-type pattern() :: tuple().
+
 -doc "Abstract tree.".
--type tree() :: form() | clause() | expr() | type().
+-type tree() :: form() | clause() | expr() | type() | pattern().
 
 -doc "Abstract syntax annotation.".
 -type anno() :: erl_anno:anno().
@@ -198,6 +206,7 @@ specified [annotation](`m:erl_anno`).
 -spec mb_anno(Name, Args, Anno) -> Tree
   when
   Name :: ?ANNO_NEW | ?ANNO_USE | ?ANNO_AS | ?ANNO_EXPECTS,
+%%  Name :: new | use | as | expects,
   Args :: [term()],
   Anno :: anno(),
   Tree :: erl_syntax:syntaxTree().
@@ -205,10 +214,12 @@ mb_anno(Name, Args, Anno) when is_atom(Name), is_list(Args) ->
   % The macro tree is not revertible since it is not an
   % erl_parse:abstract_expr(), but an erl_syntax:syntaxTree() abstraction.
   % Inner expressions are reverted.
-  Name0 = atom_to_list(Name),
-  Name1 = if length(Name0) > 1 -> tl(Name0); true -> Name0 end,
+%%  Name0 = atom_to_list(Name),
+%%  Name1 = if length(Name0) > 1 -> tl(Name0); true -> Name0 end,
+  Name1 = case atom_to_list(Name) of [$@ | Rest] -> Rest; Name0 -> Name0 end,
   set_anno(
     erl_syntax:macro(
+%%      erl_syntax:atom(Name1), [erl_syntax:abstract(Arg) || Arg <- Args]
       erl_syntax:atom(Name1), [erl_syntax:abstract(Arg) || Arg <- Args]
     ),
     Anno
@@ -222,6 +233,7 @@ mb_anno(Tuple) when is_tuple(Tuple), tuple_size(Tuple) > 0 ->
   [Name | Args] = tuple_to_list(Tuple),
   mb_anno(Name, Args, 0). % TODO: Fix this when we include the actual annotation position in the annotation information.
 
+-spec mb_anno_args(MbAnno :: paterl_syntax:expr()) -> [term()].
 mb_anno_args(MbAnno) ->
   maybe
     true ?= is_mb_anno(MbAnno),
@@ -231,15 +243,29 @@ mb_anno_args(MbAnno) ->
     false -> error({badarg, MbAnno})
   end.
 
+-spec mb_anno_name(MbAnno :: paterl_syntax:expr()) -> ?ANNO_NEW | ?ANNO_USE | ?ANNO_AS | ?ANNO_EXPECTS.
 mb_anno_name(MbAnno) ->
   maybe
     true ?= is_mb_anno(MbAnno),
     [Name | _] = erl_syntax:tuple_elements(MbAnno),
     erl_syntax:atom_value(Name)
+%%    Name0 = atom_to_list(erl_syntax:atom_value(Name)),
+%%    Name1 = if length(Name0) > 1 -> tl(Name0); true -> Name0 end,
+%%    list_to_atom(Name1)
   else
     false -> error({badarg, MbAnno})
   end.
 
+-doc """
+Determines whether the specified abstract syntax representation is a mailbox
+annotation macro.
+
+### Returns
+- `true` if the specified abstract syntax representation is a mailbox
+annotation macro
+- `false` otherwise
+""".
+-spec is_mb_anno(MbAnno :: paterl_syntax:expr()) -> true | false.
 is_mb_anno(MbAnno) ->
   % Check annotation is a tuple.
   case erl_syntax:type(MbAnno) of
@@ -482,3 +508,15 @@ format_error({?W_NO__MB_FUN_REF, Node}) ->
     "unused mailbox interface definition '~s'",
     [erl_prettypr:format(Node)]
   ).
+
+-ifdef(test).
+is_atom_value(Expr, Value) when ?isAtomValue(Expr, Value) ->
+  true;
+is_atom_value(_, _) ->
+  false.
+
+is_mb_anno2(Expr) when ?isMbAnno(Expr) ->
+  true;
+is_mb_anno2(_) ->
+  false.
+-endif.

@@ -167,7 +167,7 @@ expr(Expr, true) when ?isMsg(Expr) ->
 expr(Expr, false) when ?isMsg(Expr) ->
   Expr;
 %%expr(Expr = {call, Anno, _Fun = {atom, _, _Name}, _Args}, true) ->
-expr(Expr, true) when ?isImplicitCall(Expr) ->
+expr(Expr, true) when ?isStaticCall(Expr) ->
   % Erlang call expression. The call expression itself is not translated since
   % its arguments are assumed to be values and not expressions.
   % TODO: ANF.
@@ -180,7 +180,7 @@ expr(Expr, true) when ?isImplicitCall(Expr) ->
     erl_syntax:match_expr(Var, Expr), Anno
   );
 %%expr(Expr = {call, Anno, _Fun = {atom, _, _Name}, _Args}, false) ->
-expr(Expr, false) when ?isImplicitCall(Expr) ->
+expr(Expr, false) when ?isStaticCall(Expr) ->
   Expr;
 expr(Expr, _) when ?isMatch(Expr) ->
   % Erlang match expression. Retain pattern and transform RHS expression only if
@@ -272,9 +272,9 @@ test_expr_cat(Expr) when ?isMbAnno(Expr) ->
   io:format("Is MB annotation ~p.~n", [Expr]);
 test_expr_cat(Expr) when ?isMsg(Expr) ->
   io:format("Is message ~p.~n", [Expr]);
-test_expr_cat(Expr) when ?isImplicitCall(Expr) ->
+test_expr_cat(Expr) when ?isStaticCall(Expr) ->
   io:format("Is implicit call ~p.~n", [Expr]);
-test_expr_cat(Expr) when ?isExplicitCall(Expr) ->
+test_expr_cat(Expr) when ?isDynamicCall(Expr) ->
   io:format("Is explicit call ~p.~n", [Expr]);
 test_expr_cat(Expr) ->
   io:format("Unrecognized expression ~p.~n", [Expr]).
