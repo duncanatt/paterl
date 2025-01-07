@@ -145,19 +145,19 @@ module(Forms, TypeInfo = #type_info{}) when is_list(Forms) ->
 
 
 %%% ----------------------------------------------------------------------------
-%%% Helpers.
+%%% Interfaces.
 %%% ----------------------------------------------------------------------------
 
-%% @private Returns the list of AST nodes that correspond to the mailbox
-%% interface types.
-%%
-%% Nested message references are recursively expanded in place. Note that
-%% currently, mutually-recursive type definitions result in an infinite loop.
-%% This is something that can be fixed later.
-%%
-%% @param TypesCtx: Mailbox types context.
-%%
-%% @returns List of interface AST nodes.
+-doc """
+Creates the list of mailbox interface types.
+
+Nested message type definition references are recursively expanded in place.
+Note that currently, mutually-recursive type defintions result in an infinite
+loop. Will be fixed later.
+
+### Returns
+List of [`form()`](`t:paterl_syntax:forms/0`).
+""".
 -spec get_interfaces(paterl_types:type_defs()) -> [erl_syntax:syntaxTree()].
 get_interfaces(#type_info{type_defs = TypeDefs}) when is_map(TypeDefs) ->
   lists:reverse(
@@ -210,10 +210,14 @@ List of [`type()`](`t:paterl_syntax:type/0`).
 expand_msg_type_set(Name, TypeDefs) ->
   % Mailbox message set type. Type variables not supported.
   {?T_MBOX, _, Type, _Vars = []} = maps:get(Name, TypeDefs),
-%%  paterl_types:type_def(Name, TypeDefs),
   lists:reverse(expand_msg_type(Type, TypeDefs, [])).
 
-%% @private Expands a message type to its full definition.
+-doc """
+Expands a message type to its full tuple defintion form.
+
+### Returns
+List of [`type()`](`t:paterl_syntax:type/0`).
+""".
 -spec expand_msg_type(Type, TypeDefs, Acc) -> Types
   when
   Type :: paterl_syntax:type(),
@@ -245,6 +249,11 @@ expand_msg_type(_Type = {user_type, _, Name, _Vars = []}, TypeDefs, Acc) when is
   ?TRACE("Inspect type '~s'.", [erl_prettypr:format(_Type)]),
   {?T_TYPE, _, UserType, _} = maps:get(Name, TypeDefs),
   expand_msg_type(UserType, TypeDefs, Acc).
+
+
+%%% ----------------------------------------------------------------------------
+%%% Annotation.
+%%% ----------------------------------------------------------------------------
 
 -doc """
 Annotates Erlang forms.
@@ -366,6 +375,8 @@ annotate_function({function, Anno, Name, Arity, Clauses}, TypeInfo, Analysis) ->
 -doc """
 Annotates a function clause list.
 
+See `annotate_fun_clause/6` for details on supported clauses.
+
 ### Returns
 a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
 - `status=ok` if annotation is successful
@@ -392,10 +403,10 @@ annotate_fun_clauses([Clause | Clauses], [Type | Types], FunScopes, MbScopes, Ty
 -doc """
 Annotates a function clause.
 
-The following are annotated:
+The following clauses are annotated:
 - Unguarded function clause
 
-The following are unsupported:
+The following clauses are unsupported:
 - Guarded function clause
 
 ### Returns
@@ -418,7 +429,7 @@ annotate_fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body},
   is_list(Body) ->
   % Unguarded function clause.
   ?DEBUG("Annotate unguarded function clause '~s :: ~s'.", [
-    erl_prettypr:format(erl_syntax:clause(PatSeq, _GuardSeq, [erl_syntax:underscore()])),
+    erl_prettypr:format(erl_syntax:clause(PatSeq, _GuardSeq, [])),
     erl_prettypr:format(RetType)
   ]),
 
@@ -450,15 +461,7 @@ annotate_fun_clause({clause, Anno, PatSeq, GuardSeq, _}, _ArgType, _FunScopes, _
 -doc """
 Annotates a non-function clause list.
 
-The following are annotated:
-- `if` clause
-- `receive` clause
-
-The following are unsupported:
-- `case` clause
-- guarded `case` clause
-- `catch` clause
-- `maybe` clause
+See `annotate_clause/5` for details on supported clauses.
 
 ### Returns
 a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
@@ -485,15 +488,16 @@ annotate_clauses([Clause | Clauses], FunScopes, MbScopes, TypeInfo, Analysis) ->
 -doc """
 Annotates a non-function clause.
 
-The following are annotated:
-- `if` clause
-- `receive` clause
+The following clauses are annotated:
+- `if`
+- `receive`
 
-The following are unsupported:
-- `case` clause
-- guarded `case` clause
-- `catch` clause
-- `maybe` clause
+The following clauses are skipped:
+- `case`
+- guarded `case`
+- guarded `receive`
+- `catch`
+- `maybe`
 
 ### Returns
 a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
@@ -555,35 +559,6 @@ annotate_pat(Pat, Type = {Qualifier, _, _, _})
 %% HERE tyring to get rid of map_anno. I don't think it can be done at this
 %% stage.
 
-
-
-%% @private Annotate an expression list.
-%%
-%% The function takes into account the mailbox-annotation expressions (which the
-%% programmer introduces as macros) that decorate expressions. Error messages
-%% are generated according to whether said mailbox-annotation expressions appear
-%% in the expected position within an expression list. The following conditions
-%% hold in a list of mailbox-annotation and Erlang expressions:
-%% 1. A mailbox-annotation expression cannot occur at the end of an expression
-%%    list
-%% 2. The RHS of a match expression cannot be a mailbox-annotation unless said
-%%    match is followed by another expression in the list
-%% 3. Two successive mailbox-annotation expressions cannot occur in an
-%%    expression list
-%%
-%% In all other cases, the mailbox-annotation expression is eaten up and the
-%% type information contained in the annotation is used to annotate the next
-%% expression in the expression list. In this way, the function keeps a lookahead
-%% expression.
-%%
-%% Match expressions are handled different to other Erlang expressions depending
-%% on whether the RHS of a match is a mailbox-annotation or otherwise. In the
-%% former case, the mailbox-annotation AST node is replaced with the AST node of
-%% the expression that follows the match expression in the expression list.
-%% Otherwise, the AST of the match expression remains unmodified and its RHS
-%% AST is annotated.
-
-
 -doc """
 Annotates an expression sequence.
 
@@ -592,16 +567,22 @@ expressed as macros in the surface-level syntax. These macros, `?new`, `?use`,
 `?as`, and `?expects`, decorate specific expressions, and are represented as
 special tuples internally. Each tuple carries macro-specific details.
 
-Errors are generated whenever these macros are wrongly used. The following
-conditions are illegal:
-- A mailbox annotation expression at the end of an expression sequence
-- Two successive mailbox annotation expressions
+Errors are generated whenever these macros are wrongly used. These conditions
+apply:
+1. A mailbox annotation expression at the end of an expression sequence is
+   invalid
+2. Two successive mailbox annotation expressions are invalid
 
 In the rest of the cases, a mailbox annotation expressions is eaten by the
 function, which it uses as a lookahead expression to annotate the next
 expression in the sequence.
 
-See `annotate_expr/3` for details on supported expression annotations.
+See `annotate_expr/6` for details on supported expressions.
+
+### Returns
+a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
+- `status=ok` if annotation is successful
+- `status=error` with details otherwise
 """.
 -spec annotate_expr_seq(Exprs, FunScopes, MbScopes, TypeInfo, Analysis) -> Analysis0
   when
@@ -663,41 +644,82 @@ annotate_expr_seq([Expr | ExprSeq], FunScopes, MbScopes, TypeInfo, Analysis) ->
     Analysis0#analysis.result | Analysis1#analysis.result
   ]}.
 
+-doc """
+Annotates an expression.
 
-%% @private Annotates expressions.
-%%
-%% Error messages are generated according to whether a mailbox-annotation is
-%% expected. The following conditions hold:
-%% 1. A spawn expression must be mailbox-annotated.
-%% 2. A self expression must not be mailbox-annotated. Assuming one mailbox
-%%    we can easily infer the name of the mailbox interface.
-%% 3. An explicit function call (where the function name is an atom) may or may
-%%    not be mailbox-annotated. If it is not, the mailbox-annotation is inferred
-%%    from the map of types, otherwise the given annotation must correspond to
-%%    the one inferred from the map of types.
-%% 4. An implicit function call (where the function name is the result of an
-%%    expression) must be mailbox-annotated since it cannot be inferred.
-%% 5. A receive expression must be mailbox-annotated.
-%% 6. Match expressions may or may not be mailbox-annotated.
-%% 7. Any other expression must not be annotated.
-%%
-%% The following expressions are annotated:
-%% 1. Mailbox-annotated spawn call
-%% 2. Non mailbox-annotated self call
-%% 3. (Non) mailbox-annotated internal function call
-%% 4. If expression
-%% 5. Match operator
-%% 6. Receive without timeout
--spec annotate_expr(Expr, MbAnno, Signature, MbScope, TInfo, Error) ->
-  {erl_syntax:syntaxTree(), errors:error()}
+Errors are generated whenever mailbox annotations are missing when expected or
+vice versa. These conditions apply:
+1. A `spawn` expression must be unannotated
+2. A `self` expression may be unannotated when its enclosing mailbox interface
+  scope comprises one interface, in which case the mailbox interface is inferred
+3. A `self` expression must be annotated when its enclosing mailbox scope
+  comprises multiple mailboxes
+4. A static function call must be unannotated
+5. A `receive` expression must be annotated
+6. An `if` expression must be unannotated
+7. A `match` expression must be annotated whenever its RHS expression is 3 or 5
+  and unannotated otherwise
+
+The following expressions are annotated:
+- `spawn` call
+- `self` call
+- Internal static function call
+- `if` with two clauses
+- `match`
+- Unguarded `receive` without `after`
+
+The following expressions are skipped:
+- Atomic literal
+- Bitstring comprehension
+- Bitstring constructor
+- Block
+- `case`
+- `catch`
+- Cons skeleton
+- Internal `fun`
+- External `fun`
+- Anonymous `fun`
+- Named `fun`
+- External function call
+- List comprehension
+- Map comprehension
+- Map creation
+- Map update
+- Conditional match operator
+- `maybe`
+- `maybe` `else`
+- Nil
+- Binary operator
+- Unary operator
+- Parenthesized
+- `receive` `after`
+- Record creation
+- Record field access
+- Record field index
+- Record update
+- Tuple skeleton
+- `try` `catch`
+- `try` `of` `catch`
+- `try` `after`
+- `try` `of` `after`
+- `try` `catch` `after`
+- `try` `of` `catch` `after`
+- Variable
+
+### Returns
+a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
+- `status=ok` if annotation is successful
+- `status=error` with details otherwise
+""".
+-spec annotate_expr(Expr, MbAnno, FunScopes, MbScopes, TypeInfo, Analysis) -> Analysis0
   when
-  Expr :: erl_syntax:syntaxTree(),
-  MbAnno :: {atom(), atom() | string()} | undefined, %TODO: Enumerate the Mb-annotations, state | use | new, etc.
-  Signature :: any(), %paterl_syntax:signature(),
-  MbScope :: atom(),
-  TInfo :: paterl_types:type_info(),
-  Error :: errors:error().
-
+  Expr :: paterl_syntax:expr(),
+  MbAnno :: paterl_syntax:mb_anno(),
+  FunScopes :: [paterl_syntax:fun_ref()],
+  MbScopes :: [paterl_syntax:name()],
+  TypeInfo :: paterl_types:type_info(),
+  Analysis :: paterl_lib:analysis(),
+  Analysis0 :: paterl_lib:analysis().
 annotate_expr(Call = {call, Anno, Operator = {atom, _, spawn}, MFArgs}, _MbAnno = undefined, _FunScopes, _MbScopes, TypeInfo, Analysis) ->
   % Unannotated spawn expression. MFArgs can be a static or dynamic function.
   % Static functions in spawn expressions must be unannotated, whereas dynamic
@@ -987,51 +1009,9 @@ annotate_expr(Expr0 = {match, Anno, Pat, Expr1}, MbAnno, Signature, MbScope, Typ
       Analysis1 = annotate_expr(Expr1, MbAnno, Signature, MbScope, TypeInfo, Analysis0),
       Analysis1#analysis{result = Expr0}
   end;
-
-
-% TODO: When we have an ERROR in expression, even if we annotate its innards, we always return the original expression by convention.
-
-%% The following expressions are not annotated:
-%% 1. Atomic literal
-%% 2. Bitstring comprehension
-%% 3. Bitstring constructor
-%% 4. Block
-%% 5. Case
-%% 6. Catch
-%% 7. Cons skeleton
-%% 8. Internal fun
-%% 9. External fun
-%% 10. Anonymous fun
-%% 11. Named fun
-%% 12. External function call
-%% 13. List comprehension
-%% 14. Map comprehension
-%% 15. Map creation
-%% 16. Map update
-%% 17. Conditional match operator
-%% 18. Maybe
-%% 19. Maybe else
-%% 20. Nil
-%% 21. Binary operator
-%% 22. Unary operator
-%% 23. Parenthesized
-%% 24. Receive after
-%% 25. Record creation
-%% 26. Record field access
-%% 27. Record field index
-%% 28. Record update
-%% 29. Tuple skeleton
-%% 30. Try catch
-%% 31. Try of catch
-%% 32. Try after
-%% 33. Try of after
-%% 34. Try catch after
-%% 35. Try of catch after
-%% 36. Variable
 annotate_expr(Expr, undefined, _Signature, _MbAnno, _, Analysis) ->
   % Non mailbox-annotated expression.
   ?TRACE("Skip '~s'.", [erl_prettypr:format(Expr)]),
-  ?TRACE("Analysis result before = ~p", [Analysis#analysis.result]),
   Analysis#analysis{result = Expr};
 annotate_expr(Expr, _MbAnno, _FunScopes, _MbScopes, _, Analysis) ->
   % Unexpected annotated expression.
