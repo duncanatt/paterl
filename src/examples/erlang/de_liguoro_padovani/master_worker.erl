@@ -86,7 +86,7 @@ master() ->
 %% @doc Master server loop handling incoming client tasks.
 -spec master_loop() -> no_return().
 master_loop() ->
-  ?mb_assert_regex("*Task"),
+  ?expects("*Task"),
   receive
     {task, ReplyTo, N} ->
       format("Received task to compute ~b from client ~p.~n", [N, ReplyTo]),
@@ -106,7 +106,7 @@ pool(Chunks) ->
 %% @doc Worker computing assigned task by master.
 -spec worker() -> no_return().
 worker() ->
-  ?mb_assert_regex("Work"),
+  ?expects("Work"),
   receive
     {work, ReplyTo, Task} ->
       Result = compute(Task),
@@ -140,7 +140,7 @@ harvest(Count, Chunks, Acc) ->
     % function automatically in Pat but does not BLOCK the process forever in Erlang?
     Acc;
   true ->
-    ?mb_assert_regex("*Result"),
+    ?expects("*Result"),
     receive
       {result, Result} ->
         Count0 = Count + 1,
@@ -154,7 +154,7 @@ harvest(Count, Chunks, Acc) ->
 -spec harvest_exit() -> any().
 harvest_exit() ->
   % TODO: This mailbox flushing function means that the process remains blocked forever.
-  ?mb_assert_regex("*Result"),
+  ?expects("*Result"),
   receive
     {result, Result} ->
       harvest_exit()
@@ -174,7 +174,7 @@ client(N, Master) ->
   Master ! {task, Self, N},
 
   format("Client ~p sent task ~b to master ~p.~n", [self(), N, Master]),
-  ?mb_assert_regex("Result"),
+  ?expects("Result"),
   receive
     {result, Result} ->
       format("Result from master: ~b.~n", [Result])

@@ -65,7 +65,7 @@
 %% @doc Initializes the future.
 -spec future() -> no_return().
 future() ->
-  ?mb_assert_regex("Put . *Get"),
+  ?expects("Put . *Get"),
   receive {put, Value} ->
     resolved_future(Value)
   end.
@@ -73,7 +73,7 @@ future() ->
 %% @doc Resolved future servicing requests.
 -spec resolved_future(integer()) -> no_return().
 resolved_future(Value) ->
-  ?mb_assert_regex("*Get"),
+  ?expects("*Get"),
   receive
     {get, UserPid} ->
       UserPid ! {reply, Value},
@@ -86,7 +86,7 @@ user(FuturePid) ->
   Self = self(),
   FuturePid ! {get, Self},
 
-  ?mb_assert_regex("Reply"),
+  ?expects("Reply"),
   receive
     {reply, Value} ->
       Value

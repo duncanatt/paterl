@@ -44,6 +44,8 @@
 
 -define(expects(MbName, Pattern), {'@expects', MbName, Pattern}).
 
+-define(expects(MbName), {'@expects', MbName}).
+
 
 %%-define(M_NEW, new).
 %%-define(M_USE, use).

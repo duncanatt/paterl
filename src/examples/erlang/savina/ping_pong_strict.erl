@@ -72,7 +72,7 @@
 %% @doc Ping process handling launching of main loop.
 -spec ping(integer()) -> no_return().
 ping(Pings_left) ->
-  ?mb_assert_regex("Start"),
+  ?expects("Start"),
   receive
     {start, Pong} ->
       send_ping(Pong, Pings_left)
@@ -94,7 +94,7 @@ send_ping(Pong, Pings_left) ->
 %% @doc Ping process main loop issuing ping requests.
 -spec ping_loop(integer()) -> no_return().
 ping_loop(Pings_left) ->
-  ?mb_assert_regex("Pong"),
+  ?expects("Pong"),
   receive
     {pong, Pong} ->
       send_ping(Pong, Pings_left)
@@ -108,7 +108,7 @@ pong() ->
 %% @doc Pong process loop issuing pong replies.
 -spec pong_loop() -> any().
 pong_loop() ->
-  ?mb_assert_regex("Ping + Stop"),
+  ?expects("Ping + Stop"),
   receive
     {ping, Ping} ->
       format("Ponging~n", []),

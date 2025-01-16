@@ -52,7 +52,7 @@
 %% @doc Fibonacci process computing the (n - 1)st and (n - 2)nd terms.
 -spec fib() -> no_return().
 fib() ->
-  ?mb_assert_regex("Req"),
+  ?expects("Req"),
   receive
     {req, ReplyTo, N} ->
       Term =
@@ -72,10 +72,10 @@ fib() ->
             FibPid2 ! {req, Self, N - 2},
 
             % Combine results computed for the (n - 1)st and (n - 2)nd terms.
-            ?mb_assert_regex("Resp.Resp"),
+            ?expects("Resp.Resp"),
             receive
               {resp, Term1} ->
-                ?mb_assert_regex("Resp"),
+                ?expects("Resp"),
                 receive
                   {resp, Term2} ->
                     Term1 + Term2
@@ -94,7 +94,7 @@ main() ->
   Self = self(),
   FibPid1 ! {req, Self, 16},
 
-  ?mb_assert_regex("Resp"),
+  ?expects("Resp"),
   receive
     {resp, Term} ->
       format("Result: ~p.~n", [Term])

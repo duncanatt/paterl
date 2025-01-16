@@ -226,8 +226,8 @@ anno_forms(File, Forms, TInfo) ->
     {error, Errors, Warnings} ->
       % Type annotation errors.
       %TODO: Encapsulate this in the paterl_types module and use the file attribute.
-      paterl_errors:show_warnings([{File, Warnings}]),
-      paterl_errors:show_errors([{File, Errors}]),
+      paterl_errors:show_warnings(Warnings),
+      paterl_errors:show_errors(Errors),
       error
   end.
 

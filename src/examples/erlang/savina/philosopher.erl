@@ -72,7 +72,7 @@
 %% @doc Philosopher process handling the launching of main loop.
 -spec philosopher(integer(), integer(), arbiter_mb()) -> no_return().
 philosopher(Id, NumRounds, Arbiter) ->
-  ?mb_assert_regex("Start"),
+  ?expects("Start"),
   receive
     {start} ->
       philosopher_loop(Id, NumRounds, Arbiter)
@@ -84,7 +84,7 @@ philosopher_loop(Id, NumRounds, Arbiter) ->
   Self = self(),
   Arbiter ! {hungry, Self, Id},
 
-  ?mb_assert_regex("Denied + Eat + 1"),
+  ?expects("Denied + Eat + 1"),
   receive
     {denied} ->
       philosopher_loop(Id, NumRounds, Arbiter);
@@ -108,7 +108,7 @@ arbiter(NumExitedPhilosophers, Fork1, Fork2) ->
 %% philosopher processes, as well as coordinating their termination.
 -spec arbiter_loop(integer(), boolean(), boolean()) -> no_return().
 arbiter_loop(NumExitedPhilosophers, Fork1, Fork2) ->
-  ?mb_assert_regex("*(Hungry + Done + Exit)"),
+  ?expects("*(Hungry + Done + Exit)"),
   receive
     {hungry, Philosopher, PhilosopherId} ->
       Available = forks_available(PhilosopherId, Fork1, Fork2),
@@ -160,7 +160,7 @@ deallocate_forks(Id, Fork1, Fork2) ->
 %% @doc Arbiter process exit procedure flushing potential residual messages.
 -spec arbiter_exit() -> no_return().
 arbiter_exit() ->
-  ?mb_assert_regex("*(Hungry + Done + Exit)"),
+  ?expects("*(Hungry + Done + Exit)"),
   receive
     {hungry, Philosopher, PhilosopherId} ->
       arbiter_exit();

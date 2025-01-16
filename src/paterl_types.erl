@@ -154,6 +154,9 @@ Type information extraction can fail with the following errors.
 The `w_no__pid` warning can also be returned whenever the [`pid()`](`t:pid/0`)
 type is omitted from mailbox interface type definitions.
 
+Type information extraction tries to report all possible errors, rather than
+stopping at the first error it encounters.
+
 See also `format_error/1`.
 
 ### Returns
@@ -826,12 +829,6 @@ check_valid_tag(_Tag = {atom, _, _}, Analysis) ->
 check_valid_tag(Term, Analysis) ->
   ?ERROR("Bad '~s' tag.", [erl_prettypr:format(Term)]),
   ?pushError(?E_BAD__MSG_TAG, Term, Analysis).
-
-
-%% What Phil said: The receive annotations having a mailbox name must check that
-%% that mailbox name is in scope. ie, I cannot refer to a future_mb mailbox from
-%% a duncan_mb mailbox scope. This would be in another file for semantic checks
-%% once we implement multiple mailboxes.
 
 
 %%% ----------------------------------------------------------------------------

@@ -86,7 +86,7 @@
 %% @param NumActors: number of actors in ring.
 -spec actor(integer()) -> no_return().
 actor(NumActors) ->
-  ?mb_assert_regex("Data . *Ping . *Exit"),
+  ?expects("Data . *Ping . *Exit"),
   receive
     {data, Neighbor} ->
       actor_loop(NumActors, Neighbor)
@@ -95,7 +95,7 @@ actor(NumActors) ->
 %% @doc Ping process main loop issuing pings and exits.
 -spec actor_loop(integer(), actor_mb()) -> no_return().
 actor_loop(NumActors, Neighbor) ->
-  ?mb_assert_regex("*Ping . *Exit"),
+  ?expects("*Ping . *Exit"),
   receive
     {ping, PingsLeft} ->
       if PingsLeft =< 0 ->
@@ -118,7 +118,7 @@ actor_loop(NumActors, Neighbor) ->
 %% @doc Actor process exit procedure that flushes potential residual messages.
 -spec actor_exit() -> no_return().
 actor_exit() ->
-  ?mb_assert_regex("*Ping . *Exit"),
+  ?expects("*Ping . *Exit"),
   receive
     {ping, PingsLeft} ->
       actor_exit();
@@ -176,7 +176,7 @@ main() ->
   Self = self(),
   init_ring(NumActors, Self),
 
-  ?mb_assert_regex("Data + 1"),
+  ?expects("Data + 1"),
   receive
     {data, First_actor} ->
       First_actor ! {ping, NumRounds}

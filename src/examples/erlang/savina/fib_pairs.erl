@@ -50,7 +50,7 @@
 %% @doc Fibonacci process computing the (n - 1)st and (n - 2)nd terms.
 -spec fib_actor() -> no_return().
 fib_actor() ->
-  ?mb_assert_regex("Request"),
+  ?expects("Request"),
   receive
     {request, N, Parent} ->
       if N =< 2 ->
@@ -65,12 +65,12 @@ fib_actor() ->
           Child2 = spawn(?MODULE, fib_actor, []),
           Child2 ! {request, N - 2, Self},
 
-          ?mb_assert_regex("Response.Response"),
+          ?expects("Response.Response"),
           Term1 = receive
             {response, X1} ->
               X1
           end,
-          ?mb_assert_regex("Response"),
+          ?expects("Response"),
           Term2 = receive
             {response, X2} ->
               X2
@@ -87,7 +87,7 @@ main() ->
   First_actor = spawn(?MODULE, fib_actor, []),
   First_actor ! {request, 16, Self},
 
-  ?mb_assert_regex("Response"),
+  ?expects("Response"),
   receive
     {response, X} ->
       format("Result: ~p.~n", [X])

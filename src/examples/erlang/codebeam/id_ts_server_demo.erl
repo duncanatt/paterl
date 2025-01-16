@@ -72,7 +72,7 @@
 
 -spec id_server() -> no_return().
 id_server() ->
-  ?mb_assert_regex("Init.*Get"),
+  ?expects(id_server_mb, "Init.*Get"),
   receive
     {init, N} ->
       id_server_loop(N)
@@ -80,7 +80,7 @@ id_server() ->
 
 -spec id_server_loop(integer()) -> no_return().
 id_server_loop(N) ->
-  ?mb_assert_regex("*Get"),
+  ?expects("*Get"),
   receive
     {get, Client} ->
       Client ! {id, N},
@@ -93,7 +93,7 @@ ts_server() ->
 
 -spec ts_server_loop() -> no_return().
 ts_server_loop() ->
-  ?mb_assert_regex("*Now"),
+  ?expects("*Now"),
   receive
     {now, Client} ->
       Ts = system_time(),
@@ -105,7 +105,7 @@ ts_server_loop() ->
 id_rpc(Server) ->
   Self = self(),
   Server ! {get, Self},
-  ?mb_assert_regex("Id"),
+  ?expects("Id"),
   receive
     {id, Id} ->
       Id
@@ -118,7 +118,7 @@ ts_asy(Server) ->
 
 -spec ts_get() -> integer().
 ts_get() ->
-  ?mb_assert_regex("Ts"),
+  ?expects("Ts"),
   receive
     {ts, Ts} ->
       Ts

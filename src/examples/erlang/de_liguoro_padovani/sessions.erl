@@ -83,19 +83,19 @@
 alice(Arb) ->
   Self = self(),
   Arb ! {a_send1, 4, Self},
-  ?mb_assert_regex("A_reply1"),
+  ?expects("A_reply1"),
   receive
     {a_reply1, Arb} ->
       Self = self(), % Self is needed here since after receiving, the mailbox ref is updated.
       Arb ! {a_send2, 2, Self},
-      ?mb_assert_regex("A_reply2"),
+      ?expects("A_reply2"),
       receive
         {a_reply2, Arb} ->
           Self = self(), % Self is needed here since after receiving, the mailbox ref is updated.
           Arb ! {a_receive, Self}
       end
   end,
-  ?mb_assert_regex("A_reply3"),
+  ?expects("A_reply3"),
   receive
     {a_reply3, Res} ->
       format("~p~n", [Res])
@@ -106,19 +106,19 @@ alice(Arb) ->
 carol(Arb) ->
   Self = self(),
   Arb ! {c_receive1, Self},
-  ?mb_assert_regex("C_reply1"),
+  ?expects("C_reply1"),
   receive
     {c_reply1, X, Arb} ->
       Self = self(), % Self is needed here since after receiving, the mailbox ref is updated.
       Arb ! {c_receive2, Self},
-      ?mb_assert_regex("C_reply2"),
+      ?expects("C_reply2"),
       receive
         {c_reply2, Y, Arb} ->
           Self = self(), % Self is needed here since after receiving, the mailbox ref is updated.
           Arb ! {c_send, X + Y, Self}
       end
   end,
-  ?mb_assert_regex("C_reply3"),
+  ?expects("C_reply3"),
   receive
     {c_reply3} ->
       ok
@@ -128,11 +128,11 @@ carol(Arb) ->
 -spec arbiter() -> no_return().
 arbiter() ->
   Self = self(),
-  ?mb_assert_regex("A_send1 . C_receive1"),
+  ?expects("A_send1 . C_receive1"),
   receive
     {a_send1, Price1, AliceMB} ->
       format("Arbiter received first summand ~p from Alice.~n", [Price1]),
-      ?mb_assert_regex("C_receive1"),
+      ?expects("C_receive1"),
       receive
         {c_receive1, CarolMB} ->
           format("Arbiter received ack from Carol.~n", []),
@@ -142,11 +142,11 @@ arbiter() ->
           format("Arbiter sent ack to Alice and first summand ~p to Carol.~n", [Price1])
       end
   end,
-  ?mb_assert_regex("A_send2 . C_receive2"),
+  ?expects("A_send2 . C_receive2"),
   receive
     {a_send2, Price2, AliceMB} ->
       format("Arbiter received second summand ~p from Alice.~n", [Price2]),
-      ?mb_assert_regex("C_receive2"),
+      ?expects("C_receive2"),
       receive
         {c_receive2, CarolMB} ->
           format("Arbiter received ack from Carol.~n", []),
@@ -156,11 +156,11 @@ arbiter() ->
           format("Arbiter sent ack to Alice and second summand ~p to Carol.~n", [Price2])
       end
   end,
-  ?mb_assert_regex("C_send . A_receive"),
+  ?expects("C_send . A_receive"),
   receive
     {c_send, Res, CarolMB} ->
       format("Arbiter received addition result ~p from Carol.~n", [Res]),
-      ?mb_assert_regex("A_receive"),
+      ?expects("A_receive"),
       receive
         {a_receive, AliceMB} ->
           format("Arbiter received ack from Alice.~n", []),

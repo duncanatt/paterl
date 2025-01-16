@@ -60,7 +60,8 @@
 
 -spec id_server() -> no_return().
 id_server() ->
-  ?mb_assert_regex("Init.*Get"),
+%%  ?mb_assert_regex("Init.*Get"),
+  ?expects(id_server_mb, "Init.*Get"),
 %%  ?mb_assert_regex("*Get"), % Uncomment for "omitted Init receive".
   receive
     {init, N} ->
@@ -69,7 +70,8 @@ id_server() ->
 
 -spec id_server_loop(integer()) -> no_return().
 id_server_loop(N) ->
-  ?mb_assert_regex("*Get"),
+%%  ?mb_assert_regex("*Get"),
+  ?expects(id_server_mb, "*Get"),
   receive
     {get, Client} ->
       Client ! {id, N}, % Comment for "omitted Id reply".
@@ -82,7 +84,8 @@ id_client(Server) ->
   Server ! {get, Self}, % Mistype message tag for "unexpected message".
 %%  Server ! {get, 16}, % Uncomment for "type mismatch".
 %%  Server ! {get, Self}, % Uncomment for "extra Id reply".
-  ?mb_assert_regex("Id"), % Fix "extra Id reply" by adding receive.
+%%  ?mb_assert_regex("Id"), % Fix "extra Id reply" by adding receive.
+  ?expects(id_client_mb, "Id"), % Fix "extra Id reply" by adding receive.
   receive
     {id, Id} ->
       Id

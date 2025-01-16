@@ -105,11 +105,10 @@
 %% Expression not in mailbox interface scope.
 -define(E_NO__MB_SCOPE, e_no__mb_scope).
 
-%% Undefined mailbox scope.
+%% Mailbox interface not in scope.
 -define(E_UNDEF__MB_SCOPE, e_undef__mb_scope).
 
-
-%% Undefined mailbox interface.
+%% Undefined mailbox interface name.
 -define(E_UNDEF__MB, e_undef__mb).
 
 %% Undefined fun reference.
@@ -123,19 +122,36 @@
 %%% Public API.
 %%% ----------------------------------------------------------------------------
 
-%% @doc Annotates the Erlang AST with the type information contained in TInfo.
-%%
-%% TInfo is assumed to contain terms conforming to the erl_parse specification,
-%% and not erl_syntax.
-%%
-%% The error reporting algorithm is greedy. It tries to annotate the rest of the
-%% AST even if errors are found to report as much as it can to the user. This is
-%% a design decision that makes sense.
-%%
-%% @param Forms: AST to annotate.
-%% @param TInfo: Type annotations.
-%%
-%% @returns Annotated AST.
+-doc """
+Analyzes the list of `Forms` with the specified type information.
+
+Note that the type information, [`type_info()`](`t:paterl_types:type_info/0`), contains
+`m:erl_parse` terms, rather than `m:erl_syntax`terms.
+
+Form type annotation can fail with the following errors.
+
+| Code                | Error                                                   |
+| ------------------- | ------------------------------------------------------- |
+| `e_exp__expr`       | expected mailbox annotated expression                   |
+| `e_exp__anno`       | expected mailbox annotation                             |
+| `e_bad__anno_on`    | unexpected mailbox annotation before expression         |
+| `e_bad__expr`       | unsupported expression                                  |
+| `e_bad__clause`     | unsupported function clause                             |
+| `e_no__mb_scope`    | expression is not in mailbox interface scope            |
+| `e_undef__mb_scope` | mailbox interface not in scope                          |
+| `e_undef__mb`       | undefined mailbox interface name                        |
+| `e_undef__fun_ref`  | undefined `fun` reference                               |
+| `e_undef__fun_spec` | function omits corresponding spec                       |
+
+Form annotation tries to report all possible errors, rather than stopping at the
+first error it encounters.
+
+See also `format_error/1`.
+
+### Returns
+- `{ok, AnnotatedFroms, Warnings}` if type annotation is successful
+- `{error, Errors, Warnings}` otherwise
+""".
 -spec module([erl_syntax:syntaxTree()], paterl_types:type_info()) ->
   {ok, erl_syntax:forms()} | errors:error().
 module(Forms, TypeInfo = #type_info{}) when is_list(Forms) ->
@@ -720,14 +736,14 @@ a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
   TypeInfo :: paterl_types:type_info(),
   Analysis :: paterl_lib:analysis(),
   Analysis0 :: paterl_lib:analysis().
-annotate_expr(Call = {call, Anno, Operator = {atom, _, spawn}, MFArgs}, _MbAnno = undefined, _FunScopes, _MbScopes, TypeInfo, Analysis) ->
+annotate_expr(Expr = {call, Anno, Operator = {atom, _, spawn}, MFArgs}, _MbAnno = undefined, _FunScopes, _MbScopes, TypeInfo, Analysis) ->
   % Unannotated spawn expression. MFArgs can be a static or dynamic function.
   % Static functions in spawn expressions must be unannotated, whereas dynamic
   % functions must be annotated. The latter are currently unsupported.
   case get_fun_ref_mfa(MFArgs) of
     {ok, _, FunRef = {_, _}} ->
       % MFArgs is a static function. May be valid.
-      ?DEBUG("Annotate '~s'.", [erl_prettypr:format(Call)]),
+      ?DEBUG("Annotate '~s'.", [erl_prettypr:format(Expr)]),
 
       maybe
       % Check fun reference is defined.
@@ -740,7 +756,7 @@ annotate_expr(Call = {call, Anno, Operator = {atom, _, spawn}, MFArgs}, _MbAnno 
         ?DEBUG("Override '~s' with '~s' on '~s'.", [
           erl_prettypr:format(paterl_syntax:mb_definition(_MbMod, [MbName], _Anno)),
           erl_prettypr:format(paterl_syntax:mb_anno(?MOD_NEW, [MbName], Anno)),
-          erl_prettypr:format(Call)
+          erl_prettypr:format(Expr)
         ]),
         Anno0 = set_modality(?MOD_NEW, set_interface(MbName, Anno)),
         Expr0 = paterl_syntax:set_anno(
@@ -764,44 +780,41 @@ annotate_expr(Call = {call, Anno, Operator = {atom, _, spawn}, MFArgs}, _MbAnno 
     {error, Term} ->
       % MFArgs is a dynamic function. Invalid.
       ?ERROR("Unsupported expression '~s' in '~s'.", [
-        erl_prettypr:format(Term), erl_prettypr:format(Call)
+        erl_prettypr:format(Term), erl_prettypr:format(Expr)
       ]),
       ?pushError(?E_BAD__EXPR, Term, Analysis#analysis{result = Term})
   end;
-annotate_expr(Call = {call, Anno, {atom, _, OpName = spawn}, _MFArgs}, MbAnno, _FunScopes, _MbScopes, _, Analysis) ->
+annotate_expr(Expr = {call, Anno, {atom, _, OpName = spawn}, _MFArgs}, MbAnno, _FunScopes, _MbScopes, _, Analysis) ->
   % Annotated spawn expression. Invalid.
   ?ERROR("Unexpected annotation '~s' on '~s'.", [
     erl_prettypr:format(paterl_syntax:mb_anno(MbAnno)),
-    erl_prettypr:format(Call)
+    erl_prettypr:format(Expr)
   ]),
   ErrNode = paterl_syntax:application(OpName, [], Anno),
   ?pushError(?E_BAD__ANNO_ON, ErrNode, Analysis#analysis{result = ErrNode});
 
-annotate_expr(Call = {call, _, {atom, _, self}, []}, _MbAnno, _FunScopes, _MbScopes = undefined, _, Analysis) ->
+annotate_expr(Expr = {call, _, {atom, _, self}, []}, _MbAnno, _FunScopes, _MbScopes = undefined, _, Analysis) ->
   % Annotated self expression outside mailbox scope. Invalid.
-  ?ERROR("'~s' not in mailbox interface scope.", [erl_prettypr:format(Call)]),
-  ?pushError(?E_NO__MB_SCOPE, Call, Analysis#analysis{result = Call});
-annotate_expr(_Call = {call, Anno, Self = {atom, _, self}, []}, _MbAnno = undefined, _FunScopes, [MbScope], _, Analysis) ->
-  % Unannotated self expression inside mailbox interface scope. Valid. Mailbox
-  % interface name can be inferred from the enclosing mailbox scope.
-  % TODO: Eventually remove? No. If the mailbox scope is a singleton list, then
-  % you can infer it so don't enforce it on the user, but if not, then error out
-  % and the user must specify it via the ?as annotation.
-  ?TRACE("Annotate '~s' with inferred mailbox interface '~s'.", [
-    erl_prettypr:format(_Call), MbScope
+  ?ERROR("'~s' not in mailbox interface scope.", [erl_prettypr:format(Expr)]),
+  ?pushError(?E_NO__MB_SCOPE, Expr, Analysis#analysis{result = Expr});
+annotate_expr(Expr = {call, _, _Self = {atom, _, self}, []}, _MbAnno = undefined, FunScopes, MbScopes = [MbScope], TypeInfo, Analysis) ->
+  % Unannotated self expression inside mailbox interface scope with single
+  % interface. Valid, since mailbox interface can be inferred from enclosing
+  % mailbox scope.
+  ?TRACE("Annotate '~s' with implicit mailbox interface '~s'.", [
+    erl_prettypr:format(Expr), MbScope
   ]),
-  Anno0 = set_interface(MbScope, Anno),
-  Expr0 = paterl_syntax:set_anno(erl_syntax:application(Self, []), Anno0),
-  Analysis#analysis{result = Expr0};
-annotate_expr(Call = {call, Anno, Self = {atom, _, self}, []}, {?ANNO_AS, MbName}, _FunScopes, MbScopes, _, Analysis) ->
-  % Annotated self expression inside mailbox scope. May be valid. Mailbox
-  % interface inferred from the enclosing mailbox scope must match the mailbox
-  % interface in the annotation.
+  MbAnno0 = {?ANNO_AS, MbScope},
+  annotate_expr(Expr, MbAnno0, FunScopes, MbScopes, TypeInfo, Analysis);
+annotate_expr(Expr = {call, Anno, Self = {atom, _, self}, []}, {?ANNO_AS, MbName}, _FunScopes, MbScopes, _, Analysis) ->
+  % Annotated self expression inside mailbox scope with multiple interfaces.
+  % May be valid. Mailbox interface inferred from the enclosing mailbox scope
+  % must match the mailbox interface in the annotation.
   case is_mb_in_scope(MbName, MbScopes) of
     true ->
       % Mailbox interface name in scope.
       ?TRACE("Annotate '~s' with inferred matching mailbox interface '~s'.", [
-        erl_prettypr:format(Call), MbName
+        erl_prettypr:format(Expr), MbName
       ]),
       Anno0 = set_interface(MbName, Anno),
       Expr0 = paterl_syntax:set_anno(erl_syntax:application(Self, []), Anno0),
@@ -809,19 +822,19 @@ annotate_expr(Call = {call, Anno, Self = {atom, _, self}, []}, {?ANNO_AS, MbName
     false ->
       % Mailbox interface name out of scope. Invalid.
       ?ERROR("Mailbox interface '~s' not in scope.", [MbName]),
-      ?pushError(?E_UNDEF__MB_SCOPE, paterl_syntax:name(MbName, Anno), Analysis#analysis{result = Call})
+      ?pushError(?E_UNDEF__MB_SCOPE, paterl_syntax:name(MbName, Anno), Analysis#analysis{result = Expr})
   end;
-annotate_expr(Call = {call, _, {atom, _, self}, []}, _MbAnno, _FunScopes, _MbScopes, _, Analysis) ->
+annotate_expr(Expr = {call, _, {atom, _, self}, []}, _MbAnno, _FunScopes, _MbScopes, _, Analysis) ->
   % Annotated self expression with invalid annotation (i.e., not ?as). Invalid.
   ?ERROR("Unexpected '~s' on '~s'.", [
     erl_prettypr:format(paterl_syntax:mb_anno(_MbAnno)), %TODO: Here we can benefit from storing the anno() of the mailbox annotation.
-    erl_prettypr:format(Call)
+    erl_prettypr:format(Expr)
   ]),
-  ?pushError(?E_BAD__ANNO_ON, Call, Analysis#analysis{result = Call});
+  ?pushError(?E_BAD__ANNO_ON, Expr, Analysis#analysis{result = Expr});
 
-annotate_expr(Call = {call, Anno, Operator, Exprs}, _MbAnno = undefined, FunScopes, MbScopes, TypeInfo, Analysis) ->
+annotate_expr(Expr = {call, Anno, Operator, Exprs}, _MbAnno = undefined, FunScopes, MbScopes, TypeInfo, Analysis) ->
   % Unannotated local function call.
-  case get_fun_ref(Call) of
+  case get_fun_ref(Expr) of
     {ok, FunRef = {_, _}} ->
       % Static function call. Check if fun reference is defined.
       {Anno0, Analysis0} =
@@ -836,26 +849,26 @@ annotate_expr(Call = {call, Anno, Operator, Exprs}, _MbAnno = undefined, FunScop
                   true ->
                     % Recursive call. Override usage modality with ?use.
                     ?DEBUG("Annotate recursive '~s' with inferred mailbox interface '~s'.", [
-                      erl_prettypr:format(Call), MbName
+                      erl_prettypr:format(Expr), MbName
                     ]),
                     {set_modality(?MOD_USE, set_interface(MbName, Anno)), Analysis};
                   false ->
                     % Non-recursive call.
                     ?DEBUG("Annotate '~s' with inferred mailbox interface '~s'.", [
-                      erl_prettypr:format(Call), MbName
+                      erl_prettypr:format(Expr), MbName
                     ]),
                     {set_modality(MbMod, set_interface(MbName, Anno)), Analysis}
                 end;
               undefined_mb ->
                 % Called function outside mailbox interface context.
-                ?DEBUG("Skip '~s'.", [erl_prettypr:format(Call)]),
+                ?DEBUG("Skip '~s'.", [erl_prettypr:format(Expr)]),
                 {Anno, Analysis}
             end;
           undefined_spec ->
             % Undefined fun reference. Invalid.
             ErrNode = paterl_syntax:fun_reference(FunRef, Anno),
             ?ERROR("Undefined function '~s'.", [erl_prettypr:format(ErrNode)]),
-            {Anno, ?pushError(?E_UNDEF__FUN_REF, ErrNode, Analysis#analysis{result = Call})}
+            {Anno, ?pushError(?E_UNDEF__FUN_REF, ErrNode, Analysis#analysis{result = Expr})}
         end,
 
       Analysis1 = annotate_expr_seq(Exprs, FunScopes, MbScopes, TypeInfo, Analysis0),
@@ -866,17 +879,17 @@ annotate_expr(Call = {call, Anno, Operator, Exprs}, _MbAnno = undefined, FunScop
     {error, Term} ->
       % Dynamic function call. Invalid.
       ?ERROR("Unsupported expression '~s' in '~s'.", [
-        erl_prettypr:format(Term), erl_prettypr:format(Call)
+        erl_prettypr:format(Term), erl_prettypr:format(Expr)
       ]),
-      ?pushError(?E_BAD__EXPR, Term, Analysis#analysis{result = Call})
+      ?pushError(?E_BAD__EXPR, Term, Analysis#analysis{result = Expr})
   end;
-annotate_expr(Call = {call, _, _, _}, _MbAnno, _FunScopes, _MbScopes, _, Analysis) ->
+annotate_expr(Expr = {call, _, _, _}, _MbAnno, _FunScopes, _MbScopes, _, Analysis) ->
   % Annotated local function call. Invalid.
   ?ERROR("Unexpected annotation '~s' on '~s'.", [
     erl_prettypr:format(paterl_syntax:mb_anno(_MbAnno)),
-    erl_prettypr:format(Call)
+    erl_prettypr:format(Expr)
   ]),
-  ?pushError(?E_BAD__ANNO_ON, Call, Analysis#analysis{result = Call});
+  ?pushError(?E_BAD__ANNO_ON, Expr, Analysis#analysis{result = Expr});
 
 annotate_expr(Expr = {'receive', Anno, Clauses}, _MbAnno, FunScopes, MbScopes = undefined, TypeInfo, Analysis) ->
   % Receive expression outside mailbox interface scope. Invalid.
@@ -896,8 +909,19 @@ annotate_expr(Expr = {'receive', Anno, Clauses}, _MbAnno = undefined, FunScopes,
   % Annotate rest of clauses to uncover further possible errors.
   Analysis1 = annotate_clauses(Clauses, FunScopes, MbScopes, TypeInfo, Analysis0),
   Analysis1#analysis{result = Expr};
-annotate_expr(Expr = {'receive', Anno0, Clauses}, _MbAnno = {?ANNO_EXPECTS, MbName, Pattern}, FunScopes, MbScopes, TypeInfo = #type_info{spec_defs = Specs}, Analysis) ->
-  % Annotated receive expression inside mailbox interface scope. May be valid.
+annotate_expr(Expr = {'receive', _, _}, _MbAnno = {?ANNO_EXPECTS, Pattern}, FunScopes, MbScopes = [MbScope], TypeInfo, Analysis) ->
+  % Annotated receive expression without interface name inside mailbox
+  % interface scope with single interface. Valid, since mailbox interface can
+  % be inferred from enclosing mailbox scope.
+  ?DEBUG("Annotate '~s' with implicit mailbox interface '~s'.", [
+    erl_prettypr:format(erl_syntax:receive_expr([])), MbScope]
+  ),
+  MbAnno0 = {?ANNO_EXPECTS, MbScope, Pattern},
+  annotate_expr(Expr, MbAnno0, FunScopes, MbScopes, TypeInfo, Analysis);
+annotate_expr(Expr = {'receive', Anno0, Clauses}, _MbAnno = {?ANNO_EXPECTS, MbName, Pattern}, FunScopes, MbScopes, TypeInfo, Analysis) ->
+  % Annotated receive expression with interface name inside mailbox interface
+  % scope with multiple interfaces. Mailbox interface inferred from the
+  % enclosing mailbox scope must match the mailbox interface in the annotation.
   ?DEBUG("Annotate '~s'.", [erl_prettypr:format(erl_syntax:receive_expr([]))]),
 
   case is_mb_in_scope(MbName, MbScopes) of
@@ -933,25 +957,6 @@ annotate_expr(Expr = {'receive', Anno0, Clauses}, _MbAnno = {?ANNO_EXPECTS, MbNa
       Analysis1 = annotate_clauses(Clauses, FunScopes, MbScopes, TypeInfo, Analysis0),
       Analysis1#analysis{result = Expr}
   end;
-% TODO: Next tackle this. Remove this function clause and update all the examples with ?expects.
-annotate_expr({'receive', Anno, Clauses}, _MbAnno = {state, Regex}, FunScopes, MbScopes, TypeInfo = #type_info{spec_defs = Specs}, Analysis) ->
-  % Annotated blocking receive expression inside mailbox interface scope. %TODO: This clause should be removed eventually once the annotations are updated to use ?expects
-  % Mailbox name can be inferred from mailbox enclosing scope. FOR NOW!
-  Analysis0 = annotate_clauses(Clauses, FunScopes, MbScopes, TypeInfo, Analysis),
-
-  ?TRACE("Annotating receive with return spec in '~s/~b'.", [element(1, hd(FunScopes)), element(2, hd(FunScopes))]),
-
-  % This pattern match must always succeed since every signature has a type spec
-  % associated with it.
-  {spec, _, [{type, _, 'fun', [_ParamTypes, ReturnType]}]} = maps:get(hd(FunScopes), Specs),
-
-  % The type of the receive is set to the return type of the function in order
-  % to enable us to generate the 'free' guard in Pat receive statements.
-  Anno0 = set_type(ReturnType, set_state(Regex, set_interface(hd(MbScopes), Anno))),
-  Expr0 = paterl_syntax:set_anno(
-    erl_syntax:receive_expr(Analysis0#analysis.result), Anno0
-  ),
-  Analysis0#analysis{result = Expr0};
 annotate_expr(Expr = {'receive', Anno, Clauses}, _MbAnno, FunScopes, MbScopes, TypeInfo, Analysis) ->
   % Annotated self expression with invalid annotation (i.e., not ?as). Invalid.
   ErrNode = paterl_syntax:set_anno(erl_syntax:receive_expr([]), Anno),
@@ -1157,7 +1162,14 @@ get_fun_ref(Call) ->
 %%% Error handling and reporting.
 %%% ----------------------------------------------------------------------------
 
-%% @doc Formats the specified error to human-readable form.
+-doc """
+Formats `Detail` to human-readable form.
+
+See `module/2` for error and warnings codes.
+
+### Returns
+- message as a possibly deep [`io_lib:chars()`](`t:io_lib:chars/0`) list
+""".
 format_error({?E_UNDEF__FUN_SPEC, Node}) ->
   io_lib:format(
     "function '~s' has missing spec",

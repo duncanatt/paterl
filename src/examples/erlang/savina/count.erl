@@ -70,7 +70,7 @@
 %% @doc Producer process handling the launching of main loop.
 -spec producer(counter_mb(), integer()) -> no_return().
 producer(Counter, NumMessages) ->
-  ?mb_assert_regex("Inc"),
+  ?expects("Inc"),
   receive
     {inc} ->
       producer_loop(Counter, NumMessages)
@@ -91,7 +91,7 @@ producer_loop(Counter, NumMessages) ->
 %% @doc Producer process exit procedure handling the final Total message.
 -spec producer_exit() -> no_return().
 producer_exit() ->
-  ?mb_assert_regex("Total"),
+  ?expects("Total"),
   receive
     {total, Total} ->
       format("Total: ~p.~n", [Total])
@@ -105,7 +105,7 @@ counter(Total) ->
 %% @doc Counter process main loop counting increment requests.
 -spec counter_loop(integer()) -> no_return().
 counter_loop(Total) ->
-  ?mb_assert_regex("*Inc . Get"),
+  ?expects("*Inc . Get"),
   receive
     {inc} ->
       counter_loop(Total + 1);
@@ -117,7 +117,7 @@ counter_loop(Total) ->
 %% @doc Counter process exit procedure that flushes potential residual messages.
 -spec counter_exit() -> no_return().
 counter_exit() ->
-  ?mb_assert_regex("*Inc"),
+  ?expects("*Inc"),
   receive
     {inc} ->
       counter_exit()

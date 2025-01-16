@@ -72,7 +72,7 @@
 %% @doc Ping process handling the launching of main loop.
 -spec ping(pong_mb(), integer()) -> no_return().
 ping(Pong, Pings_left) ->
-  ?mb_assert_regex("Start"),
+  ?expects("Start"),
   receive
     {start} ->
       ping_loop(Pong, Pings_left)
@@ -87,7 +87,7 @@ ping_loop(Pong, Pings_left) ->
     %% Issue ping and await reply
     Self = self(),
     Pong ! {ping, Self},
-    ?mb_assert_regex("Pong + 1"),
+    ?expects("Pong + 1"),
     receive
       {pong} ->
         ping_loop(Pong, Pings_left - 1)
@@ -105,7 +105,7 @@ pong() ->
 %% @doc Pong process loop issuing pong replies.
 -spec pong_loop() -> no_return().
 pong_loop() ->
-  ?mb_assert_regex("*(Ping + Stop)"),
+  ?expects("*(Ping + Stop)"),
   receive
     {ping, Ping} ->
 
@@ -119,7 +119,7 @@ pong_loop() ->
 %% @doc Pong process exit procedure that flushes potential residual messages.
 -spec pong_exit() -> no_return().
 pong_exit() ->
-  ?mb_assert_regex("*(Ping + Stop)"),
+  ?expects("*(Ping + Stop)"),
   receive
     {ping, Ping} ->
       pong_exit();
