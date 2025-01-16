@@ -74,7 +74,7 @@ teller(Num_accounts) ->
   ?mb_new(account_mb),
   Account3 = spawn(?MODULE, account, [3, 50]),
 
-  ?mb_assert_regex("Start"),
+  ?expects("Start"),
   receive
     {start} ->
       ?mb_new(teller_mb),
@@ -148,7 +148,7 @@ choose_dst_acc(Teller, Num_accounts, Src_account, Dst_account1, Dst_account2) ->
 teller_loop(Account1, Account2, Account3) ->
 %%  TODO No idea about free
 %%  ?mb_state_free or ?free
-  ?mb_assert_regex("*Reply"),
+  ?expects("*Reply"),
   receive
     {reply} ->
       teller_loop(Account1, Account2, Account3)
@@ -185,14 +185,14 @@ teller_loop(Account1, Account2, Account3) ->
 -spec account(integer(), integer()) -> no_return().
 account(Id, Balance) ->
   Self = self(),
-  ?mb_assert_regex("*(Debit + Credit) . Stop"),
+  ?expects("*(Debit + Credit) . Stop"),
   receive
     {debit, Src_account, Amount} ->
       Src_account ! {done},
       account(Id, Balance + Amount);
     {credit, Teller, Amount, Des_account} ->
       Des_account ! {debit, Self, Amount},
-      ?mb_assert_regex("Done + 1"),
+      ?expects("Done + 1"),
       receive
         {done} ->
           Teller ! {reply},
@@ -216,7 +216,7 @@ account(Id, Balance) ->
 -spec account_exit() -> no_return().
 account_exit() ->
 %%  ?free,
-  ?mb_assert_regex("*(Debit + Credit)"),
+  ?expects("*(Debit + Credit)"),
   receive
     {debit, Account, Amount} ->
       account_exit();

@@ -32,7 +32,7 @@
 
 %%-define(mb_assert(Mailbox, Regex), {'@state', Mailbox, Regex}).
 %%-define(mb_assert(Mailbox, Regex), {'state', Mailbox, Regex}).
--define(mb_assert_regex(Regex), {'state', Regex}).
+%%-define(mb_assert_regex(Regex), {'state', Regex}).
 
 -define(mb_type(Mailbox), {'type', Mailbox}).
 

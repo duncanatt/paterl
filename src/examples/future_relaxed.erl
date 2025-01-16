@@ -40,7 +40,7 @@
 
 -spec future() -> no_return().
 future() ->
-  ?mb_assert_regex("Put.*Get"),
+  ?expects("Put.*Get"),
 %%  ?mb_assert_regex("Put"), % Uncomment for "unexpected Get"
   receive
     {put, X} ->
@@ -51,7 +51,7 @@ future() ->
 
 -spec resolved_future(integer()) -> no_return().
 resolved_future(X) ->
-  ?mb_assert_regex("*Get"),
+  ?expects("*Get"),
   receive
     {get, User} ->
       10,
@@ -64,7 +64,7 @@ user(Future) ->
   Self = self(),
   T0 = Future ! {get, Self},
 %%  T0 = Future ! {get, Self}, % Uncomment for "extra Reply".
-  ?mb_assert_regex("Reply"), % Add extra Reply and fix it with nested receive.
+  ?expects("Reply"), % Add extra Reply and fix it with nested receive.
   receive
     {reply, X} ->
       10,

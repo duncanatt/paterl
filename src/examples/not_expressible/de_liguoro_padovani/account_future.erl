@@ -91,7 +91,7 @@ debit(Amount, Recipient) ->
 -spec resume(future_mb()) -> no_return().
 resume(Future) ->
 %%  TODO Not sure about free
-  ?mb_assert_regex("Reply + 1"),
+  ?expects("Reply + 1"),
   receive
     {reply} ->
       ok
@@ -109,7 +109,7 @@ resume(Future) ->
 -spec flush(account_mb(), integer()) -> integer().
 flush(Account, Stale) ->
   %%  TODO Not sure about free
-  ?mb_assert_regex("*Debit . *Credit"),
+  ?expects("*Debit . *Credit"),
   receive
     {debit, Amount, Sender} ->
       flush(Account, Stale + 1);
@@ -146,7 +146,7 @@ account(Balance) ->
 
 -spec account_loop(integer()) -> no_return().
 account_loop(Balance) ->
-  ?mb_assert_regex("((*Debit) . (*Credit)) . Stop"),
+  ?expects("((*Debit) . (*Credit)) . Stop"),
   receive
     {debit, Amount, Sender} ->
       Sender ! {reply},

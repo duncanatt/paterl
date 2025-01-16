@@ -144,7 +144,7 @@ master(StartRate, Increment) ->
   ?mb_new(worker_mb),
   Worker2 = spawn(?MODULE, worker, [2, Self, Computer2, StartTerm2]),
 
-  ?mb_assert_regex("Start . *Result"),
+  ?expects("Start . *Result"),
   receive
     {start} ->
       % We should have a loop around this line to send multiple NextTerm
@@ -180,7 +180,7 @@ master(StartRate, Increment) ->
 %%  }
 -spec master_loop(integer(), worker_mb(), computer_mb(), worker_mb(), computer_mb(), integer(), integer()) -> no_return().
 master_loop(TermSum, Worker1, Computer1, Worker2, Computer2, NumWorkRequests, NumWorkReceived) ->
-  ?mb_assert_regex("*Result"),
+  ?expects("*Result"),
   receive
     {result, Term} ->
 %%      if (NumWorkRequests >= NumWorkReceived) ->
@@ -226,7 +226,7 @@ worker(Id, Master, Computer, CurrTerm) ->
 
 -spec worker_loop(integer(), master_mb(), computer_mb(), integer()) -> no_return().
 worker_loop(Id, Master, Computer, CurrTerm) ->
-  ?mb_assert_regex("Get_term . *Next_term . Stop"),
+  ?expects("Get_term . *Next_term . Stop"),
   receive
     {next_term} ->
 %%      Self = self(),
@@ -242,7 +242,7 @@ worker_loop(Id, Master, Computer, CurrTerm) ->
       worker_loop(Id, Master, Computer, 0);
     {get_term} ->
       Master ! {result, CurrTerm},
-      ?mb_assert_regex("Stop . *Next_term"),
+      ?expects("Stop . *Next_term"),
       receive
         {stop} ->
           worker_exit()
@@ -258,7 +258,7 @@ worker_loop(Id, Master, Computer, CurrTerm) ->
 %%  }
 -spec worker_exit() -> no_return().
 worker_exit() ->
-  ?mb_assert_regex("*Next_term"),
+  ?expects("*Next_term"),
   receive
     {next_term} ->
       worker_exit()
@@ -268,7 +268,7 @@ worker_exit() ->
 compute_term(Computer, CurrTerm) ->
   Self = self(),
   Computer ! {compute, Self, CurrTerm},
-  ?mb_assert_regex("Done"),
+  ?expects("Done"),
   receive
     {done, Term} ->
       Term
@@ -292,7 +292,7 @@ computer(Rate) ->
 
 -spec computer_loop(integer()) -> no_return().
 computer_loop(Rate) ->
-  ?mb_assert_regex("*Compute . Stop_compute"),
+  ?expects("*Compute . Stop_compute"),
   receive
     {compute, Term_mb, Term} ->
       Term_mb ! {done, Rate * Term * (1 - Term)},
@@ -314,7 +314,7 @@ computer_loop(Rate) ->
 %%  }
 -spec computer_exit() -> no_return().
 computer_exit() ->
-  ?mb_assert_regex("*Compute"),
+  ?expects("*Compute"),
   receive
     {compute, Term_mb, Term} ->
       Term_mb ! {done, Term},

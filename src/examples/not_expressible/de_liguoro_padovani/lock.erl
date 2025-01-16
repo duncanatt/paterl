@@ -56,7 +56,7 @@
 %% }
 -spec free_lock() -> no_return().
 free_lock() ->
-  ?mb_assert_regex("*Acquire"),
+  ?expects("*Acquire"),
   receive
     {acquire, Owner} ->
       busy_lock(Owner)
@@ -76,7 +76,7 @@ free_lock() ->
 busy_lock(Owner) ->
   Self = self(),
   Owner ! {reply, Self},
-  ?mb_assert_regex("Release . *Acquire"),
+  ?expects("Release . *Acquire"),
   receive
     {release} ->
       free_lock()
@@ -96,7 +96,7 @@ busy_lock(Owner) ->
 user(Num, Lock) ->
   Self = self(),
   Lock ! {acquire, Self},
-  ?mb_assert_regex("Reply"),
+  ?expects("Reply"),
   receive
     {reply, Lock} ->
       format("~p~n", [Num]),

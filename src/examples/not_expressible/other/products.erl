@@ -46,10 +46,10 @@
 %% }
 -spec nested() -> no_return().
 nested() ->
-  ?mb_assert_regex("Arg . Arg"),
+  ?expects("Arg . Arg"),
   receive
     {arg, X} ->
-      ?mb_assert_regex("Arg"),
+      ?expects("Arg"),
       receive
         {arg, Y} ->
           format("~p~n", [X + Y])
@@ -69,9 +69,9 @@ nested() ->
 %% }
 -spec pairs() -> no_return().
 pairs() ->
-  ?mb_assert_regex("Arg . Arg"),
+  ?expects("Arg . Arg"),
   First = receive {arg, X} -> X end,
-  ?mb_assert_regex("Arg"),
+  ?expects("Arg"),
   receive {arg, Y} -> format("~p~n", [First + Y]) end.
 
 %% def main(): Unit {

@@ -91,7 +91,7 @@ future() ->
 future() ->
   %% @mb future()
   %% @assert put.get*
-  ?mb_assert_regex("put.get*"),
+  ?expects("put.get*"),
   receive
     {put, Value} ->
     %% @use future() (@use is derived from the interface of the resolved_future function)
@@ -115,7 +115,7 @@ future() ->
 resolved_future(Value, 42, State) ->
   %% @mb future()
   %% @assert get*
-  ?mb_assert_regex("get*"),
+  ?expects("get*"),
 %%  ok,
   receive
     {get, UserPid} ->
@@ -144,7 +144,7 @@ user(FuturePid) ->
 
   %% @mb user()
   %% @assert reply
-  ?mb_assert_regex("reply"),
+  ?expects("reply"),
   receive
     {reply, Value} ->
       Value

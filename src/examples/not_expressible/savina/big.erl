@@ -88,7 +88,7 @@
 %%  }
 -spec actor(integer(), sink_mb()) -> no_return().
 actor(Id, Sink) ->
-  ?mb_assert_regex("Neighbors . *(Pong + Ping)"),
+  ?expects("Neighbors . *(Pong + Ping)"),
   receive
     {neighbors, Actor1, Actor2} ->
       actor_loop(Id, Sink, 100, Actor1, Actor2)
@@ -102,7 +102,7 @@ actor(Id, Sink) ->
 %%  }
 -spec await_exit() -> integer().
 await_exit() ->
-  ?mb_assert_regex("Exit"),
+  ?expects("Exit"),
   receive
     {exit} ->
 %%    TODO: Not sure about free
@@ -138,7 +138,7 @@ await_exit() ->
 %%  }
 -spec actor_loop(integer(), sink_mb(), integer(), actor_mb(), actor_mb()) -> no_return().
 actor_loop(Id, Sink, Num_pings, Actor1, Actor2) ->
-  ?mb_assert_regex("*(Ping + Pong)"),
+  ?expects("*(Ping + Pong)"),
   receive
     {ping, Pinger_id} ->
       send_pong(Id, Pinger_id, Actor1, Actor2),
@@ -167,7 +167,7 @@ actor_loop(Id, Sink, Num_pings, Actor1, Actor2) ->
 %%  }
 -spec actor_exit() -> no_return().
 actor_exit() ->
-  ?mb_assert_regex("(*Ping) . (*Pong)"),
+  ?expects("(*Ping) . (*Pong)"),
   receive
     {ping, Pinger_id} ->
       actor_exit();
@@ -219,7 +219,7 @@ send_ping(Id, Actor1, Actor2) ->
 %%  }
 -spec sink() -> no_return().
 sink() ->
-  ?mb_assert_regex("Actors . (*Done)"),
+  ?expects("Actors . (*Done)"),
   receive
     {actors, Exit1, Exit2, Exit3} ->
       sink_loop(Exit1, Exit2, Exit3)
@@ -238,7 +238,7 @@ sink() ->
 -spec sink_loop(exit_mb(), exit_mb(), exit_mb()) -> no_return().
 sink_loop(Exit1, Exit2, Exit3) ->
 %% TODO: Not sure about free
-  ?mb_assert_regex("*Done"),
+  ?expects("*Done"),
   receive
     {done} ->
       sink_loop(Exit1, Exit2, Exit3)

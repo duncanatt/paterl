@@ -40,7 +40,7 @@
 %% }
 -spec foo() -> no_return().
 foo() ->
-  ?mb_assert_regex("Foo"),
+  ?expects("Foo"),
   receive
     {foo} ->
       ok;

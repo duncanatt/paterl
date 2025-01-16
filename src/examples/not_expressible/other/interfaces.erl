@@ -54,10 +54,10 @@
 %% }
 -spec go() -> no_return().
 go() ->
-  ?mb_assert_regex("Ready1 . Ready2"),
+  ?expects("Ready1 . Ready2"),
   receive
     {ready1, Reply1} ->
-      ?mb_assert_regex("Ready2"),
+      ?expects("Ready2"),
       receive
         {ready2, Reply2} ->
           Reply1 ! {go},
@@ -88,13 +88,13 @@ main() ->
   Self ! {ready1, Self},
   Self ! {ready2, Self},
 
-  ?mb_assert_regex("Go"),
+  ?expects("Go"),
   receive
     {go} ->
       ok
   end,
 
-  ?mb_assert_regex("Go"),
+  ?expects("Go"),
   receive
     {go} ->
       ok
