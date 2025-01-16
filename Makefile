@@ -35,8 +35,6 @@ compile-test: clean
 	erlc -DTEST -Dlog -pa $(BIN) +debug_info -I $(INCLUDE) -W0 -o $(BIN) $(call recursive,$(TEST),erl)
 
 test: compile-test
-	#erl -noshell -pa $(BIN) -eval 'case eunit:test(log_tracer_test, [verbose]) of error -> init:stop(1); Result -> Result end.' -s init stop
-	#erl -noshell -pa $(BIN) -eval 'case eunit:test(async_tracer_test, [verbose]) of error -> init:stop(1); Result -> Result end.' -s init stop
 	echo "CodeBEAM/ID server test"
 	$(CMD) $(SRC)/examples/erlang/codebeam/id_server_demo.erl -v all -I include -o $(BIN)
 	diff $(BIN)/id_server_demo $(TEST)/generated/codebeam/id_server_demo_ref
