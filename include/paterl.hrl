@@ -37,6 +37,3 @@
 %% interface name. The mailbox interface name is inferred from the enclosing
 %% scope.
 -define(expects(MbName), {'@expects', MbName}).
-
-
-

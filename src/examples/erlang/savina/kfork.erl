@@ -87,13 +87,8 @@ flood(Num_messages, Actor) ->
 %% @doc Launcher.
 -spec main() -> any().
 main() ->
-%%  ?mb_new(actor_mb),
   Actor1 = spawn(?MODULE, actor, []),
-
-%%  ?mb_new(actor_mb),
   Actor2 = spawn(?MODULE, actor, []),
-
-%%  ?mb_new(actor_mb),
   Actor3 = spawn(?MODULE, actor, []),
 
   flood(5, Actor1),

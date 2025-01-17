@@ -122,12 +122,8 @@ pong_loop() ->
 %% @doc Launcher.
 -spec main() -> any().
 main() ->
-%%  ?mb_new(pong_mb),
   Pong = spawn(?MODULE, pong, []),
-
-%%  ?mb_new(ping_mb),
   Ping = spawn(?MODULE, ping, [5]),
-
   Ping ! {start, Pong}.
 
 %% ./src/paterl src/examples/erlang/savina/ping_pong_strict.erl -v all -I include

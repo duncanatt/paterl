@@ -67,17 +67,13 @@
 %% }
 -spec teller(integer()) -> no_return().
 teller(Num_accounts) ->
-%%  ?mb_new(account_mb),
   Account1 = spawn(?MODULE, account, [1, 200]),
-%%  ?mb_new(account_mb),
   Account2 = spawn(?MODULE, account, [2, 150]),
-%%  ?mb_new(account_mb),
   Account3 = spawn(?MODULE, account, [3, 50]),
 
   ?expects("Start"),
   receive
     {start} ->
-%%      ?mb_new(teller_mb),
       spawn(?MODULE, generate_work, [Num_accounts, Account1, Account2, Account3]),
       teller_loop(Account1, Account3, Account2)
   end.
@@ -231,6 +227,5 @@ account_exit() ->
 %%  }
 -spec main() -> no_return().
 main() ->
-%%  ?mb_new(teller_mb),
   Teller = spawn(?MODULE, teller, [3]),
   Teller ! {start}.

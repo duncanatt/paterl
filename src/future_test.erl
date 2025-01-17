@@ -89,14 +89,9 @@ future() ->
 %%  | duncan.
 -type main_mb() :: pid().
 future() ->
-  %% @mb future()
-  %% @assert put.get*
   ?expects("put.get*"),
   receive
     {put, Value} ->
-    %% @use future() (@use is derived from the interface of the resolved_future function)
-%%    ?mb_use(future_mb),
-%%    ?mb_use(future_mb),
     resolved_future(Value, 42, hello)
   end.
 
@@ -113,15 +108,11 @@ future() ->
 %%-use future.
 -spec resolved_future(integer(), integer(), any()) -> none().
 resolved_future(Value, 42, State) ->
-  %% @mb future()
-  %% @assert get*
   ?expects("get*"),
 %%  ok,
   receive
     {get, UserPid} ->
       UserPid ! {reply, Value},
-      %% @use future()
-%%      ?mb_use(future_mb),
       resolved_future(Value, 42, State)
   end.
 
@@ -137,13 +128,9 @@ resolved_future(Value, 42, State) ->
 -spec user(future_mb()) -> integer().
 user(FuturePid) ->
   Self =
-    %% @mb user()
-%%    ?mb_type(user_mb),
     self(),
   FuturePid ! {get, Self},
 
-  %% @mb user()
-  %% @assert reply
   ?expects("reply"),
   receive
     {reply, Value} ->
@@ -160,38 +147,21 @@ user(FuturePid) ->
 %% }
 -spec main() -> any().
 main() ->
-
-%%  ?mb_assert_regex("figgy"),
-%%  1 + 1,
   FuturePid =
-    %% @new future()
-%%    ?mb_use(future_mb),
-%%    ?mb_new(future_mb),
     spawn(?MODULE, future, []),
   FuturePid ! {put, 5},
 
-%%  ?mb_assert_regex("figgy"),
-
   if a == b -> hello; true ->
     GetX =
-      %% @new user
-%%    ?mb_new(user_mb),
     user(FuturePid),
     goodbye
   end,
 
-%%  ?mb_assert_regex("duncan"),
   Get1 =
-    %% @new user
-%%    ?mb_new(user_mb),
     user(FuturePid),
   format("A: ~p~n", [Get1]),
   Get2 =
-    %% @new user
-%%    ?mb_use(user_mb),
-%%    ?mb_new(user_mb),
     user(FuturePid),
-%%  ?mb_use(user_mb),
   format("B: ~p~n", [Get2]),
   a_non_annotated_fun("duncan", 1, 2.0, hello).%,
 %%  ?mb_use(user_mb),

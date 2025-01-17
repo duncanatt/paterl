@@ -82,7 +82,6 @@ go() ->
 -spec main() -> no_return().
 main() ->
   Self = self(),
-%%  ?mb_new(receiver_mb),
   spawn(?MODULE, go, []),
 
   Self ! {ready1, Self},

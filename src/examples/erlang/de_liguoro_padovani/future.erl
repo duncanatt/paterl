@@ -95,7 +95,6 @@ user(FuturePid) ->
 %% @doc Launcher.
 -spec main() -> any().
 main() ->
-%%  ?mb_new(future_mb),
   FuturePid = spawn(?MODULE, future, []),
   FuturePid ! {put, 5},
 

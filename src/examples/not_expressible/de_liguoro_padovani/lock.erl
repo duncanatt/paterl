@@ -111,13 +111,8 @@ user(Num, Lock) ->
 %% }
 -spec main() -> any().
 main() ->
-%%  ?mb_new(lock_mb),
   Lock = spawn(?MODULE, free_lock, []),
-
-%%  ?mb_new(user_mb),
   spawn(?MODULE, user, [1, Lock]),
-
-%%  ?mb_new(user_mb),
   spawn(?MODULE, user, [2, Lock]),
   ok.
 

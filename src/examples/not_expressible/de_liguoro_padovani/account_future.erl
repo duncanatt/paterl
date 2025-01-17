@@ -153,7 +153,6 @@ account_loop(Balance) ->
       account_loop(Balance + Amount);
     {credit, Amount, Recipient, Sender} ->
 %%      Future = await(Amount, Recipient),
-%%      ?mb_new(future_mb),
       Future = spawn(?MODULE, await, [Amount, Recipient]),
       resume(Future),
       Sender ! {reply},
@@ -182,12 +181,9 @@ account_loop(Balance) ->
 %% }
 -spec main() -> any().
 main() ->
-%%  ?mb_new(account_mb),
   Alice = spawn(?MODULE, account, [5]),
-%%  ?mb_new(account_mb),
   Bob = spawn(?MODULE, account, [20]),
 
-%%  ?mb_new(main_mb),
   Self = self(),
   Bob ! {credit, 20, Alice, Self},
 

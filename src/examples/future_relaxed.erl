@@ -41,7 +41,7 @@
 -spec future() -> no_return().
 future() ->
   ?expects("Put.*Get"),
-%%  ?mb_assert_regex("Put"), % Uncomment for "unexpected Get"
+%%  ?expects("Put"), % Uncomment for "unexpected Get"
   receive
     {put, X} ->
       resolved_future(X)
@@ -74,7 +74,6 @@ user(Future) ->
 
 -spec main() -> any().
 main() ->
-%%  ?mb_new(future_mb),
   Future_mb = spawn(?MODULE, future, []),
   Future_mb ! {put, 5}, % Comment out for "missing Put".
 %%  Future_mb ! {put, 5}, % Uncomment for "extra Put".
