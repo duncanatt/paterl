@@ -1,56 +1,42 @@
-%%%-------------------------------------------------------------------
-%%% @author duncan
-%%% @copyright (C) 2023, <COMPANY>
-%%% @doc
-%%% This file is intended for users of paterl.
-%%% @end
-%%% Created : 24. May 2023 09:39
-%%%-------------------------------------------------------------------
+%%
+%% %CopyrightBegin%
+%%
+%% Copyright the University of Glasgow 2022-2024. All Rights Reserved.
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+%%
+%% %CopyrightEnd%
+%%
 -author("duncan").
 
-%% Asserts the state of the mailbox in terms of the messages it can contain.
--define(mb_state(Regex), "@state:" ++ Regex).
--define(mb_state(Regex, _), "@state:" ++ Regex, no_free).
-
-%% Asserts the state of the mailbox in terms of the messages it can contain and
-%% specifies that a free guard is to be injected in the generated Pat IR.
-%% TODO: An alternative is to always generate free when the regex contains *,
-%% and use a flag to opt out of it, because it is more common.
--define(mb_state_free(Regex), "@state:" ++ Regex, free).
-
-%% Specifies that a free guard is to be injected in the generated IR.
--define(free, free).
-
-%% Asserts the state of the mailbox in terms of the messages it can contain.
-%%-define(mb_state(Regex, MbName), {mb_state, usable, Regex, MbName}).
-
-%% Asserts the state of the mailbox in terms of the messages it can contain and
-%% specifies that a free guard is to be injected in the generated Pat IR.
-%%-define(mb_state_free(Regex, MbName), {mb_state, free, Regex, MbName}).
-
-%%-define(free(MbName), {mb_state, free, "shouldbefilledautomatically?", MbName}).
-
-%%-define(mb_assert(Mailbox, Regex), {'@state', Mailbox, Regex}).
-%%-define(mb_assert(Mailbox, Regex), {'state', Mailbox, Regex}).
-%%-define(mb_assert_regex(Regex), {'state', Regex}).
-
--define(mb_type(Mailbox), {'type', Mailbox}).
-
--define(mb_new(Mailbox), {'new', Mailbox}).
-
--define(mb_use(Mailbox), {'use', Mailbox}).
-
+%% Views the pid returned by self through the specified mailbox interface.
+%% The annotation is used to decorate self expressions.
 -define(as(MbName), {'@as', MbName}).
 
+%% Asserts the state of the mailbox in terms of the messages it can contain.
+%% The annotation is used to decorate receive expressions.
+%%
+%% Must be used when the mailbox interface scope consists of one or more
+%% mailbox interface names.
 -define(expects(MbName, Pattern), {'@expects', MbName, Pattern}).
 
+%% Asserts the state of the mailbox in terms of the messages it can contain.
+%% The annotation is used to decorate receive expressions.
+%%
+%% Can be used when the mailbox interface scope consists of one mailbox
+%% interface name. The mailbox interface name is inferred from the enclosing
+%% scope.
 -define(expects(MbName), {'@expects', MbName}).
 
 
-%%-define(M_NEW, new).
-%%-define(M_USE, use).
-
-%%-define(T_TYPE, type).
-%%-define(T_SPEC, spec).
-%%-define(T_MBOX, mbox).
 

@@ -74,7 +74,7 @@ user(Future) ->
 
 -spec main() -> any().
 main() ->
-  ?mb_new(future_mb),
+%%  ?mb_new(future_mb),
   Future_mb = spawn(?MODULE, future, []),
   Future_mb ! {put, 5}, % Comment out for "missing Put".
 %%  Future_mb ! {put, 5}, % Uncomment for "extra Put".

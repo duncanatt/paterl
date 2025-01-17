@@ -130,9 +130,9 @@ account_loop(Balance) ->
 %% }
 -spec main() -> any().
 main() ->
-  ?mb_new(account_mb),
+%%  ?mb_new(account_mb),
   Alice = spawn(?MODULE, account, [10]),
-  ?mb_new(account_mb),
+%%  ?mb_new(account_mb),
   Bob = spawn(?MODULE, account, [15]),
 
   Self = self(),

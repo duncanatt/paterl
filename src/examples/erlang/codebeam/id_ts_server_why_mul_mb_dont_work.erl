@@ -143,9 +143,9 @@ ts_get() ->
 %% @doc Launcher.
 -spec main() -> any().
 main() ->
-  ?mb_new(id_server_mb), % TODO: To remove once 'use' bug is fixed.
+%%  ?mb_new(id_server_mb), % TODO: To remove once 'use' bug is fixed.
   IdServer = spawn(?MODULE, id_server, []),
-  ?mb_new(ts_server_mb), % TODO: To remove once 'use' bug is fixed.
+%%  ?mb_new(ts_server_mb), % TODO: To remove once 'use' bug is fixed.
   TsServer = spawn(?MODULE, ts_server, []),
 
   % Bootstrap ID server.

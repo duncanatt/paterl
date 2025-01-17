@@ -96,7 +96,7 @@ future() ->
     {put, Value} ->
     %% @use future() (@use is derived from the interface of the resolved_future function)
 %%    ?mb_use(future_mb),
-    ?mb_use(future_mb),
+%%    ?mb_use(future_mb),
     resolved_future(Value, 42, hello)
   end.
 
@@ -121,7 +121,7 @@ resolved_future(Value, 42, State) ->
     {get, UserPid} ->
       UserPid ! {reply, Value},
       %% @use future()
-      ?mb_use(future_mb),
+%%      ?mb_use(future_mb),
       resolved_future(Value, 42, State)
   end.
 
@@ -166,7 +166,7 @@ main() ->
   FuturePid =
     %% @new future()
 %%    ?mb_use(future_mb),
-    ?mb_new(future_mb),
+%%    ?mb_new(future_mb),
     spawn(?MODULE, future, []),
   FuturePid ! {put, 5},
 
@@ -175,7 +175,7 @@ main() ->
   if a == b -> hello; true ->
     GetX =
       %% @new user
-    ?mb_new(user_mb),
+%%    ?mb_new(user_mb),
     user(FuturePid),
     goodbye
   end,
@@ -183,13 +183,13 @@ main() ->
 %%  ?mb_assert_regex("duncan"),
   Get1 =
     %% @new user
-    ?mb_new(user_mb),
+%%    ?mb_new(user_mb),
     user(FuturePid),
   format("A: ~p~n", [Get1]),
   Get2 =
     %% @new user
 %%    ?mb_use(user_mb),
-    ?mb_new(user_mb),
+%%    ?mb_new(user_mb),
     user(FuturePid),
 %%  ?mb_use(user_mb),
   format("B: ~p~n", [Get2]),

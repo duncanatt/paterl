@@ -56,6 +56,6 @@ foo() ->
 -spec main() -> no_return().
 main() ->
   MB = self(),
-  ?mb_new(test_mb),
+%%  ?mb_new(test_mb),
   spawn(?MODULE, foo, []),
   MB ! {foo}.

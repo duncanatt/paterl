@@ -87,12 +87,12 @@ pairs() ->
 %% }
 -spec main() -> no_return().
 main() ->
-  ?mb_new(test_mb),
+%%  ?mb_new(test_mb),
   MB1 = spawn(?MODULE, nested, []),
   MB1 ! {arg, 1},
   MB1 ! {arg, 2},
 
-  ?mb_new(test_mb),
+%%  ?mb_new(test_mb),
   MB2 = spawn(?MODULE, pairs, []),
   MB2 ! {arg, 1},
   MB2 ! {arg, 2}.

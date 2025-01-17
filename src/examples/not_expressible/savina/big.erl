@@ -272,13 +272,13 @@ sink_loop(Exit1, Exit2, Exit3) ->
 %%  }
 -spec main() -> no_return().
 main() ->
-  ?mb_new(sink_mb),
+%%  ?mb_new(sink_mb),
   Sink = spawn(?MODULE, sink, []),
-  ?mb_new(actor_mb),
+%%  ?mb_new(actor_mb),
   Actor1 = spawn(?MODULE, actor, [1, Sink]),
-  ?mb_new(actor_mb),
+%%  ?mb_new(actor_mb),
   Actor2 = spawn(?MODULE, actor, [2, Sink]),
-  ?mb_new(actor_mb),
+%%  ?mb_new(actor_mb),
   Actor3 = spawn(?MODULE, actor, [3, Sink]),
 
   Sink ! {actor, Actor1, Actor2, Actor3},

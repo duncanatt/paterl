@@ -126,22 +126,22 @@ master(StartRate, Increment) ->
 
   % Computer 1.
   Rate1 = StartRate + (1 * Increment),
-  ?mb_new(computer_mb),
+%%  ?mb_new(computer_mb),
   Computer1 = spawn(?MODULE, computer, [Rate1]),
 
   % Worker 1.
   StartTerm1 = 1 * Increment,
-  ?mb_new(worker_mb),
+%%  ?mb_new(worker_mb),
   Worker1 = spawn(?MODULE, worker, [1, Self, Computer1, StartTerm1]),
 
   % Computer 2.
   Rate2 = StartRate + (2 * Increment),
-  ?mb_new(computer_mb),
+%%  ?mb_new(computer_mb),
   Computer2 = spawn(?MODULE, computer, [Rate2]),
 
   % Worker 2.
   StartTerm2 = 2 * Increment,
-  ?mb_new(worker_mb),
+%%  ?mb_new(worker_mb),
   Worker2 = spawn(?MODULE, worker, [2, Self, Computer2, StartTerm2]),
 
   ?expects("Start . *Result"),
@@ -328,6 +328,6 @@ computer_exit() ->
 %%  }
 -spec main() -> any().
 main() ->
-  ?mb_new(master_mb),
+%%  ?mb_new(master_mb),
   Master = spawn(?MODULE, master, [3, 1]),
   Master ! {start}.
