@@ -174,46 +174,7 @@ loop. Will be fixed later.
 ### Returns
 List of [`form()`](`t:paterl_syntax:forms/0`).
 """.
-%%-spec get_interfaces(paterl_types:type_info()) -> [erl_syntax:syntaxTree()].
-%%get_interfaces(TypeInfo = #type_info{type_defs = TypeDefs}) when is_map(TypeDefs) ->
-%%  lists:reverse(
-%%    maps:fold(
-%%      fun(Name, {?T_MBOX, Anno, _, Vars = []}, Attrs) ->
-%%        ?TRACE("Create interface for mailbox '~p'.", [Name]),
-%%
-%%        MsgTypesAS =
-%%%%          case expand_msg_type_set(Name, TypeDefs) of
-%%        case expand_msg_type_set(Name, TypeInfo) of
-%%          [Type] ->
-%%            % Mailbox type is a singleton.
-%%            Type;
-%%          Types when is_list(Types) ->
-%%            % Mailbox type is a list that must be recombined as a type
-%%            % union.
-%%            paterl_syntax:set_anno(erl_syntax:type_union(Types), Anno)
-%%        end,
-%%
-%%        % Create interface attribute.
-%%        ?TRACE("Expanded mailbox interface type '~s() :: ~s'.", [Name, erl_prettypr:format(MsgTypesAS)]),
-%%        Interface = paterl_syntax:set_anno(
-%%          erl_syntax:attribute(
-%%            erl_syntax:atom(interface),
-%%            [erl_syntax:tuple([
-%%              erl_syntax:atom(Name), % Mailbox type name.
-%%              erl_syntax:abstract(MsgTypesAS), % Lifted message types AS.
-%%              erl_syntax:abstract(Vars)] % Lifted variable types AS.
-%%            )]
-%%          ),
-%%          Anno),
-%%        [Interface | Attrs];
-%%        (_, _, Attrs) ->
-%%          % Eat other attributes.
-%%          Attrs
-%%      end,
-%%      [], TypeDefs)
-%%  ).
-
-get_interfaces_2(TypeInfo) ->
+get_interfaces(TypeInfo) ->
 
   % Get type definition names.
   Names = paterl_types:type_defs(TypeInfo),
@@ -240,29 +201,11 @@ get_interfaces_2(TypeInfo) ->
                 paterl_syntax:set_anno(erl_syntax:type_union(Types), Anno)
             end,
 
-          % Create interface attribute.
-          ?TRACE("Expanded mailbox interface type '~s() :: ~s'.", [Name, erl_prettypr:format(MsgType)]),
-          % TODO: Refactor this to split the interface and internal tuple defintion.
-
-%%          % Create mailbox interface type
-%%          InterfaceType =
-          ?TRACE("MsgType = ~p", [MsgType]),
-          ?TRACE("Vars = ~p", [Vars]),
-%%
-%%          Interface = paterl_syntax:set_anno(
-%%            erl_syntax:attribute(
-%%              erl_syntax:atom(interface),
-%%              [erl_syntax:tuple([
-%%                erl_syntax:atom(Name), % Mailbox type name.
-%%                erl_syntax:abstract(MsgType), % Lifted message type to abstract syntax.
-%%                erl_syntax:abstract(Vars)] % Lifted type variables to abstract syntax.
-%%              )]
-%%            ),
-%%            Anno),
-          Interface = interface(Name, MsgType, Anno),
-
-          ?TRACE("Create mailbox interface attribute '~s'.", [erl_prettypr:format(Interface)]),
-          [Interface | Attrs];
+          % Create mailbox interface attribute.
+          ?TRACE("Expanded mailbox interface type '~s() :: ~s'.", [
+            Name, erl_prettypr:format(MsgType)
+          ]),
+          [interface(paterl_syntax:name(Name, Anno), MsgType, Anno) | Attrs];
         {?T_TYPE, _, _, _Vars = []} ->
           % Eat other type definition attributes.
           ?TRACE("Skip non-mailbox interface type '~s'.", [Name]),
@@ -273,14 +216,28 @@ get_interfaces_2(TypeInfo) ->
   % Create mailbox interface attribute definitions.
   lists:reverse(lists:foldl(Fun, [], Names)).
 
-% MsgType is a singleton type or a type union.
+-doc """
+Creates a mailbox interface defintion wild attribute abstract syntax
+representation with the specified [annotation](`m:erl_anno`).
+
+### Returns
+- mailbox interface definition wild attribute abstract syntax representation
+""".
+-spec interface(Name, MsgType, Anno) -> Tree
+  when
+  Name :: paterl_syntax:tree(),
+  MsgType :: paterl_syntax:type(),
+  Anno :: paterl_syntax:anno(),
+  Tree :: paterl_syntax:tree().
 interface(Name, MsgType, Anno) ->
   InterfaceDef = erl_syntax:tuple([
-    erl_syntax:atom(Name),
+    Name,
     erl_syntax:abstract(MsgType), % Lifted message type to abstract syntax.
     erl_syntax:abstract([]) % Lifted type variables to abstract syntax.
   ]),
-  erl_syntax:revert(erl_syntax:attribute(erl_syntax:atom(interface), [InterfaceDef])).
+  paterl_syntax:set_anno(
+    erl_syntax:attribute(erl_syntax:atom(interface), [InterfaceDef]), Anno
+  ).
 
 -doc """
 Expands message types to their full tuple definition form.
@@ -295,7 +252,6 @@ List of [`type()`](`t:paterl_syntax:type/0`).
   Types :: [paterl_syntax:type()].
 expand_msg_type_set(Name, TypeInfo) ->
   % Mailbox message set type. Type variables not supported.
-%%  {?T_MBOX, _, Type, _Vars = []} = maps:get(Name, TypeDefs),
   {?T_MBOX, _, Type, _Vars = []} = paterl_types:type_def(Name, TypeInfo),
   lists:reverse(expand_msg_type(Type, TypeInfo, [])).
 
@@ -334,7 +290,6 @@ expand_msg_type(_Type = {user_type, _, Name, _Vars = []}, TypeInfo, Acc) ->
   % User-defined type. Denotes another message type which is a message set
   % alias.
   ?TRACE("Inspect type '~s'.", [erl_prettypr:format(_Type)]),
-%%  {?T_TYPE, _, UserType, _} = maps:get(Name, TypeDefs),
   {?T_TYPE, _, UserType, _} = paterl_types:type_def(Name, TypeInfo),
   expand_msg_type(UserType, TypeInfo, Acc).
 
@@ -362,7 +317,7 @@ annotate_forms([], _, Analysis) ->
   Analysis#analysis{result = []};
 annotate_forms([Form = {attribute, _, module, _} | Forms], TypeInfo, Analysis) ->
   % Module attribute. Expand interfaces after it.
-  Interfaces = get_interfaces_2(TypeInfo),
+  Interfaces = get_interfaces(TypeInfo),
   Analysis0 = annotate_forms(Forms, TypeInfo, Analysis),
   Analysis0#analysis{result = [Form | Interfaces ++ Analysis0#analysis.result]};
 annotate_forms([Form = {attribute, _, export, _} | Forms], TypeInfo, Analysis) ->
@@ -386,8 +341,6 @@ annotate_forms([Form = {function, _, _, _, _} | Forms], TypeInfo, Analysis) ->
 annotate_forms([_ | Forms], TypeInfo, Analysis) ->
   % Eat other forms.
   annotate_forms(Forms, TypeInfo, Analysis).
-
-%% @private Annotates functions with a single clause and without guards.
 
 -doc """
 Annotates unguarded functions with a single clause.
