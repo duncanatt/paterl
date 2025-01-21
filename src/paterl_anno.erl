@@ -1196,6 +1196,7 @@ See `module/2` for error and warnings codes.
 ### Returns
 - message as a possibly deep [`io_lib:chars()`](`t:io_lib:chars/0`) list
 """.
+-spec format_error(Detail :: paterl_lib:detail()) -> io_lib:chars().
 format_error({?E_UNDEF__FUN_SPEC, Node}) ->
   io_lib:format(
     "function '~s' has missing spec",

@@ -217,10 +217,12 @@
 %%  andalso (?litValue(hd(element(3, Expr))) =:= new
 %%    orelse ?litValue(hd(element(3, Expr))) =:= use
 %%    orelse ?litValue(hd(element(3, Expr))) =:= state
-  andalso (?isAtomValue(hd(?litValue(Expr)), new)
-    orelse ?isAtomValue(hd(?litValue(Expr)), use)
-    orelse ?isAtomValue(hd(?litValue(Expr)), state)
-    orelse ?isAtomValue(hd(?litValue(Expr)), ?ANNO_NEW)
+  andalso (
+%%      ?isAtomValue(hd(?litValue(Expr)), new)
+%%    orelse ?isAtomValue(hd(?litValue(Expr)), use)
+%%    orelse ?isAtomValue(hd(?litValue(Expr)), state)
+%%    orelse
+        ?isAtomValue(hd(?litValue(Expr)), ?ANNO_NEW)
     orelse ?isAtomValue(hd(?litValue(Expr)), ?ANNO_USE)
     orelse ?isAtomValue(hd(?litValue(Expr)), ?ANNO_AS)
     orelse ?isAtomValue(hd(?litValue(Expr)), ?ANNO_EXPECTS)
