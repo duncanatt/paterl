@@ -911,12 +911,15 @@ format_error({?E_UNDEF__TYPE, Node}) ->
   when
   Name :: paterl_syntax:name(),
   TypeInfo :: type_info(),
-  Type :: {type | mbox, paterl_syntax:anno(), Type :: paterl_syntax:type(), Vars :: []}.
+  Type :: {?T_TYPE | ?T_MBOX, paterl_syntax:anno(), Type :: paterl_syntax:type(), Vars :: []}.
 type_def(Name, #type_info{type_defs = TypeDefs}) when is_atom(Name) ->
   case maps:find(Name, TypeDefs) of
     {ok, Type} -> Type;
     error -> undefined_type
   end.
+
+type_defs(#type_info{type_defs = TypeDefs}) ->
+  maps:keys(TypeDefs).
 
 -spec spec_def(FunRef, TypeInfo) -> Spec | undefined_spec
   when

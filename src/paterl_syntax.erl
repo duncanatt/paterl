@@ -31,7 +31,7 @@ Erlang syntactic subset and mailbox interface well-formedness syntax checks.
 %%% Public API.
 -export([module/1, format_error/1]).
 -export([get_file/1, set_anno/2]).
--export([name/2, fun_reference/2, mb_anno/3, mb_anno/1, mb_anno_name/1, mb_anno_args/1, is_mb_anno/1, mb_definition/3, application/3]).
+-export([name/2, fun_reference/2, mb_anno/3, mb_anno/1, mb_anno_name/1, mb_anno_args/1, is_mb_anno/1, application/3]).
 
 -ifdef(test).
 -export([is_atom_value/2, is_mb_anno2/1]).
@@ -97,7 +97,7 @@ Erlang syntactic subset and mailbox interface well-formedness syntax checks.
 -type mb_anno() :: {?ANNO_NEW, anno(), MbName :: name()} |
 {?ANNO_USE, anno(), MbName :: name()} |
 {?ANNO_AS, anno(), MbName :: name()} |
-{?ANNO_EXPECTS, MbName :: name(), Pattern :: string()}.
+{?ANNO_EXPECTS, anno(), MbName :: name(), Pattern :: string()}.
 
 -doc "Return result.".
 -type result() :: {ok, Forms :: forms(), Warnings :: paterl_errors:warnings()} |
@@ -159,7 +159,7 @@ Sets the annotation of Erlang `Tree`.
   when
   Tree :: erl_syntax:syntaxTree() | tree(),
   Anno :: anno(),
-  Tree0 :: tree().
+  Tree0 :: erl_syntax:syntaxTree() | tree().
 set_anno(Tree, Anno) ->
   erl_syntax:revert(erl_syntax:set_pos(Tree, Anno)).
 
@@ -167,7 +167,11 @@ set_anno(Tree, Anno) ->
 Creates an atom name abstract syntax representation with the specified
 [`Anno`](`m:erl_anno`).
 
-### Returns.
+### Example
+`name(Name, Anno)`, where `Name` = `name` and `Anno` = `erl_anno:new(0)`
+represents the atom `name`.
+
+### Returns
 - atom name abstract syntax representation
 """.
 -spec name(Name, Anno) -> Tree
@@ -176,11 +180,15 @@ Creates an atom name abstract syntax representation with the specified
   Anno :: anno(),
   Tree :: tree().
 name(Name, Anno) when is_atom(Name) ->
-  erl_syntax:revert(erl_syntax:set_pos(erl_syntax:atom(Name), Anno)).
+  set_anno(erl_syntax:atom(Name), Anno).
 
 -doc """
 Creates an implicit fun reference abstract syntax representation with the
 specified [annotation](`m:erl_anno`).
+
+### Example
+`fun_reference(FunRef, Anno)`, where `FunRef` = `{name, 2}` and `Anno` =
+`erl_anno:new(0)` represents the implicit fun reference `fun name/2`.
 
 ### Returns
 - implicit fun reference abstract syntax representation
@@ -200,13 +208,19 @@ fun_reference({Name, Arity}, Anno) when is_atom(Name), is_integer(Arity) ->
 Creates a mailbox annotation macro abstract syntax representation with the
 specified [annotation](`m:erl_anno`).
 
+### Example
+- `mb_anno(Name, Args, Anno)`, where `Name` = `'@as'`, `Args` = `[]`, and
+`Anno` = `erl_anno:new(0)` represents the macro `?as()`.
+- `mb_anno(Name, Args, Anno)`, where `Name` = `'@as'`, `Args` =
+`[2, three, "four"]`, and `Anno` = `erl_anno:new(0)` represents the macro
+`?as(2, three, "four")`.
+
 ### Returns
 - mailbox annotation macro abstract syntax representation
 """.
 -spec mb_anno(Name, Args, Anno) -> Tree
   when
   Name :: ?ANNO_NEW | ?ANNO_USE | ?ANNO_AS | ?ANNO_EXPECTS,
-%%  Name :: new | use | as | expects,
   Args :: [term()],
   Anno :: anno(),
   Tree :: erl_syntax:syntaxTree().
@@ -214,25 +228,58 @@ mb_anno(Name, Args, Anno) when is_atom(Name), is_list(Args) ->
   % The macro tree is not revertible since it is not an
   % erl_parse:abstract_expr(), but an erl_syntax:syntaxTree() abstraction.
   % Inner expressions are reverted.
-%%  Name0 = atom_to_list(Name),
-%%  Name1 = if length(Name0) > 1 -> tl(Name0); true -> Name0 end,
   Name1 = case atom_to_list(Name) of [$@ | Rest] -> Rest; Name0 -> Name0 end,
   set_anno(
     erl_syntax:macro(
-%%      erl_syntax:atom(Name1), [erl_syntax:abstract(Arg) || Arg <- Args]
       erl_syntax:atom(Name1), [erl_syntax:abstract(Arg) || Arg <- Args]
     ),
     Anno
   ).
 
--spec mb_anno(Tuple) -> Tree
-  when
-  Tuple :: mb_anno(),
-  Tree :: erl_syntax:syntaxTree().
-mb_anno(Tuple) when is_tuple(Tuple), tuple_size(Tuple) > 0 ->
-  [Name | Args] = tuple_to_list(Tuple),
-  mb_anno(Name, Args, 0). % TODO: Fix this when we include the actual annotation position in the annotation information.
+-doc """
+Creates a mailbox annotation macro abstract syntax representation with the
+specified [annotation](`m:erl_anno`).
 
+### Example
+- `mb_anno(MbAnno)`, where `MbAnno` = `{'@new', erl_anno:new(0), name}`
+represents the macro `?new(name)`.
+- `mb_anno(MbAnno)`, where `MbAnno` = `{'@use', erl_anno:new(0), name}`
+represents the macro `?use(name)`.
+- `mb_anno(MbAnno)`, where `MbAnno` = `{'@as', erl_anno:new(0), name}`
+represents the macro `?as(name)`.
+- `mb_anno(MbAnno)`, where
+`MbAnno` = `{'@expects', erl_anno:new(0), name, "Msg*"}` represents the macro
+`?expects(name, "Msg")`.
+
+### Returns
+- mailbox annotation macro abstract syntax representation
+""".
+-spec mb_anno(MbAnno) -> Tree
+  when
+  MbAnno :: mb_anno(),
+  Tree :: erl_syntax:syntaxTree().
+mb_anno(MbAnno) when is_tuple(MbAnno), tuple_size(MbAnno) > 1 ->
+  [Name | Args] = tuple_to_list(MbAnno), % Should pattern match to a list with at least three args.
+%%  [Name, Anno | Args] = tuple_to_list(MbAnno), % Should pattern match to a list with at least three args.
+  mb_anno(Name, Args, 0). % TODO: Fix this when we include the actual annotation position in the annotation information.
+%%  mb_anno(Name, Args, Anno). % TODO: Fix this when we include the actual annotation position in the annotation information.
+
+-doc """
+Returns the concrete arguments of the mailbox annotation abstract syntax
+representation.
+
+### Example
+- `mb_anno_args(MbAnno)`, where `MbAnno` =
+`erl_syntax:tuple([erl_syntax:atom('@as'), erl_syntax:atom(name)])` returns
+`[name]`.
+- `mb_anno_args(MbAnno)`, where `MbAnno` =
+`erl_syntax:tuple([erl_syntax:atom('@expects'), erl_syntax:atom(name),
+erl_syntax:string("Msg*")])` returns `[name, "Msg*"]`.
+
+### Returns
+- concrete arguments of the mailbox annotation abstract syntax representation
+- `{badarg, MbAnno}` when `MbAnno` does not represent a mailbox annotation
+""".
 -spec mb_anno_args(MbAnno :: paterl_syntax:expr()) -> [term()].
 mb_anno_args(MbAnno) ->
   maybe
@@ -243,15 +290,29 @@ mb_anno_args(MbAnno) ->
     false -> error({badarg, MbAnno})
   end.
 
+
+-doc """
+Returns the concrete name of the mailbox annotation abstract syntax
+representation.
+
+### Example
+- `mb_anno_name(MbAnno)`, where `MbAnno` =
+`erl_syntax:tuple([erl_syntax:atom('@as'), erl_syntax:atom(name)])` returns
+`'@as'`.
+- `mb_anno_name(MbAnno)`, where `MbAnno` =
+`erl_syntax:tuple([erl_syntax:atom('@expects'), erl_syntax:atom(name),
+erl_syntax:string("Msg*")])` returns `'@expects'`.
+
+### Returns
+- concrete name of the mailbox annotation abstract syntax representation
+- `{badarg, MbAnno}` when `MbAnno` does not represent a mailbox annotation
+""".
 -spec mb_anno_name(MbAnno :: paterl_syntax:expr()) -> ?ANNO_NEW | ?ANNO_USE | ?ANNO_AS | ?ANNO_EXPECTS.
 mb_anno_name(MbAnno) ->
   maybe
     true ?= is_mb_anno(MbAnno),
     [Name | _] = erl_syntax:tuple_elements(MbAnno),
     erl_syntax:atom_value(Name)
-%%    Name0 = atom_to_list(erl_syntax:atom_value(Name)),
-%%    Name1 = if length(Name0) > 1 -> tl(Name0); true -> Name0 end,
-%%    list_to_atom(Name1)
   else
     false -> error({badarg, MbAnno})
   end.
@@ -259,6 +320,9 @@ mb_anno_name(MbAnno) ->
 -doc """
 Determines whether the specified abstract syntax representation is a mailbox
 annotation macro.
+
+A mailbox annotation macro abstract syntax representation is a tuple whose name
+is represents the atoms '@new', '@use', '@as', and '@expects'.
 
 ### Returns
 - `true` if the specified abstract syntax representation is a mailbox
@@ -291,30 +355,32 @@ is_mb_anno(MbAnno) ->
       false
   end.
 
--doc """
-Creates a mailbox definition wild attribute abstract syntax representation with
-the specified [annotation](`m:erl_anno`).
-
-### Returns
-- mailbox definition wild attribute abstract syntax representation
-""".
--spec mb_definition(Name, Args, Anno) -> Tree
-  when
-  Name :: name(),
-  Args :: [term()],
-  Anno :: anno(),
-  Tree :: erl_syntax:syntaxTree().
-mb_definition(Name, Args, Anno)
-  when is_atom(Name), is_list(Args) ->
-  % The empty annotation is not revertible because it is not an
-  % erl_parse:abstract_expr(), but an erl_syntax:syntaxTree() abstraction.
-  % Inner expressions are reverted.
-  set_anno(
-    erl_syntax:attribute(
-      erl_syntax:atom(Name), [erl_syntax:abstract(Arg) || Arg <- Args]
-    ),
-    Anno
-  ).
+%%-doc """
+%%Creates a mailbox definition wild attribute abstract syntax representation with
+%%the specified [annotation](`m:erl_anno`).
+%%
+%%Name = use,
+%%
+%%### Returns
+%%- mailbox definition wild attribute abstract syntax representation
+%%""".
+%%-spec mb_definition(Name, Args, Anno) -> Tree
+%%  when
+%%  Name :: name(),
+%%  Args :: [term()],
+%%  Anno :: anno(),
+%%  Tree :: erl_syntax:syntaxTree().
+%%mb_definition(Name, Args, Anno)
+%%  when is_atom(Name), is_list(Args) ->
+%%  % The empty annotation is not revertible because it is not an
+%%  % erl_parse:abstract_expr(), but an erl_syntax:syntaxTree() abstraction.
+%%  % Inner expressions are reverted.
+%%  set_anno(
+%%    erl_syntax:attribute(
+%%      erl_syntax:atom(Name), [erl_syntax:abstract(Arg) || Arg <- Args]
+%%    ),
+%%    Anno
+%%  ).
 
 -doc """
 Creates a function application abstract syntax representation with the specified
@@ -336,6 +402,42 @@ application(Name, Args, Anno) when is_atom(Name), is_list(Args) ->
     ),
     Anno
   ).
+
+% MsgType is a singleton type or a type union.
+
+%%-doc """
+%%Creates a mailbox interface definition wild attribute abstract syntax
+%%representation with the specified [annotation](`m:erl_anno`).
+%%
+%%### Example
+%%
+%%The invocation interface(Name, MsgType, Anno), where Name = name, MsgType = erl_syntax:type_application(paterl_syntax:name(pid), []), and Anno = erl_anno:new(0), represents the interface XXX
+%%
+%%If for instance, name = x, and MsgType = {type, 0 , pid, []}, anno = 0, the result is
+%%Name = paterl_syntax:name(mb),
+%%MsgType = erl_syntax:type_application(paterl_syntax:name(pid), []),
+%%Anno = erl_anno:new(),
+%%
+%%returns : <enter the stringified representation of what it returns here> do it for the rest of the functions above.
+%%
+%%
+%%### Returns
+%%- mailbox interface definition wild attribute abstract syntax representation
+%%""".
+%%-spec interface(Name, MsgType, Anno) -> Tree
+%%  when
+%%  Name :: tree(),
+%%  MsgType :: type(),
+%%  Anno :: anno(),
+%%  Tree :: tree().
+%%interface(Name, MsgType, Anno) ->
+%%  InterfaceDef = erl_syntax:tuple([
+%%%%    erl_syntax:atom(Name),
+%%    Name,
+%%    erl_syntax:abstract(MsgType), % Lifted message type to abstract syntax.
+%%    erl_syntax:abstract(_Vars = []) % Lifted type variables to abstract syntax.
+%%  ]),
+%%  set_anno(erl_syntax:attribute(erl_syntax:atom(interface), [InterfaceDef]), Anno).
 
 %%% ----------------------------------------------------------------------------
 %%% Erlang syntactic subset checks.

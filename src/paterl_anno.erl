@@ -174,43 +174,113 @@ loop. Will be fixed later.
 ### Returns
 List of [`form()`](`t:paterl_syntax:forms/0`).
 """.
--spec get_interfaces(paterl_types:type_defs()) -> [erl_syntax:syntaxTree()].
-get_interfaces(#type_info{type_defs = TypeDefs}) when is_map(TypeDefs) ->
-  lists:reverse(
-    maps:fold(
-      fun(Name, {?T_MBOX, Anno, _, Vars = []}, Attrs) ->
-        ?TRACE("Create interface for mailbox '~p'.", [Name]),
+%%-spec get_interfaces(paterl_types:type_info()) -> [erl_syntax:syntaxTree()].
+%%get_interfaces(TypeInfo = #type_info{type_defs = TypeDefs}) when is_map(TypeDefs) ->
+%%  lists:reverse(
+%%    maps:fold(
+%%      fun(Name, {?T_MBOX, Anno, _, Vars = []}, Attrs) ->
+%%        ?TRACE("Create interface for mailbox '~p'.", [Name]),
+%%
+%%        MsgTypesAS =
+%%%%          case expand_msg_type_set(Name, TypeDefs) of
+%%        case expand_msg_type_set(Name, TypeInfo) of
+%%          [Type] ->
+%%            % Mailbox type is a singleton.
+%%            Type;
+%%          Types when is_list(Types) ->
+%%            % Mailbox type is a list that must be recombined as a type
+%%            % union.
+%%            paterl_syntax:set_anno(erl_syntax:type_union(Types), Anno)
+%%        end,
+%%
+%%        % Create interface attribute.
+%%        ?TRACE("Expanded mailbox interface type '~s() :: ~s'.", [Name, erl_prettypr:format(MsgTypesAS)]),
+%%        Interface = paterl_syntax:set_anno(
+%%          erl_syntax:attribute(
+%%            erl_syntax:atom(interface),
+%%            [erl_syntax:tuple([
+%%              erl_syntax:atom(Name), % Mailbox type name.
+%%              erl_syntax:abstract(MsgTypesAS), % Lifted message types AS.
+%%              erl_syntax:abstract(Vars)] % Lifted variable types AS.
+%%            )]
+%%          ),
+%%          Anno),
+%%        [Interface | Attrs];
+%%        (_, _, Attrs) ->
+%%          % Eat other attributes.
+%%          Attrs
+%%      end,
+%%      [], TypeDefs)
+%%  ).
 
-        MsgTypesAS =
-          case expand_msg_type_set(Name, TypeDefs) of
-            [Type] ->
-              % Mailbox type is a singleton.
-              Type;
-            Types when is_list(Types) ->
-              % Mailbox type is a list that must be recombined as a type
-              % union.
-              paterl_syntax:set_anno(erl_syntax:type_union(Types), Anno)
-          end,
+get_interfaces_2(TypeInfo) ->
 
-        % Create interface attribute.
-        ?TRACE("Expanded mailbox interface type '~s() :: ~s'.", [Name, erl_prettypr:format(MsgTypesAS)]),
-        Interface = paterl_syntax:set_anno(
-          erl_syntax:attribute(
-            erl_syntax:atom(interface),
-            [erl_syntax:tuple([
-              erl_syntax:atom(Name), % Mailbox type name.
-              erl_syntax:abstract(MsgTypesAS), % Lifted message types AS.
-              erl_syntax:abstract(Vars)] % Lifted variable types AS.
-            )]
-          ),
-          Anno),
-        [Interface | Attrs];
-        (_, _, Attrs) ->
-          % Eat other attributes.
+  % Get type definition names.
+  Names = paterl_types:type_defs(TypeInfo),
+  ?TRACE("Got type defintion names ~p.", [Names]),
+
+  % TODO: Document here, rest of the function, and delete the get_interfaces function.
+  % Creates interface attributes from type definitions that are used as mailbox
+  % interface names, omitting non-mailbox interface type definitions otherwise.
+  Fun =
+    fun(Name, Attrs) ->
+      case paterl_types:type_def(Name, TypeInfo) of
+        {?T_MBOX, Anno, _, Vars = []} ->
+          % Type definition attribute used as mailbox interface.
+          ?TRACE("Create interface for mailbox from type '~s'.", [Name]),
+
+          MsgType =
+            case expand_msg_type_set(Name, TypeInfo) of
+              [Type] ->
+                % Mailbox interface type definition is a singleton set.
+                Type;
+              Types when is_list(Types) ->
+                % Mailbox interface type definition is a list that must be
+                % expanded and recombined as a type union.
+                paterl_syntax:set_anno(erl_syntax:type_union(Types), Anno)
+            end,
+
+          % Create interface attribute.
+          ?TRACE("Expanded mailbox interface type '~s() :: ~s'.", [Name, erl_prettypr:format(MsgType)]),
+          % TODO: Refactor this to split the interface and internal tuple defintion.
+
+%%          % Create mailbox interface type
+%%          InterfaceType =
+          ?TRACE("MsgType = ~p", [MsgType]),
+          ?TRACE("Vars = ~p", [Vars]),
+%%
+%%          Interface = paterl_syntax:set_anno(
+%%            erl_syntax:attribute(
+%%              erl_syntax:atom(interface),
+%%              [erl_syntax:tuple([
+%%                erl_syntax:atom(Name), % Mailbox type name.
+%%                erl_syntax:abstract(MsgType), % Lifted message type to abstract syntax.
+%%                erl_syntax:abstract(Vars)] % Lifted type variables to abstract syntax.
+%%              )]
+%%            ),
+%%            Anno),
+          Interface = interface(Name, MsgType, Anno),
+
+          ?TRACE("Create mailbox interface attribute '~s'.", [erl_prettypr:format(Interface)]),
+          [Interface | Attrs];
+        {?T_TYPE, _, _, _Vars = []} ->
+          % Eat other type definition attributes.
+          ?TRACE("Skip non-mailbox interface type '~s'.", [Name]),
           Attrs
-      end,
-      [], TypeDefs)
-  ).
+      end
+    end,
+
+  % Create mailbox interface attribute definitions.
+  lists:reverse(lists:foldl(Fun, [], Names)).
+
+% MsgType is a singleton type or a type union.
+interface(Name, MsgType, Anno) ->
+  InterfaceDef = erl_syntax:tuple([
+    erl_syntax:atom(Name),
+    erl_syntax:abstract(MsgType), % Lifted message type to abstract syntax.
+    erl_syntax:abstract([]) % Lifted type variables to abstract syntax.
+  ]),
+  erl_syntax:revert(erl_syntax:attribute(erl_syntax:atom(interface), [InterfaceDef])).
 
 -doc """
 Expands message types to their full tuple definition form.
@@ -218,15 +288,16 @@ Expands message types to their full tuple definition form.
 ### Returns
 List of [`type()`](`t:paterl_syntax:type/0`).
 """.
--spec expand_msg_type_set(Name, TypeDefs) -> Types
+-spec expand_msg_type_set(Name, TypeInfo) -> Types
   when
   Name :: paterl_syntax:name(),
-  TypeDefs :: paterl_types:type_defs(),
+  TypeInfo :: paterl_types:type_info(),
   Types :: [paterl_syntax:type()].
-expand_msg_type_set(Name, TypeDefs) ->
+expand_msg_type_set(Name, TypeInfo) ->
   % Mailbox message set type. Type variables not supported.
-  {?T_MBOX, _, Type, _Vars = []} = maps:get(Name, TypeDefs),
-  lists:reverse(expand_msg_type(Type, TypeDefs, [])).
+%%  {?T_MBOX, _, Type, _Vars = []} = maps:get(Name, TypeDefs),
+  {?T_MBOX, _, Type, _Vars = []} = paterl_types:type_def(Name, TypeInfo),
+  lists:reverse(expand_msg_type(Type, TypeInfo, [])).
 
 -doc """
 Expands a message type to its full tuple defintion form.
@@ -234,37 +305,38 @@ Expands a message type to its full tuple defintion form.
 ### Returns
 List of [`type()`](`t:paterl_syntax:type/0`).
 """.
--spec expand_msg_type(Type, TypeDefs, Acc) -> Types
+-spec expand_msg_type(Type, TypeInfo, Acc) -> Types
   when
   Type :: paterl_syntax:type(),
-  TypeDefs :: paterl_types:type_defs(),
+  TypeInfo :: paterl_types:type_info(),
   Acc :: [paterl_syntax:type()],
   Types :: [paterl_syntax:type()].
-expand_msg_type(Type = {type, _, pid, _Vars = []}, TypeDefs, Acc) when is_map(TypeDefs) ->
+expand_msg_type(Type = {type, _, pid, _Vars = []}, _TypeInfo, Acc) ->
   % Built-in pid type. Denotes the empty message set.
   ?assertEqual(erl_syntax:type(Type), type_application),
   ?TRACE("Found type '~s'.", [erl_prettypr:format(Type)]),
   [Type | Acc];
-expand_msg_type(Type = {type, _, tuple, _}, TypeDefs, Acc) when is_map(TypeDefs) ->
+expand_msg_type(Type = {type, _, tuple, _}, _TypeInfo, Acc) ->
   % Tuple type. Denotes the singleton message set.
   ?assertEqual(erl_syntax:type(Type), tuple_type),
   ?TRACE("Found type '~s'.", [erl_prettypr:format(Type)]),
   [Type | Acc];
-expand_msg_type(_Type = {type, _, union, Union}, TypeDefs, Acc) when is_map(TypeDefs) ->
+expand_msg_type(_Type = {type, _, union, Union}, TypeInfo, Acc) ->
   % User-defined type union. Denotes a non-trivial message set.
   ?assertEqual(erl_syntax:type(_Type), type_union),
   ?TRACE("Inspect type '~s'.", [erl_prettypr:format(_Type)]),
   lists:foldl(
     fun(Type0, Acc0) ->
-      expand_msg_type(Type0, TypeDefs, Acc0)
+      expand_msg_type(Type0, TypeInfo, Acc0)
     end,
     Acc, Union);
-expand_msg_type(_Type = {user_type, _, Name, _Vars = []}, TypeDefs, Acc) when is_map(TypeDefs) ->
+expand_msg_type(_Type = {user_type, _, Name, _Vars = []}, TypeInfo, Acc) ->
   % User-defined type. Denotes another message type which is a message set
   % alias.
   ?TRACE("Inspect type '~s'.", [erl_prettypr:format(_Type)]),
-  {?T_TYPE, _, UserType, _} = maps:get(Name, TypeDefs),
-  expand_msg_type(UserType, TypeDefs, Acc).
+%%  {?T_TYPE, _, UserType, _} = maps:get(Name, TypeDefs),
+  {?T_TYPE, _, UserType, _} = paterl_types:type_def(Name, TypeInfo),
+  expand_msg_type(UserType, TypeInfo, Acc).
 
 
 %%% ----------------------------------------------------------------------------
@@ -290,7 +362,7 @@ annotate_forms([], _, Analysis) ->
   Analysis#analysis{result = []};
 annotate_forms([Form = {attribute, _, module, _} | Forms], TypeInfo, Analysis) ->
   % Module attribute. Expand interfaces after it.
-  Interfaces = get_interfaces(TypeInfo),
+  Interfaces = get_interfaces_2(TypeInfo),
   Analysis0 = annotate_forms(Forms, TypeInfo, Analysis),
   Analysis0#analysis{result = [Form | Interfaces ++ Analysis0#analysis.result]};
 annotate_forms([Form = {attribute, _, export, _} | Forms], TypeInfo, Analysis) ->
@@ -754,7 +826,8 @@ annotate_expr(Expr = {call, Anno, Operator = {atom, _, spawn}, MFArgs}, _MbAnno 
 
         % Override modality with ?new for spawn call.
         ?DEBUG("Override '~s' with '~s' on '~s'.", [
-          erl_prettypr:format(paterl_syntax:mb_definition(_MbMod, [MbName], _Anno)),
+%%          erl_prettypr:format(paterl_syntax:mb_definition(_MbMod, [MbName], _Anno)),
+          erl_prettypr:format(paterl_syntax:mb_anno(_MbMod, [MbName], _Anno)),
           erl_prettypr:format(paterl_syntax:mb_anno(?MOD_NEW, [MbName], Anno)),
           erl_prettypr:format(Expr)
         ]),
