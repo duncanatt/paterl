@@ -32,6 +32,7 @@ Erlang syntactic subset and mailbox interface well-formedness syntax checks.
 -export([module/1, format_error/1]).
 -export([get_file/1, set_anno/2]).
 -export([name/2, fun_reference/2, mb_anno/3, mb_anno/1, mb_anno_name/1, mb_anno_args/1, is_mb_anno/1, application/3]).
+-export([get_fun_ref/1, get_fun_ref_mfa/1]).
 
 -ifdef(test).
 -export([is_atom_value/2, is_mb_anno2/1]).
@@ -552,9 +553,9 @@ check_fun_ref({Name, Arity}, Anno, Analysis)
     Anno
   ),
   check_implicit_fun(Fun, Analysis);
-check_fun_ref(Term, ANNO, Analysis) ->
+check_fun_ref(Term, Anno, Analysis) ->
   % Bad function reference structure.
-  Term0 = set_anno(erl_syntax:abstract(Term), ANNO),
+  Term0 = set_anno(erl_syntax:abstract(Term), Anno),
   ?ERROR("Bad fun reference '~s',", [erl_prettypr:format(Term0)]),
   ?pushError(?E_BAD__FUN_REF, Term0, Analysis).
 
@@ -581,6 +582,41 @@ check_implicit_fun(Fun = {'fun', _, {function, _, _}}, Analysis) ->
   ?ERROR("Bad fun reference '~s'.", [erl_prettypr:format(Fun)]),
   ?pushError(?E_BAD__FUN_REF, Fun, Analysis).
 
+get_fun_ref(Call) ->
+  maybe
+    application ?= erl_syntax:type(Call),
+    Operator = erl_syntax:application_operator(Call),
+
+    atom ?= erl_syntax:type(Operator),
+    Args = erl_syntax:application_arguments(Call),
+    {ok, {erl_syntax:atom_value(Operator), length(Args)}}
+  else
+    _ ->
+      % Not a static call.
+      {error, Call};
+    module_qualifier ->
+      % Remote calls unsupported.
+      {error, Call}
+  end.
+
+get_fun_ref_mfa([M, F, Args]) ->
+  case erl_syntax:type(M) of
+    atom ->
+      case erl_syntax:type(F) of
+        atom ->
+          case erl_syntax:type(Args) of
+            Type when Type =:= nil; Type =:= list ->
+              {ok, erl_syntax:atom_value(M), {erl_syntax:atom_value(F),
+                erl_syntax:list_length(Args)}};
+            _ ->
+              {error, Args}
+          end;
+        _ ->
+          {error, F}
+      end;
+    _ ->
+      {error, M}
+  end.
 
 %%% ----------------------------------------------------------------------------
 %%% Error handling and reporting.

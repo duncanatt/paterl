@@ -8,6 +8,7 @@
 -export([compile/2]).
 -compile(export_all).
 
+-include_lib("stdlib/include/assert.hrl").
 -include("log.hrl").
 
 %%% ----------------------------------------------------------------------------
@@ -114,7 +115,7 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
     {ok, Forms} ?= load_forms(File, Opts),
     {ok, AnfForms} ?= prep_forms(Forms),
     {ok, BootstrappedForms, TInfo} ?= type_forms(File, AnfForms),
-    {ok, PatForms} ?= anno_forms(File, BootstrappedForms, TInfo),
+    {ok, PatForms} ?= anno_forms2(BootstrappedForms, TInfo),
     {ok, PatFile} ?= write_forms(File, Opts, PatForms),
     ok ?= check_pat(PatFile)
   end.
@@ -122,7 +123,7 @@ compile(File, Opts) when is_list(File), is_list(Opts) ->
 
 load_forms(File, Opts) ->
   maybe
-    % Preprocess file.
+  % Preprocess file.
     io:fwrite("[EPP] Preprocess file ~s.~n", [File]),
     {ok, Forms} ?= epp:parse_file(File, Opts),
 
@@ -207,29 +208,71 @@ type_forms(File, Forms) ->
 
 
 
-anno_forms(File, Forms, TInfo) ->
-  % Annotate Erlang forms.
-  io:fwrite(color:green("[ANNOTATE] Annotate Erlang forms.~n")),
-  case paterl_anno:module(Forms, TInfo) of
-    {ok, Annotated, _} ->
-      io:format("~n~n~nOriginal forms:~n~p~n", [Forms]),
-      io:format("~n~n~nAnnotated forms:~n~p~n", [Annotated]),
+anno_forms2(Forms, TypeInfo) ->
+  maybe
+  % Compute call graph.
+    io:fwrite(color:green("[CALL GRAPH] Compute Erlang form call graph.~n")),
+    {ok, CallGraph, []} ?= paterl_call_graph:module(Forms),
+    ?DEBUG("Call graph: ~n~p", [CallGraph]),
 
-      io:fwrite(color:green("[COMPILE] Compile sanity check.~n")),
-      {ok, _, _} = compile:forms(Annotated),
+    % Compute SCCs to determine direct and mutual recursive functions.
+    SCCs = paterl_scc:find_sccs(CallGraph),
+    ?TRACE("SCCs: ~n~p", [SCCs]),
 
-      io:fwrite(color:green("[TRANSLATE] Translating Erlang forms to Pat.~n")),
-      PatForms = paterl_trans:module(Annotated),
+    % Convert SCCs to a direct and mutual recursive function references.
+    RecFuns = paterl_call_graph:rec_funs(SCCs),
+    ?DEBUG("Recursive funs: ~n~p", [RecFuns]),
 
-      io:fwrite("Pat AST: ~p~n~n", [PatForms]),
-      {ok, PatForms};
+    % Annotate Erlang forms.
+    io:fwrite(color:green("[ANNOTATE] Annotate Erlang forms.~n")),
+
+    % TODO: Add rec funs.
+    {ok, AnnoForms, _} ?= paterl_anno:module(Forms, TypeInfo),
+%%    io:format("~n~n~nOriginal forms:~n~p~n", [Forms]),
+%%    io:format("~n~n~nAnnotated forms:~n~p~n", [AnnoForms]),
+
+    % Compile sanity check.
+    ?assertMatch({ok, _, _}, compile:forms(AnnoForms)),
+
+    io:fwrite(color:green("[TRANSLATE] Translating Erlang forms to Pat.~n")),
+    PatForms = paterl_trans:module(AnnoForms),
+
+    io:fwrite("Pat AST: ~p~n~n", [PatForms]),
+    {ok, PatForms}
+  else
     {error, Errors, Warnings} ->
       % Type annotation errors.
-      %TODO: Encapsulate this in the paterl_types module and use the file attribute.
       paterl_errors:show_warnings(Warnings),
       paterl_errors:show_errors(Errors),
       error
   end.
+
+%%anno_forms(Forms, TypeInfo) ->
+%%  io:fwrite(color:green("[CALL GRAPH] Analyze Erlang forms.~n")),
+%%  CallGraph = paterl_rec:module(Forms),
+%%  ?TRACE("CallGraph = ~p", [CallGraph]),
+%%
+%%  % Annotate Erlang forms.
+%%  io:fwrite(color:green("[ANNOTATE] Annotate Erlang forms.~n")),
+%%  case paterl_anno:module(Forms, TypeInfo) of
+%%    {ok, Annotated, _} ->
+%%      io:format("~n~n~nOriginal forms:~n~p~n", [Forms]),
+%%      io:format("~n~n~nAnnotated forms:~n~p~n", [Annotated]),
+%%
+%%      io:fwrite(color:green("[COMPILE] Compile sanity check.~n")),
+%%      {ok, _, _} = compile:forms(Annotated),
+%%
+%%      io:fwrite(color:green("[TRANSLATE] Translating Erlang forms to Pat.~n")),
+%%      PatForms = paterl_trans:module(Annotated),
+%%
+%%      io:fwrite("Pat AST: ~p~n~n", [PatForms]),
+%%      {ok, PatForms};
+%%    {error, Errors, Warnings} ->
+%%      % Type annotation errors.
+%%      paterl_errors:show_warnings(Warnings),
+%%      paterl_errors:show_errors(Errors),
+%%      error
+%%  end.
 
 
 write_forms(File, Opts, PatForms) ->
@@ -249,7 +292,7 @@ write_forms(File, Opts, PatForms) ->
     ok ->
       {ok, PatFile};
     {error, Error} ->
-      errors:show_error({file, Error}),
+      paterl_errors:show_error({file, Error}),
       error
   end.
 
@@ -263,7 +306,7 @@ check_pat(PatFile) ->
     {_, Bytes} ->
       % Generated Pat file contains errors.
       Msg = parse_error(Bytes),
-      errors:show_error({?MODULE, {?E_PAT_MSG, Msg}}),
+      paterl_errors:show_error({?MODULE, {?E_PAT_MSG, Msg}}),
       error
   end.
 

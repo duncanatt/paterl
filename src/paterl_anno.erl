@@ -1,13 +1,24 @@
-%%%-------------------------------------------------------------------
-%%% @author duncan
-%%% @copyright (C) 2024, <COMPANY>
-%%% @doc
-%%% The Pat Erlang AST annotator.
-%%% @end
-%%% Created : 29. Jan 2024 15:20
-%%%-------------------------------------------------------------------
+%%
+%% %CopyrightBegin%
+%%
+%% Copyright the University of Glasgow 2022-2024. All Rights Reserved.
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+%%
+%% %CopyrightEnd%
+%%
 -module(paterl_anno).
--feature(maybe_expr, enable).
+-moduledoc "Erlang abstract syntax representation annotation.".
 -author("duncan").
 
 %%% Includes.
@@ -16,7 +27,7 @@
 -include("paterl_lib.hrl").
 -include("paterl_syntax.hrl").
 
-%% API
+%%% Public API.
 -export([module/2]).
 
 -compile(export_all).
@@ -119,6 +130,15 @@
 
 
 %%% ----------------------------------------------------------------------------
+%%% Type definitions.
+%%% ----------------------------------------------------------------------------
+
+-doc "Return result.".
+-type result() :: {ok, Forms :: paterl_syntax:forms(), Warnings :: paterl_errors:warnings()} |
+{error, Errors :: paterl_errors:errors(), Warnings :: paterl_errors:warnings()}.
+
+
+%%% ----------------------------------------------------------------------------
 %%% Public API.
 %%% ----------------------------------------------------------------------------
 
@@ -152,8 +172,7 @@ See also `format_error/1`.
 - `{ok, AnnotatedFroms, Warnings}` if type annotation is successful
 - `{error, Errors, Warnings}` otherwise
 """.
--spec module([erl_syntax:syntaxTree()], paterl_types:type_info()) ->
-  {ok, erl_syntax:forms()} | errors:error().
+-spec module(paterl_syntax:forms(), paterl_types:type_info()) -> result().
 module(Forms, TypeInfo = #type_info{}) when is_list(Forms) ->
   % Return annotated Erlang AST with as result.
   Analysis = annotate_forms(Forms, TypeInfo, #analysis{}),
@@ -357,7 +376,6 @@ a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
   Analysis :: paterl_lib:analysis(),
   Analysis0 :: paterl_lib:analysis().
 annotate_function({function, Anno, Name, Arity, Clauses}, TypeInfo, Analysis) ->
-
   % Recover fun reference.
   FunRef = {Name, Arity},
 
@@ -765,7 +783,7 @@ annotate_expr(Expr = {call, Anno, Operator = {atom, _, spawn}, MFArgs}, _MbAnno 
   % Unannotated spawn expression. MFArgs can be a static or dynamic function.
   % Static functions in spawn expressions must be unannotated, whereas dynamic
   % functions must be annotated. The latter are currently unsupported.
-  case get_fun_ref_mfa(MFArgs) of
+  case paterl_syntax:get_fun_ref_mfa(MFArgs) of
     {ok, _, FunRef = {_, _}} ->
       % MFArgs is a static function. May be valid.
       ?DEBUG("Annotate '~s'.", [erl_prettypr:format(Expr)]),
@@ -860,7 +878,7 @@ annotate_expr(Expr = {call, _, {atom, _, self}, []}, _MbAnno, _FunScopes, _MbSco
 
 annotate_expr(Expr = {call, Anno, Operator, Exprs}, _MbAnno = undefined, FunScopes, MbScopes, TypeInfo, Analysis) ->
   % Unannotated local function call.
-  case get_fun_ref(Expr) of
+  case paterl_syntax:get_fun_ref(Expr) of
     {ok, FunRef = {_, _}} ->
       % Static function call. Check if fun reference is defined.
       {Anno0, Analysis0} =
@@ -1143,42 +1161,43 @@ map_anno_lt(Fun, Tree, Depth) ->
     0, Tree).
 
 
-get_fun_ref_mfa([M, F, Args]) ->
-  case erl_syntax:type(M) of
-    atom ->
-      case erl_syntax:type(F) of
-        atom ->
-          case erl_syntax:type(Args) of
-            Type when Type =:= nil; Type =:= list ->
-              {ok, erl_syntax:atom_value(M), {erl_syntax:atom_value(F),
-                erl_syntax:list_length(Args)}};
-            _ ->
-              {error, Args}
-          end;
-        _ ->
-          {error, F}
-      end;
-    _ ->
-      {error, M}
-  end.
+%%get_fun_ref_mfa([M, F, Args]) ->
+%%  case erl_syntax:type(M) of
+%%    atom ->
+%%      case erl_syntax:type(F) of
+%%        atom ->
+%%          case erl_syntax:type(Args) of
+%%            Type when Type =:= nil; Type =:= list ->
+%%              {ok, erl_syntax:atom_value(M), {erl_syntax:atom_value(F),
+%%                erl_syntax:list_length(Args)}};
+%%            _ ->
+%%              {error, Args}
+%%          end;
+%%        _ ->
+%%          {error, F}
+%%      end;
+%%    _ ->
+%%      {error, M}
+%%  end.
 
 
-get_fun_ref(Call) ->
-  maybe
-    application ?= erl_syntax:type(Call),
-    Operator = erl_syntax:application_operator(Call),
-
-    atom ?= erl_syntax:type(Operator),
-    Args = erl_syntax:application_arguments(Call),
-    {ok, {erl_syntax:atom_value(Operator), length(Args)}}
-  else
-    _ ->
-      % Not a static call.
-      {error, Call};
-    module_qualifier ->
-      % Remote calls unsupported.
-      {error, Call}
-  end.
+% TODO: MOVE TO paterl_syntax
+%%get_fun_ref(Call) ->
+%%  maybe
+%%    application ?= erl_syntax:type(Call),
+%%    Operator = erl_syntax:application_operator(Call),
+%%
+%%    atom ?= erl_syntax:type(Operator),
+%%    Args = erl_syntax:application_arguments(Call),
+%%    {ok, {erl_syntax:atom_value(Operator), length(Args)}}
+%%  else
+%%    _ ->
+%%      % Not a static call.
+%%      {error, Call};
+%%    module_qualifier ->
+%%      % Remote calls unsupported.
+%%      {error, Call}
+%%  end.
 
 
 %%  {erl_syntax:atom_value(M), erl_syntax:atom_value(F), erl_syntax:list_length(Args)}.
