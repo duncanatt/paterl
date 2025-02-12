@@ -31,7 +31,7 @@
 -compile(export_all).
 
 %%% Public types.
--export_type([]).
+-export_type([rec_fun_info/0]).
 
 
 %%% ----------------------------------------------------------------------------
@@ -70,6 +70,11 @@
 %%  on_stack = #{} :: #{node() => boolean()}
 %%}).
 
+%%-record(rec_fun_info, {
+%%  fun_refs = [] :: [paterl_syntax:get_fun_ref()],
+%%
+%%}).
+
 %%% Error types.
 
 %% Unsupported expression.
@@ -89,10 +94,12 @@
 %%
 %%-type state() :: #state{}.
 
--type rec_funs() :: #{paterl_syntax:fun_ref() => [paterl_syntax:fun_ref()]}.
+-type call_graph() :: #{paterl_syntax:fun_ref() => [paterl_syntax:fun_ref()]}.
+
+-type rec_fun_info() :: #{paterl_syntax:fun_ref() => [paterl_syntax:fun_ref()]}.
 
 -doc "Return result.".
--type result() :: {ok, Forms :: paterl_syntax:forms(), Warnings :: paterl_errors:warnings()} |
+-type result() :: {ok, CallGraph :: call_graph(), Warnings :: paterl_errors:warnings()} |
 {error, Errors :: paterl_errors:errors(), Warnings :: paterl_errors:warnings()}.
 
 
@@ -102,13 +109,19 @@
 -spec module(paterl_syntax:forms()) -> result().
 module(Forms) when is_list(Forms) ->
   Analysis = analyze_forms(Forms, #analysis{result = #{}}),
-  paterl_lib:return(Analysis).
+  paterl_lib:return(Analysis#analysis{file = paterl_syntax:get_file(Forms)}).
 
--spec rec_funs(SCCs) -> RecFuns
+-spec rec_funs(CallGraph) -> RecFunInfo
   when
-  SCCs :: [[paterl_syntax:fun_ref()]],
-  RecFuns :: rec_funs().
-rec_funs(SCCs) ->
+  CallGraph :: call_graph(),
+  RecFunInfo :: rec_fun_info().
+rec_funs(CallGraph) ->
+  ?TRACE("CallGraph: ~n~p", [CallGraph]),
+
+  % Compute SCCs to determine direct and mutual recursive functions.
+  SCCs = paterl_scc:find_sccs(CallGraph),
+  ?TRACE("SCCs: ~n~p", [SCCs]),
+
   % Maps each fun reference inside a SCC to point to that SCC.
   Fun =
     fun(SCC, RecFuns) ->
@@ -116,6 +129,8 @@ rec_funs(SCCs) ->
         fun(FunRef, RecFuns0) -> RecFuns0#{FunRef => SCC} end, RecFuns, SCC
       )
     end,
+
+  % Build recursive fun references map.
   lists:foldl(Fun, _RecFuns = #{}, SCCs).
 
 

@@ -215,19 +215,19 @@ anno_forms2(Forms, TypeInfo) ->
     {ok, CallGraph, []} ?= paterl_call_graph:module(Forms),
     ?DEBUG("Call graph: ~n~p", [CallGraph]),
 
-    % Compute SCCs to determine direct and mutual recursive functions.
-    SCCs = paterl_scc:find_sccs(CallGraph),
-    ?TRACE("SCCs: ~n~p", [SCCs]),
+%%    % Compute SCCs to determine direct and mutual recursive functions.
+%%    SCCs = paterl_scc:find_sccs(CallGraph),
+%%    ?TRACE("SCCs: ~n~p", [SCCs]),
 
     % Convert SCCs to a direct and mutual recursive function references.
-    RecFuns = paterl_call_graph:rec_funs(SCCs),
-    ?DEBUG("Recursive funs: ~n~p", [RecFuns]),
+    RecFunInfo = paterl_call_graph:rec_funs(CallGraph),
+    ?DEBUG("Recursive funs: ~n~p", [RecFunInfo]),
 
     % Annotate Erlang forms.
     io:fwrite(color:green("[ANNOTATE] Annotate Erlang forms.~n")),
 
-    % TODO: Add rec funs.
-    {ok, AnnoForms, _} ?= paterl_anno:module(Forms, TypeInfo),
+    % Compute call graph and direct and mutual function usage.
+    {ok, AnnoForms, _} ?= paterl_anno:module(Forms, RecFunInfo, TypeInfo),
 %%    io:format("~n~n~nOriginal forms:~n~p~n", [Forms]),
 %%    io:format("~n~n~nAnnotated forms:~n~p~n", [AnnoForms]),
 

@@ -1,0 +1,108 @@
+# Translated from ping_pong_strict_dir_rec.erl
+
+interface Pong_mb {
+  Ping(Ping_mb!),
+  Stop()
+}
+
+interface Ping_mb {
+  Start(Pong_mb!),
+  Pong(Pong_mb!)
+}
+
+interface Main_mb { }
+
+def ping(mb0: Ping_mb?, pings_left: Int): (Unit * Ping_mb?) {
+  guard mb0: Start {
+    receive Start(pong) from mb1 ->
+      send_ping(mb1, pong, pings_left)
+  }
+}
+
+def send_ping(mb2: Ping_mb?, pong: Pong_mb!, pings_left: Int): (Unit * Ping_mb?) {
+  if (pings_left > 0) {
+    let (v0, mb3) =
+      ((), mb2)
+    in
+      let (self, mb4) =
+        (mb3, mb3)
+      in
+        let (v1, mb5) =
+          (pong ! Ping(self), mb4)
+        in
+          ping_loop(mb5, pings_left - 1)
+  }
+  else {
+    (pong ! Stop(), mb2)
+  }
+}
+
+def ping_loop(mb6: Ping_mb?, pings_left: Int): (Unit * Ping_mb?) {
+  guard mb6: Pong {
+    receive Pong(pong) from mb7 ->
+      send_ping(mb7, pong, pings_left)
+  }
+}
+
+def pong(mb8: Pong_mb?): (Unit * Pong_mb?) {
+  guard mb8: Ping + Stop {
+    receive Ping(ping) from mb9 ->
+      let (v2, mb10) =
+        ((), mb9)
+      in
+        let (self, mb11) =
+          (mb10, mb10)
+        in
+          let (v3, mb12) =
+            (ping ! Pong(self), mb11)
+          in
+            pong(mb12)
+    receive Stop() from mb13 ->
+      ((), mb13)
+  }
+}
+
+def main(mb14: Main_mb?): (Unit * Main_mb?) {
+  let (pong, mb17) =
+    (let mb15 =
+  new [Pong_mb]
+in
+  let y =
+    spawn {
+      let (x, mb16) =
+        pong(mb15)
+      in
+        free(mb16)
+    }
+  in
+    mb15, mb14)
+  in
+    let (ping, mb20) =
+      (let mb18 =
+  new [Ping_mb]
+in
+  let y =
+    spawn {
+      let (x, mb19) =
+        ping(mb18, 5)
+      in
+        free(mb19)
+    }
+  in
+    mb18, mb17)
+    in
+      (ping ! Start(pong), mb20)
+}
+
+def main'(): Unit {
+  let mb21 =
+    new [Main_mb]
+  in
+    let (x, mb22) =
+      main(mb21)
+    in
+      let y =
+        free(mb22)
+      in
+        x
+}

@@ -1,0 +1,96 @@
+# Translated from kfork_dir_rec.erl
+
+interface Actor_mb {
+  Packet()
+}
+
+interface Main_mb { }
+
+def actor(mb0: Actor_mb?): (Unit * Actor_mb?) {
+  guard mb0: *Packet {
+    empty(mb3) ->
+      ((), mb3)
+    receive Packet() from mb1 ->
+      let (v0, mb2) =
+        ((), mb1)
+      in
+        actor(mb2)
+  }
+}
+
+def flood(num_messages: Int, actor: Actor_mb!): Unit {
+  if (num_messages <= 0) {
+    ()
+  }
+  else {
+    let v1 =
+      actor ! Packet()
+    in
+      flood(num_messages - 1, actor)
+  }
+}
+
+def main(mb4: Main_mb?): (Unit * Main_mb?) {
+  let (actor1, mb7) =
+    (let mb5 =
+  new [Actor_mb]
+in
+  let y =
+    spawn {
+      let (x, mb6) =
+        actor(mb5)
+      in
+        free(mb6)
+    }
+  in
+    mb5, mb4)
+  in
+    let (actor2, mb10) =
+      (let mb8 =
+  new [Actor_mb]
+in
+  let y =
+    spawn {
+      let (x, mb9) =
+        actor(mb8)
+      in
+        free(mb9)
+    }
+  in
+    mb8, mb7)
+    in
+      let (actor3, mb13) =
+        (let mb11 =
+  new [Actor_mb]
+in
+  let y =
+    spawn {
+      let (x, mb12) =
+        actor(mb11)
+      in
+        free(mb12)
+    }
+  in
+    mb11, mb10)
+      in
+        let (v2, mb14) =
+          (flood(5, actor1), mb13)
+        in
+          let (v3, mb15) =
+            (flood(10, actor2), mb14)
+          in
+            (flood(15, actor3), mb15)
+}
+
+def main'(): Unit {
+  let mb16 =
+    new [Main_mb]
+  in
+    let (x, mb17) =
+      main(mb16)
+    in
+      let y =
+        free(mb17)
+      in
+        x
+}

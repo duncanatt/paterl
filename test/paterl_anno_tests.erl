@@ -1203,12 +1203,13 @@ call_test_() ->
       fun fun_in_mb_scope_to_static_fun_new_in_mb_scope/0,
       fun fun_in_mb_scope_to_static_fun_use_in_mb_scope/0,
       fun fun_in_mb_scope_to_static_fun_no_mb_scope/0,
-      fun fun_in_mb_scope_to_undef_static_fun/0,
+      % fun fun_in_mb_scope_to_undef_static_fun/0, %% TODO: Move to other syntax-checking module.
       fun fun_in_mb_scope_to_static_direct_rec_fun_in_mb_scope/0,
-%%      fun fun_in_mb_scope_to_static_mutual_rec_fun_in_mb_scope/0,
+      fun fun_in_mb_scope_to_static_mutual_rec_fun_in_mb_scope_same_mb/0,
+%%      fun_in_mb_scope_to_static_mutual_rec_fun_in_mb_scope_different_mb/0, %% TODO: Requires multiple mailboxes.
       fun fun_no_mb_scope_to_static_fun_in_mb_scope/0,
       fun fun_no_mb_scope_to_static_fun_no_mb_scope/0,
-      fun fun_no_mb_scope_undef_static_fun/0,
+      % fun fun_no_mb_scope_undef_static_fun/0, %% TODO: Move to other syntax-checking module.
       fun fun_no_mb_scope_static_direct_rec_fun_no_mb_scope/0,
       fun fun_no_mb_scope_static_mutual_rec_fun_no_mb_scope/0,
       fun fun_dynamic_fun/0,
@@ -1368,35 +1369,39 @@ fun_in_mb_scope_to_static_fun_no_mb_scope() -> {{
       end}
   end}.
 
--doc """
-Tests unannotated function call inside mailbox interface scope to undefined
-static function.
-
-> Should return `error`.
-""".
-fun_in_mb_scope_to_undef_static_fun() -> {{
-  """
-  -module(test).
-  -new({mb, [f/0]}).
-  -type mb() :: pid().
-  -spec f() -> ok.
-  f() -> g().
-  """,
-  []},
-  fun(_, Result) ->
-    {"Test unannotated function call inside mailbox interface scope to undefined static function",
-      fun() ->
-        % Unsuccessful result with no warnings.
-        ?assertMatch({error, [{_, [_]}], []}, Result),
-        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
-
-        % Unannotated function call inside mailbox interface scope to undefined
-        % static function.
-        ?assertMatch({_, _,
-          {e_undef__fun_ref, {'fun', _, {function, g, 0}}}}, Error),
-        ?debugMsg(paterl_anno:format_error(Code))
-      end}
-  end}.
+%% TODO: Not needed because undefined functions should be handled at an earlier
+%% TODO: stage. I need to refactor all undefined function errors into a special
+%% TODO: module that can be reused by all passes that perform this check.
+%% TODO: This module should rely on the Erlang internal syntax checking tools.
+%%-doc """
+%%Tests unannotated function call inside mailbox interface scope to undefined
+%%static function.
+%%
+%%> Should return `error`.
+%%""".
+%%fun_in_mb_scope_to_undef_static_fun() -> {{
+%%  """
+%%  -module(test).
+%%  -new({mb, [f/0]}).
+%%  -type mb() :: pid().
+%%  -spec f() -> ok.
+%%  f() -> g().
+%%  """,
+%%  []},
+%%  fun(_, Result) ->
+%%    {"Test unannotated function call inside mailbox interface scope to undefined static function",
+%%      fun() ->
+%%        % Unsuccessful result with no warnings.
+%%        ?assertMatch({error, [{_, [_]}], []}, Result),
+%%        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
+%%
+%%        % Unannotated function call inside mailbox interface scope to undefined
+%%        % static function.
+%%        ?assertMatch({_, _,
+%%          {e_undef__fun_ref, {'fun', _, {function, g, 0}}}}, Error),
+%%        ?debugMsg(paterl_anno:format_error(Code))
+%%      end}
+%%  end}.
 
 -doc """
 Tests unannotated function call inside mailbox interface scope to defined static
@@ -1441,9 +1446,73 @@ fun_in_mb_scope_to_static_direct_rec_fun_in_mb_scope() -> {{
       end}
   end}.
 
-% Tests unannotated function call inside mailbox interface scope to defined static mutual recursive function inside defined mailbox interface scope. GOOD. Should ?use.
-% Should return `ok`: mailbox modality is overridden with `use`.
-fun_in_mb_scope_to_static_mutual_rec_fun_in_mb_scope() -> {{
+-doc """
+Tests unannotated function call inside mailbox interface scope to defined static
+mutual recursive function inside defined mailbox interface scope with same
+mailbox interface.
+
+> Should return `ok`: mailbox modality is overridden with `use`.
+""".
+fun_in_mb_scope_to_static_mutual_rec_fun_in_mb_scope_same_mb() -> {{
+  """
+  -module(test).
+  -new({mb0, [f/1, g/0]}).
+  -type mb0() :: pid().
+  -spec f(integer()) -> ok.
+  f(X) -> g().
+  -spec g() -> no_return().
+  g() -> f(1).
+  """,
+  []},
+  fun(_, Result) ->
+    {"Test unannotated function call inside mailbox interface scope to defined static mutual recursive function inside defined mailbox interface scope with same mailbox interface",
+      fun() ->
+        % Successful result with no warnings.
+        ?assertMatch({ok, _, []}, Result),
+        {ok, Forms, _Warnings = []} = Result,
+
+        % Unannotated function call inside mailbox interface scope to defined
+        % static mutual recursive function inside defined mailbox interface
+        % scope with same mailbox interface.
+        ?assertMatch([
+          {attribute, _, module, test},
+          {attribute, _, interface, {mb0, {type, _, pid, []}, []}},
+          {function,
+            [{location, _}, {interface, mb0}, {modality, new}],
+            f, 1,
+            [{clause,
+              [{location, _}, {type, {atom, _, ok}}, {interface, mb0}],
+              [{var, [{location, _}, {type, {type, _, integer, []}}], 'X'}],
+              [],
+              [{call,
+                [{location, _}, {interface, mb0}, {modality, use}],
+                {atom, _, g},
+                []}]}]},
+          {function,
+            [{location, _}, {interface, mb0}, {modality, new}],
+            g, 0,
+            [{clause,
+              [{location, _},
+                {type, {type, _, no_return, []}},
+                {interface, mb0}],
+              [], [],
+              [{call,
+                [{location, _}, {interface, mb0}, {modality, use}],
+                {atom, _, f},
+                [{integer, _, 1}]}]}]}
+        ], Forms)
+      end}
+  end}.
+
+%% TODO: Different mailbox interface requires multiple mailboxes. To attempt later.
+-doc """
+Tests unannotated function call inside mailbox interface scope to defined static
+mutual recursive function inside defined mailbox interface scope with different
+mailbox interface.
+
+> Should return `ok`: mailbox modality is overridden with `use`.
+""".
+fun_in_mb_scope_to_static_mutual_rec_fun_in_mb_scope_different_mb() -> {{
   """
   -module(test).
   -new({mb0, [f/1]}).
@@ -1451,13 +1520,13 @@ fun_in_mb_scope_to_static_mutual_rec_fun_in_mb_scope() -> {{
   -type mb0() :: pid().
   -type mb1() :: pid().
   -spec f(integer()) -> ok.
-  f(X) -> g(). f/1 = f/1, g/1
-  -spec g() -> ok.
-  g() -> f(1). g/0 = g/0, f/1
+  f(X) -> g().
+  -spec g() -> no_return().
+  g() -> f(1).
   """,
   []},
   fun(_, Result) ->
-    {"Name",
+    {"Test unannotated function call inside mailbox interface scope to defined static mutual recursive function inside defined mailbox interface scope with different mailbox interface",
       fun() ->
         ?TRACE("Result = ~p", [Result])
       end}
@@ -1554,33 +1623,37 @@ fun_no_mb_scope_to_static_fun_no_mb_scope() -> {{
       end}
   end}.
 
--doc """
-Tests unannotated function call outside mailbox interface scope to undefined
-static function.
-
-> Should return `error`.
-""".
-fun_no_mb_scope_undef_static_fun() -> {{
-  """
-  -module(test).
-  -spec f() -> ok.
-  f() -> g().
-  """,
-  []},
-  fun(_, Result) ->
-    {"Name",
-      fun() ->
-        % Unsuccessful result with no warnings.
-        ?assertMatch({error, [{_, [_]}], []}, Result),
-        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
-
-        % Unannotated function call outside mailbox interface scope to undefined
-        % static function.
-        ?assertMatch({_, _,
-          {e_undef__fun_ref, {'fun', _, {function, g, 0}}}}, Error),
-        ?debugMsg(paterl_anno:format_error(Code))
-      end}
-  end}.
+%% TODO: Not needed because undefined functions should be handled at an earlier
+%% TODO: stage. I need to refactor all undefined function errors into a special
+%% TODO: module that can be reused by all passes that perform this check.
+%% TODO: This module should rely on the Erlang internal syntax checking tools.
+%%-doc """
+%%Tests unannotated function call outside mailbox interface scope to undefined
+%%static function.
+%%
+%%> Should return `error`.
+%%""".
+%%fun_no_mb_scope_undef_static_fun() -> {{
+%%  """
+%%  -module(test).
+%%  -spec f() -> ok.
+%%  f() -> g().
+%%  """,
+%%  []},
+%%  fun(_, Result) ->
+%%    {"Name",
+%%      fun() ->
+%%        % Unsuccessful result with no warnings.
+%%        ?assertMatch({error, [{_, [_]}], []}, Result),
+%%        {error, [{_, [Error = {_, _, Code}]}], _Warnings = []} = Result,
+%%
+%%        % Unannotated function call outside mailbox interface scope to undefined
+%%        % static function.
+%%        ?assertMatch({_, _,
+%%          {e_undef__fun_ref, {'fun', _, {function, g, 0}}}}, Error),
+%%        ?debugMsg(paterl_anno:format_error(Code))
+%%      end}
+%%  end}.
 
 -doc """
 Tests unannotated function call outside mailbox interface scope to defined
@@ -1657,6 +1730,8 @@ fun_no_mb_scope_static_mutual_rec_fun_no_mb_scope() -> {{
       end}
   end}.
 
+%% TODO: Should be moved into another syntax checking module that checks
+%% TODO: unsupported expressions.
 -doc """
 Tests dynamic function call.
 
@@ -1927,25 +2002,29 @@ expr_receive_no_mb_scope() -> {{
   -module(test).
   -spec f() -> ok.
   f() -> receive {msg} -> g() end.
+
+  -spec g() -> ok.
+  g() -> ok.
   """,
   []},
   fun(_, Result) ->
     {"Test inner expression error in unannotated receive call outside mailbox interface scope",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [{_, [_, _]}], []}, Result),
+%%        ?assertMatch({error, [{_, [_, _]}], []}, Result),
+        ?assertMatch({error, [{_, [_]}], []}, Result),
         {error, [{_, [
-          Error0 = {_, _, Code0}, Error1 = {_, _, Code1}
+          Error0 = {_, _, Code0}%, Error1 = {_, _, Code1}
         ]}], _Warnings = []} = Result,
 
         % Inner expression error in unannotated receive call outside mailbox
         % interface scope.
         ?assertMatch({_, _,
           {e_no__mb_scope, {'receive', _, []}}}, Error0),
-        ?assertMatch({_, _,
-          {e_undef__fun_ref, {'fun', _, {function, g, 0}}}}, Error1),
-        ?debugMsg(paterl_anno:format_error(Code0)),
-        ?debugMsg(paterl_anno:format_error(Code1))
+%%        ?assertMatch({_, _,
+%%          {e_undef__fun_ref, {'fun', _, {function, g, 0}}}}, Error1),
+        ?debugMsg(paterl_anno:format_error(Code0))%,
+%%        ?debugMsg(paterl_anno:format_error(Code1))
       end}
   end}.
 
@@ -1960,25 +2039,29 @@ expr_anno_receive_no_mb_scope() -> {{
   -module(test).
   -spec f() -> ok.
   f() -> '@expects', receive {msg} -> g() end.
+
+  -spec g() -> ok.
+  g() -> ok.
   """,
   [{expects, ?expects(undef_mb, "msg")}]},
   fun(_, Result) ->
     {"Test inner expression error in annotated receive call outside mailbox interface scope",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [{_, [_, _]}], []}, Result),
+%%        ?assertMatch({error, [{_, [_, _]}], []}, Result),
+        ?assertMatch({error, [{_, [_]}], []}, Result),
         {error, [{_, [
-          Error0 = {_, _, Code0}, Error1 = {_, _, Code1}
+          Error0 = {_, _, Code0}%, Error1 = {_, _, Code1}
         ]}], _Warnings = []} = Result,
 
         % Inner expression error in annotated receive call outside mailbox
         % interface scope.
         ?assertMatch({_, _,
           {e_no__mb_scope, {'receive', _, []}}}, Error0),
-        ?assertMatch({_, _,
-          {e_undef__fun_ref, {'fun', _, {function, g, 0}}}}, Error1),
-        ?debugMsg(paterl_anno:format_error(Code0)),
-        ?debugMsg(paterl_anno:format_error(Code1))
+%%        ?assertMatch({_, _,
+%%          {e_undef__fun_ref, {'fun', _, {function, g, 0}}}}, Error1),
+        ?debugMsg(paterl_anno:format_error(Code0))%,
+%%        ?debugMsg(paterl_anno:format_error(Code1))
       end}
   end}.
 
@@ -1995,15 +2078,19 @@ expr_receive_in_mb_scope() -> {{
   -type mb() :: pid().
   -spec f() -> ok.
   f() -> receive {msg} -> g() end.
+
+  -spec g() -> ok.
+  g() -> ok.
   """,
   []},
   fun(_, Result) ->
     {"Test inner expression error in unannotated receive call inside mailbox interface scope",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [{_, [_, _]}], []}, Result),
+%%        ?assertMatch({error, [{_, [_, _]}], []}, Result),
+        ?assertMatch({error, [{_, [_]}], []}, Result),
         {error, [{_, [
-          Error0 = {_, _, Code0}, Error1 = {_, _, Code1}
+          Error0 = {_, _, Code0}%, Error1 = {_, _, Code1}
         ]}], _Warnings = []} = Result,
 
         % Inner expression error in unannotated receive call inside mailbox
@@ -2012,10 +2099,10 @@ expr_receive_in_mb_scope() -> {{
           {e_exp__anno, {tree, macro,
             {attr, _, [], none},
             {macro, {atom, _, expects}, []}}}}, Error0),
-        ?assertMatch({_, paterl_anno,
-          {e_undef__fun_ref, {'fun', _, {function, g, 0}}}}, Error1),
-        ?debugMsg(paterl_anno:format_error(Code0)),
-        ?debugMsg(paterl_anno:format_error(Code1))
+%%        ?assertMatch({_, paterl_anno,
+%%          {e_undef__fun_ref, {'fun', _, {function, g, 0}}}}, Error1),
+        ?debugMsg(paterl_anno:format_error(Code0))%,
+%%        ?debugMsg(paterl_anno:format_error(Code1))
       end}
   end}.
 
@@ -2031,7 +2118,7 @@ expr_anno_receive_in_mb_scope() -> {{
   -new({mb, [f/0]}).
   -type mb() :: pid().
   -spec f() -> ok.
-  f() -> '@expects', receive {msg} -> g() end.
+  f() -> '@expects', receive {msg} -> receive {msg} -> ok end end.
   """,
   [{expects, ?expects(mb, "msg")}]},
   fun(_, Result) ->
@@ -2043,14 +2130,19 @@ expr_anno_receive_in_mb_scope() -> {{
 
         % Inner expression error in annotated receive call with defined mailbox
         % interface inside mailbox interface scope.
-        ?assertMatch({_, _,
-          {e_undef__fun_ref, {'fun', 5, {function, g, 0}}}}, Error),
+%%        ?assertMatch({_, _,
+%%          {e_undef__fun_ref, {'fun', 5, {function, g, 0}}}}, Error),
+        ?assertMatch({_, paterl_anno,
+          {e_exp__anno, {tree, macro,
+            {attr, _, [], none},
+            {macro, {atom, _, expects}, []}}}}, Error),
         ?debugMsg(paterl_anno:format_error(Code))
       end}
   end}.
 
 -doc """
-Tests inner expression error in annotated `receive` call with undefined mailbox interface inside mailbox scope.
+Tests inner expression error in annotated `receive` call with undefined mailbox
+interface inside mailbox scope.
 
 > Should return `error`.
 """.
@@ -2060,7 +2152,7 @@ expr_anno_receive_undef_mb_in_mb_scope() -> {{
   -new({mb, [f/0]}).
   -type mb() :: pid().
   -spec f() -> ok.
-  f() -> '@expects', receive {msg} -> g() end.
+  f() -> '@expects', receive {msg} -> receive {msg} -> ok end end.
   """,
   [{expects, ?expects(undef_mb, "msg")}]},
   fun(_, Result) ->
@@ -2076,8 +2168,12 @@ expr_anno_receive_undef_mb_in_mb_scope() -> {{
         % mailbox interface inside mailbox scope.
         ?assertMatch({_, _,
           {e_undef__mb_scope, {atom, _, undef_mb}}}, Error0),
-        ?assertMatch({_, _,
-          {e_undef__fun_ref, {'fun', _, {function, g, 0}}}}, Error1),
+%%        ?assertMatch({_, _,
+%%          {e_undef__fun_ref, {'fun', _, {function, g, 0}}}}, Error1),
+        ?assertMatch({_, paterl_anno,
+          {e_exp__anno, {tree, macro,
+            {attr, _, [], none},
+            {macro, {atom, _, expects}, []}}}}, Error1),
         ?debugMsg(paterl_anno:format_error(Code0)),
         ?debugMsg(paterl_anno:format_error(Code1))
       end}
@@ -2094,25 +2190,26 @@ expr_bad_anno_receive() -> {{
   -new({mb, [f/0]}).
   -type mb() :: pid().
   -spec f() -> ok.
-  f() -> '@as', receive {msg} -> g() end.
+  f() -> '@as', receive {msg} -> ok end.
   """,
   [{as, ?as(mb)}]},
   fun(_, Result) ->
     {"Test inner expression error in annotated receive with wrong annotation",
       fun() ->
         % Unsuccessful result with no warnings.
-        ?assertMatch({error, [{_, [_, _]}], []}, Result),
+%%        ?assertMatch({error, [{_, [_, _]}], []}, Result),
+        ?assertMatch({error, [{_, [_]}], []}, Result),
         {error, [{_, [
-          Error0 = {_, _, Code0}, Error1 = {_, _, Code1}
+          Error0 = {_, _, Code0}%, Error1 = {_, _, Code1}
         ]}], _Warnings = []} = Result,
 
         % Inner expression error in annotated receive with wrong annotation.
         ?assertMatch({_, _,
           {e_bad__anno_on, {'receive', _, []}}}, Error0),
-        ?assertMatch({_, _,
-          {e_undef__fun_ref, {'fun', _, {function, g, 0}}}}, Error1),
-        ?debugMsg(paterl_anno:format_error(Code0)),
-        ?debugMsg(paterl_anno:format_error(Code1))
+%%        ?assertMatch({_, _,
+%%          {e_undef__fun_ref, {'fun', _, {function, g, 0}}}}, Error1),
+        ?debugMsg(paterl_anno:format_error(Code0))%,
+%%        ?debugMsg(paterl_anno:format_error(Code1))
       end}
   end}.
 
@@ -3098,12 +3195,28 @@ startup(Erl) ->
   Forms = paterl_test_lib:erl_forms(Erl),
   {ok, TypeInfo, _} = paterl_types:module(Forms),
   ?debugMsg(paterl_test_lib:banner_msg("Setup complete")),
-  paterl_anno:module(Forms, TypeInfo).
+
+  % Compute call graph and direct and mutual function usage.
+  case paterl_call_graph:module(Forms) of
+    {ok, CallGraph, _} ->
+      RecFunInfo = paterl_call_graph:rec_funs(CallGraph),
+      paterl_anno:module(Forms, RecFunInfo, TypeInfo);
+    Error = {error, _, _} ->
+      Error
+  end.
+
 
 startup_mb_anno({Erl, ErlSpecs}) ->
   % Parse Erlang code into its abstract syntax and extract type information.
   Forms = paterl_test_lib:expand_erl_forms(Erl, ErlSpecs),
-  ?TRACE("Forms = ~p", [Forms]),
   {ok, TypeInfo, _} = paterl_types:module(Forms),
   ?debugMsg(paterl_test_lib:banner_msg("Setup complete")),
-  paterl_anno:module(Forms, TypeInfo).
+
+  % Compute call graph and direct and mutual function usage.
+  case paterl_call_graph:module(Forms) of
+    {ok, CallGraph, _} ->
+      RecFunInfo = paterl_call_graph:rec_funs(CallGraph),
+      paterl_anno:module(Forms, RecFunInfo, TypeInfo);
+    Error = {error, _, _} ->
+      Error
+  end.

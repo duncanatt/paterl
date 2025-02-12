@@ -1,0 +1,201 @@
+# Translated from master_worker_dir_rec.erl
+
+interface Client_mb {
+  Result(Int)
+}
+
+interface Pool_mb {
+  Result(Int)
+}
+
+interface Master_mb {
+  Task(Client_mb!, Int)
+}
+
+interface Worker_mb {
+  Work(Pool_mb!, Int)
+}
+
+interface Main_mb { }
+
+def master(mb0: Master_mb?): (Unit * Master_mb?) {
+  guard mb0: *Task {
+    empty(mb8) ->
+      ((), mb8)
+    receive Task(replyto, n) from mb1 ->
+      let (v0, mb2) =
+        ((), mb1)
+      in
+        let (result, mb5) =
+          (let mb3 =
+  new [Pool_mb]
+in
+  let (x, mb4) =
+    pool(mb3, n)
+  in
+    let y =
+      free(mb4)
+    in
+      x, mb2)
+        in
+          let (v1, mb6) =
+            ((), mb5)
+          in
+            let (v2, mb7) =
+              (replyto ! Result(result), mb6)
+            in
+              master(mb7)
+  }
+}
+
+def pool(mb9: Pool_mb?, chunks: Int): (Int * Pool_mb?) {
+  let (self, mb10) =
+    (mb9, mb9)
+  in
+    let (v3, mb11) =
+      (farm(0, chunks, self), mb10)
+    in
+      harvest(mb11, 0, chunks, 0)
+}
+
+def worker(mb12: Worker_mb?): (Unit * Worker_mb?) {
+  guard mb12: Work {
+    receive Work(replyto, task) from mb13 ->
+      let (result, mb14) =
+        (compute(task), mb13)
+      in
+        (replyto ! Result(result), mb14)
+  }
+}
+
+def farm(count: Int, chunks: Int, pool: Pool_mb!): Unit {
+  if (count == chunks) {
+    ()
+  }
+  else {
+    let task =
+      count + 1
+    in
+      let worker =
+        let mb15 =
+          new [Worker_mb]
+        in
+          let y =
+            spawn {
+              let (x, mb16) =
+                worker(mb15)
+              in
+                free(mb16)
+            }
+          in
+            mb15
+      in
+        let v4 =
+          worker ! Work(pool, task)
+        in
+          let v5 =
+            ()
+          in
+            farm(task, chunks, pool)
+  }
+}
+
+def harvest(mb17: Pool_mb?, count: Int, chunks: Int, acc: Int): (Int * Pool_mb?) {
+  let (v6, mb18) =
+    ((), mb17)
+  in
+    if (count == chunks) {
+      let (v7, mb19) =
+        harvest_exit(mb18)
+      in
+        (acc, mb19)
+    }
+    else {
+      guard mb18: *Result {
+        empty(mb23) ->
+          (0, mb23)
+        receive Result(result) from mb20 ->
+          let (count0, mb21) =
+            (count + 1, mb20)
+          in
+            let (v8, mb22) =
+              ((), mb21)
+            in
+              harvest(mb22, count0, chunks, acc + result)
+      }
+    }
+}
+
+def harvest_exit(mb24: Pool_mb?): (Unit * Pool_mb?) {
+  guard mb24: *Result {
+    empty(mb26) ->
+      ((), mb26)
+    receive Result(result) from mb25 ->
+      harvest_exit(mb25)
+  }
+}
+
+def compute(n: Int): Int {
+  n * n
+}
+
+def client(mb27: Client_mb?, n: Int, master: Master_mb!): (Unit * Client_mb?) {
+  let (self, mb28) =
+    (mb27, mb27)
+  in
+    let (v9, mb29) =
+      (master ! Task(self, n), mb28)
+    in
+      let (v10, mb30) =
+        ((), mb29)
+      in
+        guard mb30: Result {
+          receive Result(result) from mb31 ->
+            ((), mb31)
+        }
+}
+
+def main(mb32: Main_mb?): (Unit * Main_mb?) {
+  let (mastermb, mb35) =
+    (let mb33 =
+  new [Master_mb]
+in
+  let y =
+    spawn {
+      let (x, mb34) =
+        master(mb33)
+      in
+        free(mb34)
+    }
+  in
+    mb33, mb32)
+  in
+    let (v11, mb38) =
+      (let mb36 =
+  new [Client_mb]
+in
+  let y =
+    spawn {
+      let (x, mb37) =
+        client(mb36, 5, mastermb)
+      in
+        free(mb37)
+    }
+  in
+    mb36, mb35)
+    in
+      ((), mb38)
+}
+
+def main'(): Unit {
+  let mb39 =
+    new [Main_mb]
+  in
+    let (x, mb40) =
+      main(mb39)
+    in
+      let y =
+        free(mb40)
+      in
+        x
+}

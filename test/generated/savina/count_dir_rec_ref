@@ -1,0 +1,113 @@
+# Translated from count_dir_rec.erl
+
+interface Producer_mb {
+  Inc(),
+  Total(Int)
+}
+
+interface Counter_mb {
+  Inc(),
+  Get(Producer_mb!)
+}
+
+interface Main_mb { }
+
+def producer(mb0: Producer_mb?, counter: Counter_mb!, nummessages: Int): (Unit * Producer_mb?) {
+  guard mb0: Inc {
+    receive Inc() from mb1 ->
+      producer_loop(mb1, counter, nummessages)
+  }
+}
+
+def producer_loop(mb2: Producer_mb?, counter: Counter_mb!, nummessages: Int): (Unit * Producer_mb?) {
+  if (nummessages <= 0) {
+    let (self, mb3) =
+      (mb2, mb2)
+    in
+      let (v0, mb4) =
+        (counter ! Get(self), mb3)
+      in
+        producer_exit(mb4)
+  }
+  else {
+    let (v1, mb5) =
+      (counter ! Inc(), mb2)
+    in
+      producer_loop(mb5, counter, nummessages - 1)
+  }
+}
+
+def producer_exit(mb6: Producer_mb?): (Unit * Producer_mb?) {
+  guard mb6: Total {
+    receive Total(total) from mb7 ->
+      ((), mb7)
+  }
+}
+
+def counter(mb8: Counter_mb?, total: Int): (Unit * Counter_mb?) {
+  guard mb8: *Inc . Get {
+    empty(mb12) ->
+      ((), mb12)
+    receive Inc() from mb9 ->
+      counter(mb9, total + 1)
+    receive Get(producer) from mb10 ->
+      let (v2, mb11) =
+        (producer ! Total(total), mb10)
+      in
+        counter_exit(mb11)
+  }
+}
+
+def counter_exit(mb13: Counter_mb?): (Unit * Counter_mb?) {
+  guard mb13: *Inc {
+    empty(mb15) ->
+      ((), mb15)
+    receive Inc() from mb14 ->
+      counter_exit(mb14)
+  }
+}
+
+def main(mb16: Main_mb?): (Unit * Main_mb?) {
+  let (counter, mb19) =
+    (let mb17 =
+  new [Counter_mb]
+in
+  let y =
+    spawn {
+      let (x, mb18) =
+        counter(mb17, 0)
+      in
+        free(mb18)
+    }
+  in
+    mb17, mb16)
+  in
+    let (producer, mb22) =
+      (let mb20 =
+  new [Producer_mb]
+in
+  let y =
+    spawn {
+      let (x, mb21) =
+        producer(mb20, counter, 16)
+      in
+        free(mb21)
+    }
+  in
+    mb20, mb19)
+    in
+      (producer ! Inc(), mb22)
+}
+
+def main'(): Unit {
+  let mb23 =
+    new [Main_mb]
+  in
+    let (x, mb24) =
+      main(mb23)
+    in
+      let y =
+        free(mb24)
+      in
+        x
+}

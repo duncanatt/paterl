@@ -1,0 +1,116 @@
+# Translated from ping_pong_dir_rec.erl
+
+interface Ping_mb {
+  Start(),
+  Pong()
+}
+
+interface Pong_mb {
+  Ping(Ping_mb!),
+  Stop()
+}
+
+interface Main_mb { }
+
+def ping(mb0: Ping_mb?, pong: Pong_mb!, pings_left: Int): (Unit * Ping_mb?) {
+  guard mb0: Start {
+    receive Start() from mb1 ->
+      ping_loop(mb1, pong, pings_left)
+  }
+}
+
+def ping_loop(mb2: Ping_mb?, pong: Pong_mb!, pings_left: Int): (Unit * Ping_mb?) {
+  if (pings_left > 0) {
+    let (v0, mb3) =
+      ((), mb2)
+    in
+      let (self, mb4) =
+        (mb3, mb3)
+      in
+        let (v1, mb5) =
+          (pong ! Ping(self), mb4)
+        in
+          guard mb5: Pong + 1 {
+            empty(mb7) ->
+              ((), mb7)
+            receive Pong() from mb6 ->
+              ping_loop(mb6, pong, pings_left - 1)
+          }
+  }
+  else {
+    (pong ! Stop(), mb2)
+  }
+}
+
+def pong(mb8: Pong_mb?): (Unit * Pong_mb?) {
+  guard mb8: *(Ping + Stop) {
+    empty(mb13) ->
+      ((), mb13)
+    receive Ping(ping) from mb9 ->
+      let (v2, mb10) =
+        ((), mb9)
+      in
+        let (v3, mb11) =
+          (ping ! Pong(), mb10)
+        in
+          pong(mb11)
+    receive Stop() from mb12 ->
+      pong_exit(mb12)
+  }
+}
+
+def pong_exit(mb14: Pong_mb?): (Unit * Pong_mb?) {
+  guard mb14: *(Ping + Stop) {
+    empty(mb17) ->
+      ((), mb17)
+    receive Ping(ping) from mb15 ->
+      pong_exit(mb15)
+    receive Stop() from mb16 ->
+      pong_exit(mb16)
+  }
+}
+
+def main(mb18: Main_mb?): (Unit * Main_mb?) {
+  let (pong, mb21) =
+    (let mb19 =
+  new [Pong_mb]
+in
+  let y =
+    spawn {
+      let (x, mb20) =
+        pong(mb19)
+      in
+        free(mb20)
+    }
+  in
+    mb19, mb18)
+  in
+    let (ping, mb24) =
+      (let mb22 =
+  new [Ping_mb]
+in
+  let y =
+    spawn {
+      let (x, mb23) =
+        ping(mb22, pong, 5)
+      in
+        free(mb23)
+    }
+  in
+    mb22, mb21)
+    in
+      (ping ! Start(), mb24)
+}
+
+def main'(): Unit {
+  let mb25 =
+    new [Main_mb]
+  in
+    let (x, mb26) =
+      main(mb25)
+    in
+      let y =
+        free(mb26)
+      in
+        x
+}
