@@ -22,6 +22,9 @@
 -define(EXEC, "/Users/duncan/Dropbox/Postdoc/Development/mbcheck/mbcheck").
 %%-define(EXEC, "/Users/duncan/Downloads/mbcheck/mbcheck -qj").
 
+%% Pat file extension.
+-define(PAT_EXT, ".pat").
+
 %%% Error types.
 
 %% Pat error with message.
@@ -166,7 +169,7 @@ write_forms(File, Opts, PatForms) ->
   io:format("Ensuring that the directory exists: ~p.~n", [OutDir]),
   filelib:ensure_path(OutDir),
 
-  PatFile = filename:join(OutDir, filename:basename(File, ".erl")),
+  PatFile = filename:join(OutDir, filename:basename(File, ".erl")) ++ ?PAT_EXT,
   io:fwrite(color:green("[WRITE] Writing temporary Pat file ~s.~n"), [PatFile]),
 
   case file:write_file(PatFile, PatString) of
