@@ -261,10 +261,6 @@ lint_expr_seq(ExprSeq, Analysis) when is_list(ExprSeq) ->
   lists:foldl(fun lint_expr/2, Analysis, ExprSeq).
 
 -doc "Lints an expression.".
-%%lint_expr(_Expr = {atom, _, ok}, Analysis) ->
-%%  % Ok atom (equivalent to Unit in Pat).
-%%  ?TRACE("Lint unit expression '~s'.", [erl_prettypr:format(_Expr)]),
-%%  Analysis;
 lint_expr(Expr, Analysis) when
   element(1, Expr) =:= atom;
   element(1, Expr) =:= char;
@@ -277,9 +273,7 @@ lint_expr(_Expr = {call, _, {atom, _, self}, []}, Analysis) ->
   % Call to self expression.
   ?TRACE("Lint self expression '~s'.", [erl_prettypr:format(_Expr)]),
   Analysis;
-%%lint_expr(_Expr = {call, _, _Operator = {atom, _, spawn}, Args}, Analysis)
 lint_expr(_Expr = {call, _, _Operator = {atom, _, spawn}, [{atom, _, M}, {atom, _, F}, Args]}, Analysis)
-%%  when is_list(Args), length(Args) =:= 3 ->
   when is_atom(M), is_atom(F) ->
   % Call to spawn expression. Args is a syntactical representation of a list
   % rather than a list term itself.
@@ -472,10 +466,6 @@ lint_guard([GuardTest | GuardTests], Analysis) ->
   lint_guard(GuardTests, Analysis0).
 
 -doc "Lints guard test.".
-%%lint_guard_test(_Test = {atom, _, true}, Analysis) ->
-%%  % Literal atom for if conditions.
-%%  ?TRACE("Lint primitive guard test '~s'.", [erl_prettypr:format(_Test)]),
-%%  Analysis;
 lint_guard_test(Test, Analysis)
   when
   element(1, Test) =:= atom;
