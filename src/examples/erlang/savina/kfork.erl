@@ -69,7 +69,8 @@ actor_loop() ->
   ?expects("*Packet"),
   receive
     {packet} ->
-      format("~p Received packet.~n", [self()]),
+      Self = self(),
+      format("~p Received packet.~n", [Self]),
       actor_loop()
   after 0 ->
     format("Actor exited.~n", [])

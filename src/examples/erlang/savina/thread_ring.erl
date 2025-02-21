@@ -102,7 +102,8 @@ actor_loop(NumActors, Neighbor) ->
         Neighbor ! {exit, NumActors},
         actor_exit();
         true ->
-          format("~p pinging ~p (~p)...~n", [self(), Neighbor, PingsLeft]),
+          Self = self(),
+          format("~p pinging ~p (~p)...~n", [Self, Neighbor, PingsLeft]),
 
           Neighbor ! {ping, PingsLeft - 1},
           actor_loop(NumActors, Neighbor)
@@ -125,7 +126,8 @@ actor_exit() ->
     {exit, ExitsLeft} ->
       actor_exit()
   after 0 ->
-    format("~p actor exited.~n", [self()])
+    Self = self(),
+    format("~p actor exited.~n", [Self])
   end.
 
 %% @doc Initializes ring of actors. The number of participants in the ring is

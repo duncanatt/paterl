@@ -15,8 +15,8 @@ def actor(mb0: Actor_mb?, numactors: Int): (Unit * Actor_mb?) {
 
 def actor_loop(mb2: Actor_mb?, numactors: Int, neighbor: Actor_mb!): (Unit * Actor_mb?) {
   guard mb2: *Ping . *Exit {
-    empty(mb9) ->
-      ((), mb9)
+    empty(mb10) ->
+      ((), mb10)
     receive Ping(pingsleft) from mb3 ->
       if (pingsleft <= 0) {
         let (v0, mb4) =
@@ -25,35 +25,38 @@ def actor_loop(mb2: Actor_mb?, numactors: Int, neighbor: Actor_mb!): (Unit * Act
           actor_exit(mb4)
       }
       else {
-        let (v1, mb5) =
-          ((), mb3)
+        let (self, mb5) =
+          (mb3, mb3)
         in
-          let (v2, mb6) =
-            (neighbor ! Ping(pingsleft - 1), mb5)
+          let (v1, mb6) =
+            ((), mb5)
           in
-            actor_loop(mb6, numactors, neighbor)
+            let (v2, mb7) =
+              (neighbor ! Ping(pingsleft - 1), mb6)
+            in
+              actor_loop(mb7, numactors, neighbor)
       }
-    receive Exit(exitsleft) from mb7 ->
-      let (v3, mb8) =
+    receive Exit(exitsleft) from mb8 ->
+      let (v3, mb9) =
         if (exitsleft <= 0) {
-          ((), mb7)
+          ((), mb8)
         }
         else {
-          (neighbor ! Ping(exitsleft - 1), mb7)
+          (neighbor ! Ping(exitsleft - 1), mb8)
         }
       in
-        actor_exit(mb8)
+        actor_exit(mb9)
   }
 }
 
-def actor_exit(mb10: Actor_mb?): (Unit * Actor_mb?) {
-  guard mb10: *Ping . *Exit {
-    empty(mb13) ->
-      ((), mb13)
-    receive Ping(pingsleft) from mb11 ->
-      actor_exit(mb11)
-    receive Exit(exitsleft) from mb12 ->
+def actor_exit(mb11: Actor_mb?): (Unit * Actor_mb?) {
+  guard mb11: *Ping . *Exit {
+    empty(mb14) ->
+      ((), mb14)
+    receive Ping(pingsleft) from mb12 ->
       actor_exit(mb12)
+    receive Exit(exitsleft) from mb13 ->
+      actor_exit(mb13)
   }
 }
 
@@ -63,18 +66,18 @@ def init_ring(numactors: Int, main: Actor_mb!): Unit {
   }
   else {
     let firstactor =
-      let mb14 =
+      let mb15 =
         new [Actor_mb]
       in
         let y =
           spawn {
-            let (x, mb15) =
-              actor(mb14, numactors)
+            let (x, mb16) =
+              actor(mb15, numactors)
             in
-              free(mb15)
+              free(mb16)
           }
         in
-          mb14
+          mb15
     in
       let tailactor =
         create_actors(numactors - 2, numactors, firstactor)
@@ -88,18 +91,18 @@ def init_ring(numactors: Int, main: Actor_mb!): Unit {
 
 def create_actors(count: Int, numactors: Int, prevactor: Actor_mb!): Actor_mb! {
   let actor =
-    let mb16 =
+    let mb17 =
       new [Actor_mb]
     in
       let y =
         spawn {
-          let (x, mb17) =
-            actor(mb16, numactors)
+          let (x, mb18) =
+            actor(mb17, numactors)
           in
-            free(mb17)
+            free(mb18)
         }
       in
-        mb16
+        mb17
   in
     let v5 =
       prevactor ! Data(actor)
@@ -112,36 +115,36 @@ def create_actors(count: Int, numactors: Int, prevactor: Actor_mb!): Actor_mb! {
       }
 }
 
-def main(mb18: Actor_mb?): (Unit * Actor_mb?) {
-  let (numactors, mb19) =
-    (5, mb18)
+def main(mb19: Actor_mb?): (Unit * Actor_mb?) {
+  let (numactors, mb20) =
+    (5, mb19)
   in
-    let (numrounds, mb20) =
-      (5, mb19)
+    let (numrounds, mb21) =
+      (5, mb20)
     in
-      let (self, mb21) =
-        (mb20, mb20)
+      let (self, mb22) =
+        (mb21, mb21)
       in
-        let (v6, mb22) =
-          (init_ring(numactors, self), mb21)
+        let (v6, mb23) =
+          (init_ring(numactors, self), mb22)
         in
-          guard mb22: Data + 1 {
-            empty(mb24) ->
-              ((), mb24)
-            receive Data(first_actor) from mb23 ->
-              (first_actor ! Ping(numrounds), mb23)
+          guard mb23: Data + 1 {
+            empty(mb25) ->
+              ((), mb25)
+            receive Data(first_actor) from mb24 ->
+              (first_actor ! Ping(numrounds), mb24)
           }
 }
 
 def main'(): Unit {
-  let mb25 =
+  let mb26 =
     new [Actor_mb]
   in
-    let (x, mb26) =
-      main(mb25)
+    let (x, mb27) =
+      main(mb26)
     in
       let y =
-        free(mb26)
+        free(mb27)
       in
         x
 }

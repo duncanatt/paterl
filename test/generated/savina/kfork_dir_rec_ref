@@ -8,13 +8,16 @@ interface Main_mb { }
 
 def actor(mb0: Actor_mb?): (Unit * Actor_mb?) {
   guard mb0: *Packet {
-    empty(mb3) ->
-      ((), mb3)
+    empty(mb4) ->
+      ((), mb4)
     receive Packet() from mb1 ->
-      let (v0, mb2) =
-        ((), mb1)
+      let (self, mb2) =
+        (mb1, mb1)
       in
-        actor(mb2)
+        let (v0, mb3) =
+          ((), mb2)
+        in
+          actor(mb3)
   }
 }
 
@@ -30,67 +33,67 @@ def flood(num_messages: Int, actor: Actor_mb!): Unit {
   }
 }
 
-def main(mb4: Main_mb?): (Unit * Main_mb?) {
-  let (actor1, mb7) =
-    (let mb5 =
+def main(mb5: Main_mb?): (Unit * Main_mb?) {
+  let (actor1, mb8) =
+    (let mb6 =
   new [Actor_mb]
 in
   let y =
     spawn {
-      let (x, mb6) =
-        actor(mb5)
+      let (x, mb7) =
+        actor(mb6)
       in
-        free(mb6)
+        free(mb7)
     }
   in
-    mb5, mb4)
+    mb6, mb5)
   in
-    let (actor2, mb10) =
-      (let mb8 =
+    let (actor2, mb11) =
+      (let mb9 =
   new [Actor_mb]
 in
   let y =
     spawn {
-      let (x, mb9) =
-        actor(mb8)
+      let (x, mb10) =
+        actor(mb9)
       in
-        free(mb9)
+        free(mb10)
     }
   in
-    mb8, mb7)
+    mb9, mb8)
     in
-      let (actor3, mb13) =
-        (let mb11 =
+      let (actor3, mb14) =
+        (let mb12 =
   new [Actor_mb]
 in
   let y =
     spawn {
-      let (x, mb12) =
-        actor(mb11)
+      let (x, mb13) =
+        actor(mb12)
       in
-        free(mb12)
+        free(mb13)
     }
   in
-    mb11, mb10)
+    mb12, mb11)
       in
-        let (v2, mb14) =
-          (flood(5, actor1), mb13)
+        let (v2, mb15) =
+          (flood(5, actor1), mb14)
         in
-          let (v3, mb15) =
-            (flood(10, actor2), mb14)
+          let (v3, mb16) =
+            (flood(10, actor2), mb15)
           in
-            (flood(15, actor3), mb15)
+            (flood(15, actor3), mb16)
 }
 
 def main'(): Unit {
-  let mb16 =
+  let mb17 =
     new [Main_mb]
   in
-    let (x, mb17) =
-      main(mb16)
+    let (x, mb18) =
+      main(mb17)
     in
       let y =
-        free(mb17)
+        free(mb18)
       in
         x
 }

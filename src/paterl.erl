@@ -25,10 +25,10 @@
 %%% Error types.
 
 %% Pat error with message.
--define(E_PAT_MSG, e_pat_msg).
+-define(E_BAD__PAT, e_bad__pat).
 
 %% Unknown Pat error.
--define(E_PAT_NONE, e_pat_none).
+-define(E_UNK__PAT, e_unk__pat).
 
 %%TODO: Ultimate plan: Desugar -> ANF -> CPS -> RTL -> SSA -> RTL -> ASM
 
@@ -129,7 +129,9 @@ load_forms(File, Opts) ->
 
     % Lint file. File may be valid but can contain possible warnings.
     io:fwrite("[LINT] Lint.~n"),
-    {ok, Warnings0} ?= erl_lint:module(Forms),
+%%    {ok, Warnings0} ?= erl_lint:module(Forms),
+    {ok, Warnings0} ?= paterl_lint:module(Forms),
+
     paterl_errors:show_warnings(Warnings0),
     {ok, Forms}
   else
@@ -306,7 +308,7 @@ check_pat(PatFile) ->
     {_, Bytes} ->
       % Generated Pat file contains errors.
       Msg = parse_error(Bytes),
-      paterl_errors:show_error({?MODULE, {?E_PAT_MSG, Msg}}),
+      paterl_errors:show_error({?MODULE, {?E_BAD__PAT, Msg}}),
       error
   end.
 
@@ -419,7 +421,7 @@ compile2(File, Opts) when is_list(File), is_list(Opts) ->
                             {_, Bytes} ->
                               % Generated Pat file contains errors.
                               Msg = parse_error(Bytes),
-                              errors:show_error({?MODULE, {?E_PAT_MSG, Msg}})
+                              errors:show_error({?MODULE, {?E_BAD__PAT, Msg}})
                           end;
                         {error, Error} -> % Reason
                           errors:show_error({file, Error})
@@ -552,11 +554,11 @@ pp_forms(Forms) ->
 %%% ----------------------------------------------------------------------------
 
 %% @doc Formats the specified error to human-readable form.
-format_error({?E_PAT_MSG, Reason}) ->
+format_error({?E_BAD__PAT, Reason}) ->
   io_lib:format(
     "~s",
     [Reason]
   );
-format_error(?E_PAT_NONE) ->
+format_error(?E_UNK__PAT) ->
   "Unknown Pat error; see generated output file".
 

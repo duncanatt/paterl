@@ -166,7 +166,7 @@ client(N, Master) ->
   Self = self(),
   Master ! {task, Self, N},
 
-  format("Client ~p sent task ~b to master ~p.~n", [self(), N, Master]),
+  format("Client ~p sent task ~b to master ~p.~n", [Self, N, Master]),
   ?expects("Result"),
   receive
     {result, Result} ->

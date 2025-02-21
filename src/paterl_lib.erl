@@ -277,13 +277,15 @@ reset_result(Analysis = #analysis{}) ->
 
 -spec return(Analysis :: analysis()) -> Success | Error
   when
-  Success :: ok | {ok, Result} | {ok, Result, Warnings},
+  Success :: {ok, Warnings} | {ok, Result, Warnings},
   Error :: {error, Errors, Warnings},
   Result :: term(),
   Errors :: paterl_errors:errors(),
   Warnings :: paterl_errors:warnings().
-return(#analysis{status = ok, result = undefined}) ->
-  ok;
+%%return(#analysis{status = ok, result = undefined}) ->
+%%  ok;
+return(#analysis{status = ok, result = undefined, warnings = Warnings}) ->
+  {ok, Warnings};
 return(#analysis{status = ok, result = Result, warnings = []}) ->
   {ok, Result, []};
 return(#analysis{status = ok, file = File, result = Result, warnings = Warnings}) ->

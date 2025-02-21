@@ -36,4 +36,4 @@
 %% Can be used when the mailbox interface scope consists of one mailbox
 %% interface name. The mailbox interface name is inferred from the enclosing
 %% scope.
--define(expects(MbName), {'@expects', MbName}).
+-define(expects(Pattern), {'@expects', Pattern}).

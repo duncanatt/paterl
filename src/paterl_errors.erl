@@ -76,7 +76,6 @@
 show_errors([]) ->
   ok;
 show_errors([Source = {_Filename, Reasons} | Errors]) when is_list(Reasons) ->
-  ?TRACE("Source = ~p", [Source]),
   print_reasons(?S_ERROR, Source),
   show_errors(Errors).
 

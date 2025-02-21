@@ -163,8 +163,9 @@ smoker_exit() ->
       smoker_exit();
     {exit} ->
       smoker_exit()
-    after 0 ->
-     format("~p exited.~n", [self()])
+  after 0 ->
+    Self = self(),
+    format("~p exited.~n", [Self])
   end.
 
 %% @doc Launcher.
