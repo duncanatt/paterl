@@ -116,8 +116,6 @@ module(Forms) when is_list(Forms) ->
   CallGraph :: call_graph(),
   RecFunInfo :: rec_fun_info().
 rec_funs(CallGraph) ->
-  ?TRACE("CallGraph: ~n~p", [CallGraph]),
-
   % Compute SCCs to determine direct and mutual recursive functions.
   SCCs = paterl_scc:find_sccs(CallGraph),
   ?TRACE("SCCs: ~n~p", [SCCs]),

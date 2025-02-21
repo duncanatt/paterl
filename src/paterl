@@ -35,6 +35,6 @@ cli() ->
 %%    fun(Args = #{file := File, includes := Includes, verbose := Verbose}) ->
     fun(Args = #{file := File, includes := Includes, out := Out}) ->
       io:format("Input arguments: ~p.~n", [Args]),
-      paterl:compile(File, [{includes, Includes}, {out, Out}])
+      paterl:check(File, [{includes, Includes}, {out, Out}])
     end
   }.
