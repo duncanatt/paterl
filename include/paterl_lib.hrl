@@ -27,11 +27,7 @@
   warnings = [] :: [paterl_lib:reason()]
 }).
 
-%%-record(error, {
-%%  errors = [] :: [paterl_lib:reason()],
-%%  warnings = [] :: [paterl_lib:reason()]
-%%}).
-
+%% Type information used to annotate forms.
 -record(type_info, {
   type_defs = #{} :: paterl_types:type_defs(), % Global type def names to AST.
   spec_defs = #{} :: paterl_types:spec_defs(), % Function signatures to AST.
@@ -39,23 +35,14 @@
   mb_defs = [] :: paterl_types:mb_defs()
 }).
 
-%% Error creation macros.
+%% Prepends the new error code with the AST node to the specified analysis.
 -define(
 pushError(Code, Node, Analysis),
   paterl_lib:push_error(?MODULE, {Code, Node}, Analysis)
 ).
 
+%% Prepends the new warning code with the AST node to the specified analysis.
 -define(
 pushWarning(Code, Node, Analysis),
   paterl_lib:push_warning(?MODULE, {Code, Node}, Analysis)
 ).
-
-%%%% New mailbox wild attribute.
-%%-define(M_NEW, new).
-%%
-%%%% Use mailbox wild attribute.
-%%-define(M_USE, use).
-
-%%-define(T_TYPE, type).
-%%-define(T_SPEC, spec).
-%%-define(T_MBOX, mbox).

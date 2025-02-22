@@ -36,19 +36,6 @@
 
 
 %%% ----------------------------------------------------------------------------
-%%% Macro and record definitions.
-%%% ----------------------------------------------------------------------------
-
-%%%% Encapsulates internal error structure.
-%%-record(analysis, {
-%%  file = "nofile" :: string(),
-%%  result = undefined :: term(),
-%%  errors = [] :: [reason()],
-%%  warnings = [] :: [reason()]
-%%}).
-
-
-%%% ----------------------------------------------------------------------------
 %%% Type definitions.
 %%% ----------------------------------------------------------------------------
 
@@ -98,7 +85,7 @@ Replicates the standard error structure in use by all Erlang I/O modules in the
 %%% ----------------------------------------------------------------------------
 
 -doc """
-Prepends the new error to the specified [`error()`](`t:error/0`).
+Prepends the new error to the specified [`analysis()`](`t:analysis/0`).
 
 ### Returns
 - updated [`analysis()`](`t:analysis/0`) with the new error appended
@@ -114,7 +101,7 @@ push_error(Mod, {Code, Node}, Analysis = #analysis{errors = Reasons}) ->
   Analysis#analysis{errors = [Reason | Reasons], status = error}.
 
 -doc """
-Prepends the new warning to the specified [`error()`](`t:error/0`).
+Prepends the new warning to the specified [`analysis()`](`t:analysis/0`).
 
 ### Returns
 - updated [`analysis()`](`t:analysis/0`) with the new warning appended
