@@ -97,184 +97,73 @@ Replicates the standard error structure in use by all Erlang I/O modules in the
 %%% Public API.
 %%% ----------------------------------------------------------------------------
 
-%%-doc "Creates a new [`error()`](`t:error/0`).".
-%%-spec new_error() -> error().
-%%new_error() ->
-%%  #error{}.
+-doc """
+Prepends the new error to the specified [`error()`](`t:error/0`).
 
-
-%%new_error(File) ->
-%%  #error{file = File}.
-%%
-%%new_error(File, Error = #error{}) ->
-%%  Error#error{file = File}.
-
-%%-type new_error() -> {error, errors(), warnings()}.
-%%new_error(#error{file = File, errors = Errors, warnings = Warnings}) ->
-%%  {error}.
-
-%%flat_warnings(File, )
-
-%%-doc "Returns the list of error reasons.".
-%%-spec get_errors(Error :: error()) -> errors().
-%%get_errors(#error{errors = Reasons}) ->
-%%  Reasons.
-%%
-%%-doc "Returns the list of warning reasons.".
-%%-spec get_warnings(Error :: error()) -> warnings().
-%%get_warnings(#error{warnings = Reasons}) ->
-%%  Reasons.
-
--doc "Prepends the new error to the specified [`error()`](`t:error/0`).".
--spec push_error(Mod :: module(), Detail :: detail(), Analysis) -> Analysis
+### Returns
+- updated [`analysis()`](`t:analysis/0`) with the new error appended
+""".
+-spec push_error(Mod, Detail, Analysis) -> Analysis0
   when
-  Analysis :: analysis().
+  Mod :: module(),
+  Detail :: detail(),
+  Analysis :: analysis(),
+  Analysis0 :: analysis().
 push_error(Mod, {Code, Node}, Analysis = #analysis{errors = Reasons}) ->
   Reason = {erl_syntax:get_pos(Node), Mod, {Code, Node}},
   Analysis#analysis{errors = [Reason | Reasons], status = error}.
-%%push_error(Mod, {Code, Node}, Analysis = #error{errors = Reasons}) ->
-%%  Reason = {erl_syntax:get_pos(Node), Mod, {Code, Node}},
-%%  Analysis#error{errors = [Reason | Reasons]}. % TODO: Remove after the very final refactoring.
 
+-doc """
+Prepends the new warning to the specified [`error()`](`t:error/0`).
 
-
--doc "Prepends the new warning to the specified [`error()`](`t:error/0`).".
--spec push_warning(Mod :: module(), Detail :: detail(), Analysis) -> Analysis
+### Returns
+- updated [`analysis()`](`t:analysis/0`) with the new warning appended
+""".
+-spec push_warning(Mod, Detail, Analysis) -> Analysis0
   when
-  Analysis :: analysis().
+  Mod :: module(),
+  Detail :: detail(),
+  Analysis :: analysis(),
+  Analysis0 :: analysis().
 push_warning(Mod, {Code, Node}, Analysis = #analysis{warnings = Reasons}) ->
   Reason = {erl_syntax:get_pos(Node), Mod, {Code, Node}},
   Analysis#analysis{warnings = [Reason | Reasons]}.
 
+-doc "Resets the [`analysis()`](`t:analysis/0`) status to `ok`.".
 reset_status(Analysis = #analysis{}) ->
   Analysis#analysis{status = ok}.
 
+-doc """
+Sets the [`analysis()`](`t:analysis/0`) status.
+
+### Returns
+- [`analysis()`](`t:analysis/0`) with status `ok` in case of no errors
+- [`analysis()`](`t:analysis/0`) with status `error` otherwise
+""".
 set_status(Analysis = #analysis{errors = []}) ->
   Analysis#analysis{status = ok};
 set_status(Analysis = #analysis{}) ->
   Analysis#analysis{status = error}.
 
+-doc "Resets the [`analysis()`](`t:analysis/0`) result to `undefined`.".
 reset_result(Analysis = #analysis{}) ->
   Analysis#analysis{result = undefined}.
-
-%%-doc """
-%%Standardizes function return values following the Erlang internal conventions.
-%%
-%%**Returns**
-%%- `{error, Errors, Warnings}` is an error result with errors and potential
-%%  warnings.
-%%- `{ok, Value, Warnings}` is a successful result with `Value` with potential
-%%  warnings.
-%%""".
-%%-spec return(Value, Error :: error()) -> {ok, Value, Warnings} | error()
-%%  when
-%%  Value :: term(),
-%%  Warnings :: [reason()].
-%%return(Value, #error{errors = [], warnings = Warnings}) ->
-%%  % Result with warnings.
-%%  {ok, Value, Warnings};
-%%return(_, #error{errors = Errors, warnings = Warnings}) ->
-%%  % Unusable result with errors and warnings. Follows erl_lint module/1 return.
-%%  {error, Errors, Warnings}.
-
-%%-doc """
-%%Standardizes function return values following the Erlang internal conventions.
-%%
-%%**Returns**
-%%- `{error, Errors, Warnings}` is an error result with errors and potential
-%%  warnings.
-%%- `{ok, Value, Warnings}` is a successful result with `Value` with potential
-%%  warnings.
-%%- `{ok, Warnings}` is a successful result with potential warnings.
-%%""".
-%%-spec return(Error :: error() | Value) -> {ok, Value, Warnings} | error()
-%%  when
-%%  Value :: term(),
-%%  Warnings :: [reason()].
-%%return(#error{errors = [], warnings = Warnings}) ->
-%%  % Warnings. Follows erl_lint module/1 return.
-%%  {ok, Warnings};
-%%return(Error = #error{errors = Errors, warnings = Warnings}) ->
-%%  % Errors and warnings. Follows erl_lint module/1 return.
-%%%%  {error, Errors, Warnings};
-%%  Error;
-%%return(Value) -> % TODO: Maybe remove this to have a standard interface and handle the cases where a value is involved by forcing the user to supply and empty error().
-%%  % Result without warnings.
-%%  {ok, Value, []}.
-
-
-%% For internal use because there is no file information.
-%%-spec return(Analysis :: analysis()) ->
-%%  {ok, Result} | {ok, Warnings} | {ok, Result, Warnings} | {error, Warnings, Errors}
-%%  when
-%%  Result :: term(),
-%%  Warnings :: [paterl_lib:reason()],
-%%  Errors :: [paterl_lib:reason()].
-%%return(#analysis{result = undefined, errors = [], warnings = Warnings}) ->
-%%  % No result, no errors, but possible warnings.
-%%  {ok, Warnings};
-%%return(#analysis{result = Result, errors = [], warnings = []}) ->
-%%  % Result with no errors and no warnings.
-%%  {ok, Result};
-%%return(#analysis{result = Result, errors = [], warnings = Warnings}) ->
-%%  % Result with no errors but possible warnings.
-%%  {ok, Result, Warnings};
-%%return(#analysis{errors = Errors, warnings = Warnings}) ->
-%%  {error, Warnings, Errors}.
-
-
-%%returnx(#error{errors = [], warnings = Warnings}) ->
-% No result, no errors and no warnings.
-
-%%  WE need to reinstate the error model so that we can pattern match effectively and also bubble up messages
-%%  Consider adding an ok record!
-%%  Actually, we do not need to match against the error record, we do it just for fun.
-%%  Error should be an opaque
-%%  {ok, []}.
-
-%% For internal use.
-%%return(#error{errors = [], warnings = Warnings}) ->
-%%  % No result, no errors, but possible warnings.
-%%  {ok, Warnings};
-%%return(Error = #error{}) ->
-%%  % Error.
-%%  Error;
-%%return(Result) ->
-%%  % Result with no errors and no warnings.
-%%  {ok, Result}.
-
-%% Till now, we do not need this case.
-%%return(Result, #error{errors = [], warnings = Warnings}) ->
-%%  % Result with no errors but possible warnings.
-%%  {ok, Result, Warnings}.
 
 
 %%DO it with analysis and pattern matching on the analysis record which is not opaque. It is the
 %%cleanest and requires the least amount of code. Use the status flag when returning results
 %%to outside functions.
 
+-doc """
+Standardizes function return values following the Erlang I/O module convention.
 
-%% For external use because there is file information.
-%%-spec return_status(File :: string(), Analysis :: analysis()) ->
-%%  {ok, Result} | {ok, Warnings} | {ok, Result, Warnings} | {error, Warnings, Errors}
-%%  when
-%%  Result :: term(),
-%%  Warnings :: paterl_errors:warnings(),
-%%  Errors :: paterl_errors:errors().
-%%return_status(File, #analysis{result = undefined, errors = [], warnings = Warnings}) ->
-%%  % No result, no errors, but possible warnings.
-%%%%  {ok, [{File, Reason} || Reason <- Analysis#analysis.warnings]};
-%%  {ok, [{File, Warnings}]};
-%%return_status(_, #analysis{result = Result, errors = [], warnings = []}) ->
-%%  % Result with no errors and no warnings.
-%%  {ok, Result};
-%%return_status(File, #analysis{result = Result, warnings = Warnings, errors = []}) ->
-%%  % Result with no errors but possible warnings.
-%%  {ok, Result, [{File, Warnings}]};
-%%return_status(File, #analysis{warnings = Warnings, errors = Errors}) ->
-%%  {error, [{File, Warnings}], [{File, Errors}]}.
-
-
+### Return
+- `{ok, Warnings}` is a successful result with possible warnings
+- `{ok, Value, Warnings}` is a successful result with `Value` with posible
+  warnings
+- `{error, Errors, Warnings}` is an error result with errors and possible
+  warnings
+""".
 -spec return(Analysis :: analysis()) -> Success | Error
   when
   Success :: {ok, Warnings} | {ok, Result, Warnings},
@@ -294,5 +183,3 @@ return(#analysis{status = error, file = File, errors = Errors, warnings = []}) -
   {error, [{File, lists:reverse(Errors)}], []};
 return(#analysis{status = error, file = File, errors = Errors, warnings = Warnings}) ->
   {error, [{File, lists:reverse(Errors)}], [{File, lists:reverse(Warnings)}]}.
-
-%%TEST Different errors in the id_server_demo and make a list of the possible tests outside src.
