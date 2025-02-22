@@ -111,7 +111,7 @@ type_forms(Forms) ->
       paterl_errors:show_warnings(Warnings0),
 
       % Create the main bootstrapping function in preparation for the Pat pass.
-      {Forms0, TypeInfo0} = paterl_bootstrap:forms(Forms, TypeInfo),
+      {Forms0, TypeInfo0} = paterl_bootstrap:module(Forms, TypeInfo),
 
       table_fmt:print_table("TypeDefs", TypeInfo0#type_info.type_defs),
       table_fmt:print_table("SpecDefs", TypeInfo0#type_info.spec_defs),

@@ -386,11 +386,6 @@ annotate_function({function, Anno, Name, Arity, Clauses}, RecFunInfo, TypeInfo, 
   % Recover fun reference.
   FunRef = {Name, Arity},
 
-  % Initialize function scopes. Scopes are added when other functions are called
-  % from within this function body. Tracks called functions to determine when a
-  % ?use annotation is applied for direct or mutually recursive calls.
-%%  FunScopes = [FunRef],
-
   % Initialize fun references that are directly or indirectly call this function
   % recursively. Tracks the functions that should be annotated with a ?use
   % modality to reuse the same mailbox. The ?use modality overrides a possibly
@@ -811,7 +806,6 @@ annotate_expr(Expr = {call, Anno, Operator = {atom, _, spawn}, MFArgs}, _MbAnno 
 
         % Override modality with ?new for spawn call.
         ?DEBUG("Override '~s' with '~s' on '~s'.", [
-%%          erl_prettypr:format(paterl_syntax:mb_definition(_MbMod, [MbName], _Anno)),
           erl_prettypr:format(paterl_syntax:mb_anno(_MbMod, [MbName], _Anno)),
           erl_prettypr:format(paterl_syntax:mb_anno(?MOD_NEW, [MbName], Anno)),
           erl_prettypr:format(Expr)
@@ -1084,43 +1078,98 @@ annotate_expr(Expr, _MbAnno, _RecFuns, _MbScopes, _, Analysis) ->
   ]),
   ?pushError(?E_BAD__ANNO_ON, Expr, Analysis#analysis{result = Expr}).
 
+-doc """
+Determines whether the specified fun reference is contained in the recursive
+functions list.
+""".
+is_rec_fun_ref(FunRef = {_, _}, RecFuns) when is_list(RecFuns) ->
+  lists:member(FunRef, RecFuns).
+
 
 %%% ----------------------------------------------------------------------------
 %%% Annotations.
 %%% ----------------------------------------------------------------------------
 
-%% TODO: Comment these.
+-doc """
+Retrieves the **type** annotation value from the specified annotation.
+
+See `get_anno_val/3` for details.
+""".
 type(Anno) ->
   get_anno_val(Anno, ?MA_TYPE, undefined).
 
+-doc """
+Retrieves the **interface** annotation value from the specified annotation.
+
+See `get_anno_val/3` for details.
+""".
 interface(Anno) ->
   get_anno_val(Anno, ?MA_INTERFACE, undefined).
 
-%%read(Anno) ->
-%%  get_anno_val(Anno, ?MA_READ, false).
+-doc """
+Retrieves the **modality** annotation value from the specified annotation.
 
+See `get_anno_val/3` for details.
+""".
 modality(Anno) ->
   get_anno_val(Anno, ?MA_MODALITY, undefined).
 
+-doc """
+Retrieves the **state** annotation value from the annotation.
+
+See `get_anno_val/3` for details.
+""".
 state(Anno) ->
   get_anno_val(Anno, ?MA_STATE, undefined).
 
+-doc """
+Stores the specified `Type` annotation value in the annotation.
+
+See `set_anno_val/3` for details.
+""".
 set_type(Type, Anno) ->
   set_anno_val(Anno, ?MA_TYPE, Type).
 
+-doc """
+Stores the specified `Interface` annotation value in the annotation.
+
+See `set_anno_val/3` for details.
+""".
 set_interface(Interface, Anno) when is_atom(Interface) ->
   set_anno_val(Anno, ?MA_INTERFACE, Interface).
 
-%%set_read(Read, Anno) when is_boolean(Read) ->
-%%  set_anno_val(Anno, ?MA_READ, Read).
+-doc """
+Stores the specified `Modality` annotation value in the annotation.
 
+See `set_anno_val/3` for details.
+""".
 set_modality(Modality, Anno) when Modality =:= 'new'; Modality =:= 'use' ->
   set_anno_val(Anno, ?MA_MODALITY, Modality).
 
+-doc """
+Stores the specified `State` annotation value in the annotation.
+
+See `set_anno_val/3` for details.
+""".
 set_state(State, Anno) when is_list(State) ->
   set_anno_val(Anno, ?MA_STATE, State).
 
-set_anno_val(Anno, Item, Value) ->
+-doc """
+Stores the specified `Value` associated with `Key` in the annotation.
+
+This function extends the functionality of the `m:erl_anno` module.
+
+`Anno` can be a line number, line number-column pair, or a list of arbitrary
+key-value elements.
+
+### Returns
+- updated annotation containing the new key-value element.
+
+### Throws
+-`badarg` if `Anno` is not a line number, line number-column pair or a list of
+key-value elements.
+""".
+set_anno_val(Anno, Key, Value) ->
   Anno0 =
     case Anno of
       Line when is_integer(Line) ->
@@ -1130,25 +1179,42 @@ set_anno_val(Anno, Item, Value) ->
       Anno when is_list(Anno) ->
         Anno;
       _ ->
-        erlang:error(badarg, [Anno, Item, Value])
+        erlang:error(badarg, [Anno, Key, Value])
     end,
-  lists:keystore(Item, 1, Anno0, {Item, Value}).
+  lists:keystore(Key, 1, Anno0, {Key, Value}).
 
-get_anno_val(Anno, Item, Default) ->
+-doc """
+Retrieves the `Value` associated with the specified 'Key' from the annotation.
+
+This function extends the functionality of the `m:erl_anno` module.
+
+`Anno` can be a line number, line number-column pair, or a list of arbitrary
+key-value elements.
+
+### Returns
+- value associated with `Key`
+- `Default` when `Key` is not found
+- `undefined` when `Anno` is a line number or line number-column pair
+
+### Throws
+-`badarg` if `Anno` is not a line number, line number-column pair or a list of
+key-value elements.
+""".
+get_anno_val(Anno, Key, Default) ->
   case Anno of
     Line when is_integer(Line) ->
       undefined;
     {Line, Column} when is_integer(Line), is_integer(Column) ->
       undefined;
     Anno when is_list(Anno) ->
-      case lists:keyfind(Item, 1, Anno) of
+      case lists:keyfind(Key, 1, Anno) of
         false ->
           Default;
-        {Item, Value} ->
+        {Key, Value} ->
           Value
       end;
     _ ->
-      erlang:error(badarg, [Anno, Item, Default])
+      erlang:error(badarg, [Anno, Key, Default])
   end.
 
 
@@ -1167,6 +1233,18 @@ map_anno(Fun, Tree, Depth) ->
 map_anno_all(Anno, Tree) ->
   map_anno_lt(Anno, Tree, 576460752303423488).
 
+-doc """
+Maps the annotations in the specified `Tree` up to but not including `Depth`.
+
+### Returns
+- updated `Tree`
+""".
+-spec map_anno_lt(Fun, Tree, Depth) -> Tree0
+  when
+  Fun :: fun((Anno :: erl_anno:anno()) -> Anno0 :: erl_anno:anno()),
+  Tree :: paterl_syntax:tree(),
+  Depth :: integer(),
+  Tree0 :: paterl_syntax:tree().
 map_anno_lt(Fun, Tree, Depth) ->
   erl_parse:mapfold_anno(
     fun(Anno, D) when D < Depth ->
@@ -1175,48 +1253,6 @@ map_anno_lt(Fun, Tree, Depth) ->
     end,
     0, Tree).
 
-
-%%get_fun_ref_mfa([M, F, Args]) ->
-%%  case erl_syntax:type(M) of
-%%    atom ->
-%%      case erl_syntax:type(F) of
-%%        atom ->
-%%          case erl_syntax:type(Args) of
-%%            Type when Type =:= nil; Type =:= list ->
-%%              {ok, erl_syntax:atom_value(M), {erl_syntax:atom_value(F),
-%%                erl_syntax:list_length(Args)}};
-%%            _ ->
-%%              {error, Args}
-%%          end;
-%%        _ ->
-%%          {error, F}
-%%      end;
-%%    _ ->
-%%      {error, M}
-%%  end.
-
-
-% TODO: MOVE TO paterl_syntax
-%%get_fun_ref(Call) ->
-%%  maybe
-%%    application ?= erl_syntax:type(Call),
-%%    Operator = erl_syntax:application_operator(Call),
-%%
-%%    atom ?= erl_syntax:type(Operator),
-%%    Args = erl_syntax:application_arguments(Call),
-%%    {ok, {erl_syntax:atom_value(Operator), length(Args)}}
-%%  else
-%%    _ ->
-%%      % Not a static call.
-%%      {error, Call};
-%%    module_qualifier ->
-%%      % Remote calls unsupported.
-%%      {error, Call}
-%%  end.
-
-
-%%  {erl_syntax:atom_value(M), erl_syntax:atom_value(F), erl_syntax:list_length(Args)}.
-%%  {erl_syntax:atom_value(F), erl_syntax:list_length(Args)}.
 
 %%% ----------------------------------------------------------------------------
 %%% Error handling and reporting.
@@ -1283,16 +1319,8 @@ format_error({?E_UNDEF__FUN_REF, Node}) ->
   ).
 
 
-
+% TODO: Still to use.
 is_mb_in_scope(_, undefined) ->
   false;
 is_mb_in_scope(MbName, MbScopes) when is_atom(MbName), is_list(MbScopes) ->
   lists:member(MbName, MbScopes).
-
-is_rec_fun_ref(FunRef = {_, _}, RecFuns) when is_list(RecFuns) ->
-  lists:member(FunRef, RecFuns).
-
-
-
-
-
