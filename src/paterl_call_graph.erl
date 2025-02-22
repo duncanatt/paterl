@@ -27,8 +27,7 @@
 -include("paterl_syntax.hrl").
 
 %%% Public API.
--export([]).
--compile(export_all).
+-export([module/1, rec_funs/1]).
 
 %%% Public types.
 -export_type([rec_fun_info/0]).

@@ -1,23 +1,32 @@
-%%%-------------------------------------------------------------------
-%%% @author duncan
-%%% @copyright (C) 2024, <COMPANY>
-%%% @doc
 %%%
-%%% @end
-%%% Created : 15. May 2024 10:32
-%%%-------------------------------------------------------------------
+%%% %CopyrightBegin%
+%%%
+%%% Copyright the University of Glasgow 2022-2025. All Rights Reserved.
+%%%
+%%% Licensed under the Apache License, Version 2.0 (the "License");
+%%% you may not use this file except in compliance with the License.
+%%% You may obtain a copy of the License at
+%%%
+%%%     http://www.apache.org/licenses/LICENSE-2.0
+%%%
+%%% Unless required by applicable law or agreed to in writing, software
+%%% distributed under the License is distributed on an "AS IS" BASIS,
+%%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%%% See the License for the specific language governing permissions and
+%%% limitations under the License.
+%%%
+%%% %CopyrightEnd%
 -module(paterl_ir).
+-moduledoc "Erlang syntactic subset assignment transformation.".
 -author("duncan").
 
 %%% Includes.
 -include_lib("stdlib/include/assert.hrl").
 -include("log.hrl").
-%%-include("errors.hrl").
 -include("paterl_syntax.hrl").
 
-%%% API.
+%%% Public API.
 -export([module/1]).
--compile(export_all).
 
 
 %%% ----------------------------------------------------------------------------
@@ -27,19 +36,21 @@
 %% Temporary variable name.
 -define(TEMP_VAR_NAME, v).
 
-
-
 %% TODO: Add code to normalize Erlang ASTs. Called assignment transformation.
-%% For now this only involves expanding specific Erlang expressions to match expressions.
-%% Later, I need to add calls to functions to be externalized so that values are bound to variables,
-%% which is a huge task and is called a-normal form.
+%% TODO: For now this only involves expanding specific Erlang expressions to
+%% TODO: match expressions.
+%% TODO: Later, I need to add calls to functions to be externalized so that
+%% TODO: values are bound to variables, which is called a-normal form.
+
 
 %%% ----------------------------------------------------------------------------
-%%% API.
+%%% Public API.
 %%% ----------------------------------------------------------------------------
 
-%% @doc Rewrites an Erlang abstract syntax representation to its equivalent
-%% Erlang A-normal form representation.
+-doc """
+Rewrites an Erlang abstract syntax representation to its equivalent Erlang
+A-normal form representation.
+""".
 -spec module(erl_syntax:forms()) -> erl_syntax:forms().
 module(Forms) ->
   erl_syntax:revert_forms(forms(Forms)).
@@ -49,12 +60,12 @@ module(Forms) ->
 %%% Rewriting on forms and types.
 %%% ----------------------------------------------------------------------------
 
-%% @private Rewrites Erlang forms.
+-doc "Rewrites a list of Erlang forms.".
 -spec forms(erl_syntax:forms()) -> erl_syntax:forms().
 forms(Forms) ->
   [form(Form) || Form <- Forms].
 
-%% @private Rewrites Erlang functions.
+-doc "Rewrites an Erlang function.".
 -spec form(erl_syntax:syntaxTree()) -> erl_syntax:syntaxTree().
 form({function, Anno, Name, _, Clauses}) ->
   erl_syntax:set_pos(
@@ -65,65 +76,60 @@ form(Form) ->
   % Other Erlang forms.
   Form.
 
-%% @private Generic function to rewrite Erlang clauses.
+-doc "Generic function to rewrite a list of Erlang clauses.".
 -spec clauses(function(), [erl_syntax:syntaxTree()]) -> [erl_syntax:syntaxTree()].
 clauses(Fun, Clauses) when is_function(Fun, 1), is_list(Clauses) ->
   [Fun(Clause) || Clause <- Clauses].
 
-%% @private Rewrites Erlang function clauses.
+-doc "Rewrites a list of Erlang function clauses.".
 -spec fun_clauses([erl_syntax:syntaxTree()]) -> [erl_syntax:syntaxTree()].
 fun_clauses(Clauses) ->
   clauses(fun fun_clause/1, Clauses).
 
-%% @private Rewrites Erlang case and receive clauses.
+-doc "Rewrites a list of Erlang case and receive clauses.".
 -spec case_clauses([erl_syntax:syntaxTree()]) -> [erl_syntax:syntaxTree()].
 case_clauses(Clauses) ->
   clauses(fun case_clause/1, Clauses).
 
-%% @private Rewrites Erlang if clauses.
+-doc "rewrites a list of Erlang clauses.".
 -spec if_clauses([erl_syntax:syntaxTree()]) -> [erl_syntax:syntaxTree()].
 if_clauses(Clauses) ->
   clauses(fun if_clause/1, Clauses).
 
-%% @private Rewrites Erlang function clause.
+-doc "Rewrites an Erlang function clause.".
 -spec fun_clause(erl_syntax:syntaxTree()) -> erl_syntax:syntaxTree().
 fun_clause({clause, Anno, PatSeq, GuardSeq, Body}) ->
   erl_syntax:set_pos(erl_syntax:clause(PatSeq, GuardSeq, expr_seq(Body)), Anno).
 
-%% @private Rewrites Erlang case and receive clause.
+-doc "Rewrites an Erlang case or receive clause.".
 -spec case_clause(erl_syntax:syntaxTree()) -> erl_syntax:syntaxTree().
 case_clause({clause, Anno, [Pat], GuardSeq, Body}) ->
   % Receive and case clause.
   erl_syntax:set_pos(erl_syntax:clause([Pat], GuardSeq, expr_seq(Body)), Anno).
 
-%% @private Rewrites Erlang if clause.
+-doc "Rewrites an Erlang if clause".
 -spec if_clause(erl_syntax:syntaxTree()) -> erl_syntax:syntaxTree().
 if_clause({clause, Anno, [], GuardSeq, Body}) ->
   % If clause.
   erl_syntax:set_pos(erl_syntax:clause(GuardSeq, expr_seq(Body)), Anno).
 
-%% @private Rewrites Erlang expression sequences.
+-doc "Rewrites an Erlang expression sequence.".
 -spec expr_seq([erl_syntax:syntaxTree()]) -> [erl_syntax:syntaxTree()].
 expr_seq([]) ->
   [];
-%%expr_seq([Expr])
-%%  when element(1, Expr) =:= 'receive'; element(1, Expr) =:= 'if'; element(1, Expr) =:= match ->
-% Singleton expression sequence that are not values. Transform.
-%%  [expr(Expr)];
-%%expr_seq([Expr]) when ?isVal(Expr) ->
-%%  % Singleton expression sequence where the expression is a value.
-%%  [Expr];
 expr_seq([Expr]) ->
   % Singleton expression sequence where the expression is a value.
   [expr(Expr, false)];
 expr_seq([Expr | ExprSeq]) ->
   [expr(Expr, true) | expr_seq(ExprSeq)].
 
-%% @private Rewrites the specified Erlang AST expression node in A-normal form.
-%% @param RewriteNode Rewrites the AST expression node to a match expression
-%%        node if true, otherwise does not rewrite the node but rewrites the
-%%        expressions in its body.
-%% @returns Rewritten Erlang AST node in A-normal form.
+-doc """
+Rewrites an Erlang expression into single static assignment form.
+
+- `RewriteNode`: rewrites the expression to a match expression when
+`RewriteNode` is `true`, otherwise does not rewrite the expression but rewrites
+its body.
+""".
 -spec expr(Expr :: erl_syntax:syntaxTree(), RewriteNode :: boolean()) -> erl_syntax:syntaxTree().
 expr(Lit, true) when ?isLit(Lit) ->
   % Literal expressions.
@@ -251,7 +257,7 @@ expr(Expr, false) when ?isReceive(Expr) ->
 %%% Helpers.
 %%% ----------------------------------------------------------------------------
 
-%% @private Returns a fresh variable name.
+-doc "Returns a fresh variable name.".
 -spec fresh_var() -> paterl_tools:name().
 fresh_var() ->
   paterl_tools:fresh_var(?TEMP_VAR_NAME).
@@ -268,6 +274,9 @@ fresh_var() ->
 %%  60,
 %%  T = if 1 == 1 -> 10; true -> Y = 20, 30, 40, ?mb_assert_regex("Resp"), receive {a, X} -> X end end.
 
+-ifdef(test).
+
+%% Tests the expression category macros.
 test_expr_cat(Expr) when ?isMbAnno(Expr) ->
   io:format("Is MB annotation ~p.~n", [Expr]);
 test_expr_cat(Expr) when ?isMsg(Expr) ->
@@ -278,3 +287,5 @@ test_expr_cat(Expr) when ?isDynamicCall(Expr) ->
   io:format("Is explicit call ~p.~n", [Expr]);
 test_expr_cat(Expr) ->
   io:format("Unrecognized expression ~p.~n", [Expr]).
+
+-endif.

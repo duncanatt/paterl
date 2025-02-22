@@ -26,7 +26,7 @@
 -include("paterl_lib.hrl").
 
 %%% Public API.
--export([new_error/0, reset_result/1, set_status/1, reset_status/1]).
+-export([reset_result/1, set_status/1, reset_status/1]).
 -export([push_error/3, push_warning/3]).
 -export([return/1]).
 
@@ -99,8 +99,8 @@ Replicates the standard error structure in use by all Erlang I/O modules in the
 
 %%-doc "Creates a new [`error()`](`t:error/0`).".
 %%-spec new_error() -> error().
-new_error() ->
-  #error{}.
+%%new_error() ->
+%%  #error{}.
 
 
 %%new_error(File) ->

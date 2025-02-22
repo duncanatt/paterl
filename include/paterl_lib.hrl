@@ -27,10 +27,10 @@
   warnings = [] :: [paterl_lib:reason()]
 }).
 
--record(error, {
-  errors = [] :: [paterl_lib:reason()],
-  warnings = [] :: [paterl_lib:reason()]
-}).
+%%-record(error, {
+%%  errors = [] :: [paterl_lib:reason()],
+%%  warnings = [] :: [paterl_lib:reason()]
+%%}).
 
 -record(type_info, {
   type_defs = #{} :: paterl_types:type_defs(), % Global type def names to AST.

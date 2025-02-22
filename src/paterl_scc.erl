@@ -24,12 +24,9 @@ Strongly-connected components computation using Tarjan's algorithm.
 
 %%% Includes.
 -include("log.hrl").
-%%-include("paterl_lib.hrl").
-%%-include("paterl_syntax.hrl").
 
 %%% Public API.
 -export([find_sccs/1]).
-%%-compile(export_all).
 
 %%% Public types.
 %%-export_type([graph/0]).
@@ -90,22 +87,6 @@ Computes the SCCs of the specifed `Graph`.
 """.
 -spec find_sccs(Graph :: graph()) -> SCCs :: [[node()]].
 find_sccs(Graph) ->
-%%  State = #{index => 0,
-%%    stack => [],
-%%    indices => #{},
-%%    lowlinks => #{},
-%%    sccs => [],
-%%    on_stack => #{}},
-%%  FinalState =
-%%    lists:foldl(
-%%      fun(Node, S) ->
-%%        case maps:is_key(Node, maps:get(indices, S, #{})) of
-%%          true -> S;  % Node already processed
-%%          false -> strong_connect(Node, Graph, S)
-%%        end
-%%      end, #state{}, maps:keys(Graph)),
-%%  maps:get(sccs, FinalState),
-
   Fun =
     fun(Node, St = #state{indices = Indices}) ->
       % Check if current node has been visited. A node is considered visited
@@ -138,13 +119,6 @@ Performs Tarjan's algorithm for the specified `Node`.
   State :: state(),
   State0 :: state().
 scc_dfs(Node, Graph, State = #state{index = Index}) ->
-%%  Index = maps:get(index, State),
-%%  State1 = State#{index => Index + 1,
-%%    indices => maps:put(Node, Index, maps:get(indices, State)),
-%%    lowlinks => maps:put(Node, Index, maps:get(lowlinks, State)),
-%%    stack => [Node | maps:get(stack, State)],
-%%    on_stack => maps:put(Node, true, maps:get(on_stack, State))},
-
   State1 = State#state{
     % Increment global index counter for the next node.
     index = Index + 1,
@@ -161,22 +135,6 @@ scc_dfs(Node, Graph, State = #state{index = Index}) ->
     % Mark current node as on stack.
     on_stack = maps:put(Node, true, State#state.on_stack)
   },
-
-  %% Process each neighbour
-%%  State2 = lists:foldl(
-%%    fun(Neighbour, S) ->
-%%      case maps:is_key(Neighbour, maps:get(indices, S, #{})) of
-%%        false ->  % Neighbour has not been visited
-%%          S1 = strong_connect(Neighbour, Graph, S),
-%%          update_lowlink(Node, Neighbour, S1);
-%%        true ->
-%%          case maps:get(Neighbour, maps:get(on_stack, S, #{})) of
-%%            true -> update_lowlink(Node, Neighbour, S);  % Back edge
-%%            false -> S  % Ignore
-%%          end
-%%      end
-%%    end, State1, maps:get(Node, Graph, [])),
-
 
   % Processes all neighbours of the current node.
   Fun =
@@ -208,16 +166,6 @@ scc_dfs(Node, Graph, State = #state{index = Index}) ->
   % Start with updated state and process all neighbours of the current node.
   Neighbors = maps:get(Node, Graph),
   State2 = lists:foldl(Fun, State1, Neighbors),
-
-  %% If Node is a root node, form an SCC
-%%  case maps:get(Node, maps:get(lowlinks, State2)) == maps:get(Node, maps:get(indices, State2)) of
-%%    true ->
-%%      {NewSCC, NewStack, NewOnStack} = pop_scc(Node, maps:get(stack, State2), maps:get(on_stack, State2)),
-%%      State2#{sccs => [NewSCC | maps:get(sccs, State2)],
-%%        stack => NewStack,
-%%        on_stack => NewOnStack};
-%%    false -> State2
-%%  end,
 
   % Check if current node is at root of SCC.
   case is_scc_root(Node, State2) of
@@ -262,16 +210,12 @@ Updates lowlink of node based on neighbor.
   State :: state(),
   State0 :: state().
 update_low_link(Node, Neighbor, State = #state{low_links = LowLinks}) ->
-%%  LowLinks = maps:get(lowlinks, State),
-
-
   % Calculate new low link for current node. The low link of a node is the
   % smallest index that the node or any of its reachable neighbors can access.
   NewLowLink = min(
     maps:get(Node, LowLinks), % Node low link.
     maps:get(Neighbor, LowLinks) % Neighbor low link.
   ),
-%%  State#{lowlinks => maps:put(Node, NewLowlink, LowLinks)}.
 
   % Update low link of current node.
   State#state{low_links = maps:put(Node, NewLowLink, LowLinks)}.

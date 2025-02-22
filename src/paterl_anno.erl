@@ -41,44 +41,6 @@
   mb_scopes = []
 }).
 
-% {tuple, _, []}
-%%-define(isAnnoTuple(Expr), (
-%%    element(1, Expr) =:= tuple andalso is_list(element(3, Expr))
-%%)).
-%%
-%%
-%%
-%%% [{atom, _, new}, {atom, _, MbName}]
-%%% [{atom, _, use}, {atom, _, MbName}]
-%%% [{atom, _, state}, {string, _, Pattern}]
-%%-define(isAnno(Expr, Type), ).
-%%
-%%-define(isModAnno(Expr),
-%%  % Is a tuple.
-%%  % Is name is new or use.
-%%  ?isAnnoTuple(Expr) andalso
-%%  length(element(3, Expr)) =:= 2 andalso % Length.
-%%    ?annoVal(hd(element(3, Expr))) =:= tuple andalso
-%%
-%%).
-%%
-%%-define(isAssertAnno(Expr),
-%%  ok
-%%).
-%%
-%%-define(isMbAnno(Expr),
-%%  ok
-%%).
-%%
-%%-ifdef(test).
-%%is_anno_tuple(Expr) when ?isAnnoTuple(Expr) ->
-%%  true;
-%%is_anno_tuple(_) ->
-%%  false.
-%%
-%%%
-%%-endif.
-
 %%% Mailbox annotation types.
 
 %% Mailbox annotation primitive type.

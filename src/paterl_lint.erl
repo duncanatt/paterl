@@ -1,11 +1,21 @@
-%%%-------------------------------------------------------------------
-%%% @author duncan
-%%% @copyright (C) 2024, <COMPANY>
-%%% @doc
 %%%
-%%% @end
-%%% Created : 02. May 2024 11:10
-%%%-------------------------------------------------------------------
+%%% %CopyrightBegin%
+%%%
+%%% Copyright the University of Glasgow 2022-2025. All Rights Reserved.
+%%%
+%%% Licensed under the Apache License, Version 2.0 (the "License");
+%%% you may not use this file except in compliance with the License.
+%%% You may obtain a copy of the License at
+%%%
+%%%     http://www.apache.org/licenses/LICENSE-2.0
+%%%
+%%% Unless required by applicable law or agreed to in writing, software
+%%% distributed under the License is distributed on an "AS IS" BASIS,
+%%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%%% See the License for the specific language governing permissions and
+%%% limitations under the License.
+%%%
+%%% %CopyrightEnd%
 -module(paterl_lint).
 -moduledoc "Erlang syntactic subset linter.".
 -author("duncan").
@@ -17,6 +27,11 @@
 
 %%% Public API.
 -export([module/1, format_error/1]).
+
+
+%%% ----------------------------------------------------------------------------
+%%% Macro and record definitions.
+%%% ----------------------------------------------------------------------------
 
 %%% Error types.
 
@@ -498,8 +513,6 @@ lint_guard_test(GuardTest, Analysis) ->
 %%% ----------------------------------------------------------------------------
 %%% Types.
 %%% ----------------------------------------------------------------------------
-
-%% TODO: Check for no type variables allowed.
 
 -doc "Lints a type sequence.".
 lint_type_seq(TypeSeq, Analysis) when is_list(TypeSeq) ->
