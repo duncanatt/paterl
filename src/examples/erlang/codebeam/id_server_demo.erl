@@ -69,7 +69,7 @@ id_server() ->
 
 -spec id_server_loop(integer()) -> no_return().
 id_server_loop(N) ->
-  ?expects(id_server_mb, "*Get"),
+  ?expects("*Get"),
   receive
     {get, Client} ->
       Client ! {id, N}, % Comment for "omitted Id reply".
@@ -98,5 +98,36 @@ main() ->
   Id = id_client(Server),
   format("Id: ~p~n", [Id]).
 
+%%-spec f() -> no_return().
+%%f() ->
+%%  % use mb
+%%  g(),
+%%  % use
+%%  h().
+%%
+%%-spec g() -> ok.
+%%% use
+%%g() -> ok.
+%%
+%%-spec h() -> no_return().
+%%% use
+%%h() ->
+%%  i().
+%%
+%%-spec i() -> no_return().
+%%i() ->
+%%  if 1 == 1 -> a(); true -> f() end.
+%%
+%%-spec a() -> no_return().
+%%a() ->
+%%  a().
+%%
+%%-spec b() -> no_return().
+%%b() ->
+%%  c().
+%%
+%%-spec c() -> no_return().
+%%c() ->
+%%  b().
 
 %% ./src/paterl src/examples/erlang/codebeam/id_server_demo.erl -v all -I include
