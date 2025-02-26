@@ -29,12 +29,17 @@ cli() ->
         long => "-verbose",
         short => $v,
         type => {atom, [all, annotated, pat]} % annotated=annotated only, pat=pat code only, all=both
+      },
+      #{name => skip,
+        long => "-skip",
+        short => $s,
+        type => boolean,
+        default => false
       }
     ],
     handler =>
-%%    fun(Args = #{file := File, includes := Includes, verbose := Verbose}) ->
-    fun(Args = #{file := File, includes := Includes, out := Out}) ->
+    fun(Args = #{file := File, includes := Includes, out := Out, skip := Skip}) ->
       io:format("Input arguments: ~p.~n", [Args]),
-      paterl:check(File, [{includes, Includes}, {out, Out}])
+      paterl:check(File, [{includes, Includes}, {out, Out}, {skip, Skip}])
     end
   }.

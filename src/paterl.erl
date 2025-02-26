@@ -1,15 +1,34 @@
+%%
+%% %CopyrightBegin%
+%%
+%% Copyright the University of Glasgow 2022-2024. All Rights Reserved.
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+%%
+%% %CopyrightEnd%
+%%
 -module(paterl).
+-moduledoc "Erlang mailbox type checker.".
 -author("duncan").
 
-%%-include("errors.hrl").
--include("paterl_lib.hrl").
-
-%% API
--export([check/2]).
--compile(export_all).
-
+%%% Includes.
 -include_lib("stdlib/include/assert.hrl").
 -include("log.hrl").
+-include("paterl_lib.hrl").
+
+%%% Public API.
+-export([check/2]).
+
 
 %%% ----------------------------------------------------------------------------
 %%% Macro and record definitions.
@@ -17,13 +36,29 @@
 
 %%% Generic constants.
 
-
 %% Mailbox annotation primitive type.
 -define(EXEC, "/Users/duncan/Dropbox/Postdoc/Development/mbcheck/mbcheck").
 %%-define(EXEC, "/Users/duncan/Downloads/mbcheck/mbcheck -qj").
 
 %% Pat file extension.
 -define(PAT_EXT, ".pat").
+
+%%% Command line arguments.
+
+% Erlang file name.
+-define(ARG_FILE, file).
+
+% Erlang include directories.
+-define(ARG_INCLUDES, includes).
+
+% Pat generated output.
+-define(ARG_OUT, out).
+
+% Verbosity level.
+-define(ARG_VERBOSE, verbose).
+
+% Skip Pat typechecking.
+-define(SKIP, skip).
 
 %%% Error types.
 
@@ -45,18 +80,20 @@
 %% 7. paterl_trans:module
 %% 8. pat_prettypr:module
 
+-doc "Type checks an Erlang module for mailbox type errors.".
 -spec check(file:name(), list()) -> any().
 check(File, Opts) when is_list(File), is_list(Opts) ->
+  ?TRACE("Opts = ~p", [Opts]),
   maybe
     {ok, Forms} ?= load_forms(File, Opts),
-    {ok, AnfForms} ?= prep_forms(Forms),
-    {ok, BootstrappedForms, TInfo} ?= type_forms(AnfForms),
-    {ok, PatForms} ?= anno_forms(BootstrappedForms, TInfo),
-    {ok, PatFile} ?= write_forms(File, Opts, PatForms),
-    ok ?= check_pat(PatFile)
+    {ok, SsaForms} ?= prep_forms(Forms, Opts),
+    {ok, BootstrappedForms, TInfo} ?= type_forms(SsaForms, Opts),
+    {ok, PatForms} ?= anno_forms(BootstrappedForms, TInfo, Opts),
+    {ok, PatFile} ?= write_forms(File, PatForms, Opts),
+    ok ?= check_pat(PatFile, Opts)
   end.
 
-
+-doc "Loads an Erlang module.".
 load_forms(File, Opts) ->
   maybe
   % Preprocess file.
@@ -91,7 +128,7 @@ load_forms(File, Opts) ->
       error
   end.
 
-prep_forms(Forms) ->
+prep_forms(Forms, Opts) ->
   % Generate ANF. To be done later.
   io:fwrite("[IR] ANF (eventually).~n"),
   Desugared = paterl_ir:module(Forms),
@@ -103,7 +140,7 @@ prep_forms(Forms) ->
 
   {ok, Desugared}.
 
-type_forms(Forms) ->
+type_forms(Forms, Opts) ->
   % Extract type annotations. Valid forms can still return possible warnings.
   io:fwrite("[TYPE] Extract type annotations.~n"),
   case paterl_types:module(Forms) of
@@ -128,7 +165,7 @@ type_forms(Forms) ->
 
 
 
-anno_forms(Forms, TypeInfo) ->
+anno_forms(Forms, TypeInfo, Opts) ->
   maybe
   % Compute call graph.
     io:fwrite(color:green("[CALL GRAPH] Compute Erlang form call graph.~n")),
@@ -161,7 +198,7 @@ anno_forms(Forms, TypeInfo) ->
 
 
 
-write_forms(File, Opts, PatForms) ->
+write_forms(File, PatForms, Opts) ->
   PatString = pat_prettypr:module(PatForms),
   io:format("~n~n~nOutput Pat:~n~n~n~s~n", [number(PatString)]),
 
@@ -181,17 +218,22 @@ write_forms(File, Opts, PatForms) ->
   end.
 
 
-check_pat(PatFile) ->
-  io:fwrite(color:green("[PAT] Patt'ing ~s.~n"), [PatFile]),
-  case exec(?EXEC ++ " " ++ PatFile) of
-    {0, _} ->
-      % Generated Pat file type-checked successfully.
-      io:fwrite(color:green("[PAT] Successfully type-checked ~s.erl.~n~n~n"), [PatFile]);
-    {_, Bytes} ->
-      % Generated Pat file contains errors.
-      Msg = parse_error(Bytes),
-      paterl_errors:show_error({?MODULE, {?E_BAD__PAT, Msg}}),
-      error
+check_pat(PatFile, Opts) ->
+  Skip = proplists:get_bool(?SKIP, Opts),
+  if not Skip ->
+    io:fwrite(color:green("[PAT] Patt'ing ~s.~n"), [PatFile]),
+    case exec(?EXEC ++ " " ++ PatFile) of
+      {0, _} ->
+        % Generated Pat file type-checked successfully.
+        io:fwrite(color:green("[PAT] Successfully type-checked ~s.erl.~n~n~n"), [PatFile]);
+      {_, Bytes} ->
+        % Generated Pat file contains errors.
+        Msg = parse_error(Bytes),
+        paterl_errors:show_error({?MODULE, {?E_BAD__PAT, Msg}}),
+        error
+    end;
+    true ->
+      ok
   end.
 
 
