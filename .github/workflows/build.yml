@@ -78,3 +78,6 @@ jobs:
           echo "Savina/Thread ring"
           $CMD $SRC/examples/erlang/savina/thread_ring.erl -v all -I include -o $BIN -s
           diff $BIN/thread_ring.pat $TEST/generated/savina/thread_ring_ref
+      - name: List
+        run: |
+          rebar3 eunit
