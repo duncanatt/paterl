@@ -74,7 +74,7 @@ no_mb() -> {
 
         % No mailbox interface definitions.
         ?assertMatch([
-          {attribute, _, module, test}
+          {attribute, _, module, testx}
         ], Forms)
       end}
   end}.
