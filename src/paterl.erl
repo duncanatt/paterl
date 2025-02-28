@@ -30,6 +30,9 @@
 -export([check/2]).
 -export([format_error/1]).
 
+%%% Public types.
+-export_type([opt_includes/0, opt_out/0, opt_verbose/0, opt_skip/0, options/0]).
+
 
 %%% ----------------------------------------------------------------------------
 %%% Macro and record definitions.
@@ -47,19 +50,19 @@
 %%% Command line arguments.
 
 % Erlang file name.
--define(ARG_FILE, file).
+-define(OPT_FILE, file).
 
 % Erlang include directories.
--define(ARG_INCLUDES, includes).
+-define(OPT_INCLUDES, includes).
 
-% Pat generated output.
--define(ARG_OUT, out).
+% Pat generated output directory.
+-define(OPT_OUT, out).
 
 % Verbosity level.
--define(ARG_VERBOSE, verbose).
+-define(OPT_VERBOSE, verbose).
 
-% Skip Pat typechecking.
--define(SKIP, skip).
+% Skip Pat typechecking flag.
+-define(OPT_SKIP, skip).
 
 %%% Error types.
 
@@ -68,6 +71,31 @@
 
 %% Unknown Pat error.
 -define(E_UNK__PAT, e_unk__pat).
+
+
+%%% ----------------------------------------------------------------------------
+%%% Type definitions.
+%%% ----------------------------------------------------------------------------
+
+-doc "Erlang include directories.".
+-type opt_includes() :: {?OPT_INCLUDES, [file:name_all()]}.
+
+-doc "Pat generated output directory".
+-type opt_out() :: {?OPT_OUT, file:name_all()}.
+
+-doc "Verbosity level.".
+-type opt_verbose() :: {?OPT_VERBOSE, all | none | ssa | types | anno | pat}.
+
+-doc "Skip Pat typechecking flag.".
+-type opt_skip() :: {?OPT_SKIP, boolean()}.
+
+-doc "Module options.".
+-type options() :: opt_includes() | opt_out() | opt_verbose() | opt_skip().
+
+
+%%% ----------------------------------------------------------------------------
+%%% Public API.
+%%% ----------------------------------------------------------------------------
 
 %%TODO: Ultimate plan: Desugar -> ANF -> CPS -> RTL -> SSA -> RTL -> ASM
 
@@ -82,9 +110,8 @@
 %% 8. pat_prettypr:module
 
 -doc "Type checks an Erlang module for mailbox type errors.".
--spec check(file:name(), list()) -> any().
+-spec check(file:name(), options()) -> any().
 check(File, Opts) when is_list(File), is_list(Opts) ->
-  ?TRACE("Opts = ~p", [Opts]),
   maybe
     {ok, Forms} ?= load_forms(File, Opts),
     {ok, SsaForms} ?= prep_forms(Forms, Opts),
@@ -98,13 +125,13 @@ check(File, Opts) when is_list(File), is_list(Opts) ->
 load_forms(File, Opts) ->
   maybe
   % Preprocess file.
-    io:fwrite("[EPP] Preprocess file ~s.~n", [File]),
+    io_util:info("[EPP] Preprocess file ~s.", [File]),
     {ok, Forms} ?= epp:parse_file(File, Opts),
 
     % Lint file, checking for valid syntax and that the syntax is in the Erlang
     % syntactic subset in the paper. Valid forms can still return possible
     % warnings.
-    io:fwrite("[LINT] Module validity and syntactic subset check.~n"),
+    io_util:info("[LINT] Module validity and syntactic subset check."),
     {ok, Warnings0} ?= paterl_lint:module(Forms),
     paterl_errors:show_warnings(Warnings0),
 
@@ -130,20 +157,27 @@ load_forms(File, Opts) ->
   end.
 
 prep_forms(Forms, Opts) ->
-  % Generate ANF. To be done later.
-  io:fwrite("[IR] ANF (eventually).~n"),
+  Verbose = proplists:get_value(?OPT_VERBOSE, Opts),
+
+  % Generate SSA. ANF to be done later.
+  io_util:info("[IR] SSA (ANF too, eventually)."),
   Desugared = paterl_ir:module(Forms),
 
-  io:format("~n~n~n D E S U G A R E D~n~n~n~n", []),
-  pp_forms(Desugared),
-  io:format("~n~n~n~p~n", [Desugared]),
-  io:format("~n~n~n E N D D E S U G A R E D~n~n~n~n", []),
+  if Verbose =:= all; Verbose =:= ssa ->
+    io_util:banner("SSA forms"),
+    io_util:log("~p~n", [Desugared]),
+    io_util:banner("SSA code"),
+    pp_forms(Desugared);
+    true -> ok
+  end,
 
   {ok, Desugared}.
 
 type_forms(Forms, Opts) ->
+  Verbose = proplists:get_value(?OPT_VERBOSE, Opts),
+
   % Extract type annotations. Valid forms can still return possible warnings.
-  io:fwrite("[TYPE] Extract type annotations.~n"),
+  io_util:info("[TYPE] Extract type annotations."),
   case paterl_types:module(Forms) of
     {ok, TypeInfo, Warnings0} ->
       paterl_errors:show_warnings(Warnings0),
@@ -151,10 +185,13 @@ type_forms(Forms, Opts) ->
       % Create the main bootstrapping function in preparation for the Pat pass.
       {Forms0, TypeInfo0} = paterl_bootstrap:module(Forms, TypeInfo),
 
-      table_fmt:print_table("TypeDefs", TypeInfo0#type_info.type_defs),
-      table_fmt:print_table("SpecDefs", TypeInfo0#type_info.spec_defs),
-      table_fmt:print_table("MbFuns", TypeInfo0#type_info.mb_funs),
-      table_fmt:print_table("MbDefs", TypeInfo0#type_info.mb_defs),
+      if Verbose =:= all; Verbose =:= types ->
+        io_util:print_table("TypeDefs", TypeInfo0#type_info.type_defs),
+        io_util:print_table("SpecDefs", TypeInfo0#type_info.spec_defs),
+        io_util:print_table("MbFuns", TypeInfo0#type_info.mb_funs),
+        io_util:print_table("MbDefs", TypeInfo0#type_info.mb_defs);
+        true -> ok
+      end,
 
       {ok, Forms0, TypeInfo0};
     {error, Errors, Warnings} ->
@@ -164,30 +201,39 @@ type_forms(Forms, Opts) ->
       error
   end.
 
-
-
 anno_forms(Forms, TypeInfo, Opts) ->
+  Verbose = proplists:get_value(?OPT_VERBOSE, Opts),
+
   maybe
   % Compute call graph.
-    io:fwrite(color:green("[CALL GRAPH] Compute Erlang form call graph.~n")),
+    io_util:info("[CALL GRAPH] Compute Erlang form call graph."),
     {ok, CallGraph, []} ?= paterl_call_graph:module(Forms),
-    table_fmt:print_table("CallGraph", CallGraph),
+    if Verbose =:= all; Verbose =:= anno ->
+      io_util:print_table("CallGraph", CallGraph);
+      true -> ok
+    end,
 
     % Compute the list of direct and mutual recursive fun references.
     RecFunInfo = paterl_call_graph:rec_funs(CallGraph),
-    table_fmt:print_table("RecFunInfo", RecFunInfo),
+    if Verbose =:= all; Verbose =:= anno ->
+      io_util:print_table("RecFunInfo", RecFunInfo);
+      true -> ok
+    end,
 
     % Annotate Erlang forms.
-    io:fwrite(color:green("[ANNOTATE] Annotate Erlang forms.~n")),
+    io_util:info("[ANNOTATE] Annotate Erlang forms."),
     {ok, AnnoForms, _} ?= paterl_anno:module(Forms, RecFunInfo, TypeInfo),
 
     % Compile sanity check.
     ?assertMatch({ok, _, _}, compile:forms(AnnoForms)),
 
-    io:fwrite(color:green("[TRANSLATE] Translating Erlang forms to Pat.~n")),
+    io_util:info("[TRANSLATE] Translating Erlang forms to Pat."),
     PatForms = paterl_trans:module(AnnoForms),
+    if Verbose =:= all; Verbose =:= anno ->
+      io_util:log("Pat AST: ~p~n~n", [PatForms]);
+      true -> ok
+    end,
 
-    io:fwrite("Pat AST: ~p~n~n", [PatForms]),
     {ok, PatForms}
   else
     {error, Errors, Warnings} ->
@@ -197,18 +243,23 @@ anno_forms(Forms, TypeInfo, Opts) ->
       error
   end.
 
-
-
 write_forms(File, PatForms, Opts) ->
+  Verbose = proplists:get_value(?OPT_VERBOSE, Opts),
+
+  % Pretty print Pat AST to generate Pat code.
   PatString = pat_prettypr:module(PatForms),
-  io:format("~n~n~nOutput Pat:~n~n~n~s~n", [number(PatString)]),
+  if Verbose =:= all; Verbose =:= pat ->
+    io_util:banner("Pat code"),
+    io_util:log("~s", [number(PatString)]);
+    true -> ok
+  end,
 
   OutDir = proplists:get_value(out, Opts),
   io:format("Ensuring that the directory exists: ~p.~n", [OutDir]),
   filelib:ensure_path(OutDir),
 
   PatFile = filename:join(OutDir, filename:basename(File, ".erl")) ++ ?PAT_EXT,
-  io:fwrite(color:green("[WRITE] Writing temporary Pat file ~s.~n"), [PatFile]),
+  io_util:info("[WRITE] Writing temporary Pat file ~s.", [PatFile]),
 
   case file:write_file(PatFile, PatString) of
     ok ->
@@ -220,13 +271,13 @@ write_forms(File, PatForms, Opts) ->
 
 
 check_pat(PatFile, Opts) ->
-  Skip = proplists:get_bool(?SKIP, Opts),
+  Skip = proplists:get_bool(?OPT_SKIP, Opts),
   if not Skip ->
-    io:fwrite(color:green("[PAT] Patt'ing ~s.~n"), [PatFile]),
+    io_util:info("[PAT] Patt'ing ~s.", [PatFile]),
     case exec(?EXEC ++ " " ++ PatFile) of
       {0, _} ->
         % Generated Pat file type-checked successfully.
-        io:fwrite(color:green("[PAT] Successfully type-checked ~s.erl.~n~n~n"), [PatFile]);
+        io_util:info("[PAT] Successfully type-checked ~s.erl.~n~n", [PatFile]);
       {_, Bytes} ->
         % Generated Pat file contains errors.
         Msg = parse_error(Bytes),
