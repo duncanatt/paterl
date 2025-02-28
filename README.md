@@ -1,5 +1,10 @@
 # paterl - Erlang to Pat transpiler
 
+![Static Badge](https://img.shields.io/badge/version-0.9-blue)
+![GitHub last commit](https://img.shields.io/github/last-commit/duncanatt/paterl)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/duncanatt/paterl/build.yml?branch=main&label=tests)
+
+
 The current type-checking pipeline consists of these stages:
 
 1. `epp:parse_file`: Erlang preprocessor (parsing and macro expansion)
