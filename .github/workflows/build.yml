@@ -48,15 +48,24 @@ jobs:
           echo "De'Liguoro & Padovani/Master-worker test"
           $CMD $SRC/examples/erlang/de_liguoro_padovani/master_worker.erl -v all -I include -o $BIN -s
           diff $BIN/master_worker.pat $TEST/generated/de_liguoro_padovani/master_worker_ref
+          echo "De'Liguoro & Padovani/Master-worker test (direct recursion)"
+          $CMD $SRC/examples/erlang/de_liguoro_padovani/master_worker_dir_rec.erl -v all -I include -o $BIN -s
+          diff $BIN/master_worker_dir_rec.pat $TEST/generated/de_liguoro_padovani/master_worker_dir_rec_ref
           echo "De'Liguoro & Padovani/Sessions test"
           $CMD $SRC/examples/erlang/de_liguoro_padovani/sessions.erl -v all -I include -o $BIN -s
           diff $BIN/sessions.pat $TEST/generated/de_liguoro_padovani/sessions_ref
           echo "Savina/Cigarette smokers test"
           $CMD $SRC/examples/erlang/savina/cig_smok.erl -v all -I include -o $BIN -s
           diff $BIN/cig_smok.pat $TEST/generated/savina/cig_smok_ref
+          echo "Savina/Cigarette smokers test (direct recursion)"
+          $CMD $SRC/examples/erlang/savina/cig_smok_dir_rec.erl -v all -I include -o $BIN -s
+          diff $BIN/cig_smok_dir_rec.pat $TEST/generated/savina/cig_smok_dir_rec_ref
           echo "Savina/Counter"
           $CMD $SRC/examples/erlang/savina/count.erl -v all -I include -o $BIN -s
           diff $BIN/count.pat $TEST/generated/savina/count_ref
+          echo "Savina/Counter (direct recursion)"
+          $CMD $SRC/examples/erlang/savina/count_dir_rec.erl -v all -I include -o $BIN -s
+          diff $BIN/count_dir_rec.pat $TEST/generated/savina/count_dir_rec_ref
           echo "Savina/Fibonacci"
           $CMD $SRC/examples/erlang/savina/fib.erl -v all -I include -o $BIN -s
           diff $BIN/fib.pat $TEST/generated/savina/fib_ref
@@ -66,15 +75,27 @@ jobs:
           echo "Savina/KFork"
           $CMD $SRC/examples/erlang/savina/kfork.erl -v all -I include -o $BIN -s
           diff $BIN/kfork.pat $TEST/generated/savina/kfork_ref
+          echo "Savina/KFork (direct recursion)"
+          $CMD $SRC/examples/erlang/savina/kfork_dir_rec.erl -v all -I include -o $BIN -s
+          diff $BIN/kfork_dir_rec.pat $TEST/generated/savina/kfork_dir_rec_ref
           echo "Savina/Dining philosophers"
           $CMD $SRC/examples/erlang/savina/philosopher.erl -v all -I include -o $BIN -s
           diff $BIN/philosopher.pat $TEST/generated/savina/philosopher_ref
+          echo "Savina/Dining philosophers (direct recursion)"
+          $CMD $SRC/examples/erlang/savina/philosopher_dir_rec.erl -v all -I include -o $BIN -s
+          diff $BIN/philosopher_dir_rec.pat $TEST/generated/savina/philosopher_dir_rec_ref
           echo "Savina/Ping pong"
           $CMD $SRC/examples/erlang/savina/ping_pong.erl -v all -I include -o $BIN -s
           diff $BIN/ping_pong.pat $TEST/generated/savina/ping_pong_ref
+          echo "Savina/Ping pong (direct recursion)"
+          $CMD $SRC/examples/erlang/savina/ping_pong_dir_rec.erl -v all -I include -o $BIN -s
+          diff $BIN/ping_pong_dir_rec.pat $TEST/generated/savina/ping_pong_dir_rec_ref
           echo "Savina/Ping pong (Strict)"
           $CMD $SRC/examples/erlang/savina/ping_pong_strict.erl -v all -I include -o $BIN -s
           diff $BIN/ping_pong_strict.pat $TEST/generated/savina/ping_pong_strict_ref
+          echo "Savina/Ping pong (Strict, direct recursion)"
+          $CMD $SRC/examples/erlang/savina/ping_pong_strict_dir_rec.erl -v all -I include -o $BIN -s
+          diff $BIN/ping_pong_strict_dir_rec.pat $TEST/generated/savina/ping_pong_strict_dir_rec_ref
           echo "Savina/Thread ring"
           $CMD $SRC/examples/erlang/savina/thread_ring.erl -v all -I include -o $BIN -s
           diff $BIN/thread_ring.pat $TEST/generated/savina/thread_ring_ref
