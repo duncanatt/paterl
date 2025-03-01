@@ -355,7 +355,7 @@ used_mailboxes(Mailboxes) when is_list(Mailboxes) ->
   lists:filter(Fun, Mailboxes).
 
 -doc """
-Returns a [`specs()`](`t:specs/0`) mapping from fun references to corresponding
+Returns a [`spec_defs()`](`t:spec_defs/0`) mapping from fun references to corresponding
 type specs.
 
 Assumes that function `Specs` are unique, as enforced by the Erlang linter.
@@ -410,7 +410,7 @@ make_mb_defs(Mailboxes) when is_list(Mailboxes) ->
   lists:foldl(Fun, #{}, Mailboxes).
 
 -doc """
-Returns a [`types()`](`t:types/0`) mapping from type names to corresponding type
+Returns a [`type_defs()`](`t:type_defs/0`) mapping from type names to corresponding type
 definitions.
 """.
 -spec make_type_defs([f_type()], mb_defs()) -> type_defs().

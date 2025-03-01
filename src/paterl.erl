@@ -28,11 +28,9 @@
 
 %%% Public API.
 -export([check/2]).
--export([format_error/1]).
 
 %%% Public types.
 -export_type([opt_includes/0, opt_out/0, opt_verbose/0, opt_skip/0, options/0]).
-
 
 %%% ----------------------------------------------------------------------------
 %%% Macro and record definitions.
@@ -109,8 +107,21 @@
 %% 7. paterl_trans:module
 %% 8. pat_prettypr:module
 
--doc "Type checks an Erlang module for mailbox type errors.".
--spec check(file:name(), options()) -> any().
+-doc """
+Type checks an Erlang module for mailbox type errors.
+
+Type checking requires the Pat toolchain to be set up correctly.
+
+Errors and warnings are printed on the shell.
+
+### Returns
+- `ok` if type checking succeeds
+- `error` otherwise
+""".
+-spec check(File, Opts) -> ok | error
+  when
+  File :: file:name(),
+  Opts :: options().
 check(File, Opts) when is_list(File), is_list(Opts) ->
   maybe
     {ok, Forms} ?= load_forms(File, Opts),
@@ -122,6 +133,11 @@ check(File, Opts) when is_list(File), is_list(Opts) ->
   end.
 
 -doc "Loads an Erlang module.".
+-spec load_forms(File, Opts) -> {ok, Forms} | error
+  when
+  File :: file:name(),
+  Opts :: options(),
+  Forms :: paterl_syntax:forms().
 load_forms(File, Opts) ->
   maybe
   % Preprocess file.
@@ -156,23 +172,44 @@ load_forms(File, Opts) ->
       error
   end.
 
+-doc "Prepares Erlang forms by transforming them to SSA.".
+-spec prep_forms(Forms, Opts) -> {ok, SsaForms} | error
+  when
+  Forms :: paterl_syntax:forms(),
+  Opts :: options(),
+  SsaForms :: paterl_syntax:forms().
 prep_forms(Forms, Opts) ->
   Verbose = proplists:get_value(?OPT_VERBOSE, Opts),
 
   % Generate SSA. ANF to be done later.
   io_util:info("[IR] SSA (ANF too, eventually)."),
-  Desugared = paterl_ir:module(Forms),
+  SsaForms = paterl_ir:module(Forms),
 
   if Verbose =:= all; Verbose =:= ssa ->
     io_util:banner("SSA forms"),
-    io_util:log("~p~n", [Desugared]),
+    io_util:log("~p~n", [SsaForms]),
     io_util:banner("SSA code"),
-    pp_forms(Desugared);
+    pp_forms(SsaForms);
     true -> ok
   end,
 
-  {ok, Desugared}.
+  {ok, SsaForms}.
 
+-doc """
+Adds a bootstrapping main function to `Forms` and extracts the type information.
+
+The type information consists of:
+1. Type definitions
+2. Type spec definitions
+3. Functions with associated mailbox annotations
+4. Mailbox definitions
+""".
+-spec type_forms(Forms, Opts) -> {ok, BsForms, TypeInfo} | error
+  when
+  Forms :: paterl_syntax:forms(),
+  Opts :: options(),
+  BsForms :: paterl_syntax:forms(),
+  TypeInfo :: paterl_types:type_info().
 type_forms(Forms, Opts) ->
   Verbose = proplists:get_value(?OPT_VERBOSE, Opts),
 
@@ -183,7 +220,7 @@ type_forms(Forms, Opts) ->
       paterl_errors:show_warnings(Warnings0),
 
       % Create the main bootstrapping function in preparation for the Pat pass.
-      {Forms0, TypeInfo0} = paterl_bootstrap:module(Forms, TypeInfo),
+      {BsForms, TypeInfo0} = paterl_bootstrap:module(Forms, TypeInfo),
 
       if Verbose =:= all; Verbose =:= types ->
         io_util:print_table("TypeDefs", TypeInfo0#type_info.type_defs),
@@ -193,7 +230,7 @@ type_forms(Forms, Opts) ->
         true -> ok
       end,
 
-      {ok, Forms0, TypeInfo0};
+      {ok, BsForms, TypeInfo0};
     {error, Errors, Warnings} ->
       % Type annotation extraction errors.
       paterl_errors:show_warnings(Warnings),
@@ -201,6 +238,20 @@ type_forms(Forms, Opts) ->
       error
   end.
 
+-doc """
+Annotates `Forms` with the type information
+
+Type annotations are placed inside the annotation [`anno()`](`t:erl_anno:anno/0`)
+of Erlang syntax nodes. While this works, it technically violates the
+[`anno()`](`t:erl_anno:anno/0`) type specification, which does not permit extra
+annotations besides the ones defined in [`anno()`](`t:erl_anno:anno/0`).
+""".
+-spec anno_forms(Forms, TypeInfo, Opts) -> {ok, PatForms}
+  when
+  Forms :: paterl_syntax:forms(),
+  TypeInfo :: paterl_types:type_info(),
+  Opts :: options(),
+  PatForms :: pat_syntax:forms().
 anno_forms(Forms, TypeInfo, Opts) ->
   Verbose = proplists:get_value(?OPT_VERBOSE, Opts),
 
@@ -243,6 +294,13 @@ anno_forms(Forms, TypeInfo, Opts) ->
       error
   end.
 
+-doc "Writes `PatForms` to the specified file.".
+-spec write_forms(File, PatForms, Opts) -> {ok, PatFile} | error
+  when
+  File :: file:name(),
+  PatForms :: pat_syntax:forms(),
+  Opts :: options(),
+  PatFile :: file:name().
 write_forms(File, PatForms, Opts) ->
   Verbose = proplists:get_value(?OPT_VERBOSE, Opts),
 
@@ -269,7 +327,11 @@ write_forms(File, PatForms, Opts) ->
       error
   end.
 
-
+-doc "Runs the Pat mailbox type checking tool on the specified `PatFile`.".
+-spec check_pat(PatFile, Opts) -> ok | error
+  when
+  PatFile :: file:name(),
+  Opts :: options().
 check_pat(PatFile, Opts) ->
   Skip = proplists:get_bool(?OPT_SKIP, Opts),
   if not Skip ->
@@ -288,22 +350,30 @@ check_pat(PatFile, Opts) ->
       ok
   end.
 
+-doc """
+Executes the specified command on the shell and returns the status and returns
+the command output.
 
-%% @private Executes specified command on shell and returns the status and
-%% command output.
-%%
-%% Adapted from: https://stackoverflow.com/questions/27028486/how-to-execute-system-command-in-erlang-and-get-results-using-oscmd-1
-%% Call is synchronous.
--spec exec(string()) -> iolist().
+The execution is synchronous and blocks the caller.
+""".
+-spec exec(Cmd) -> Bytes
+  when
+  Cmd :: string(),
+  Bytes :: iolist().
 exec(Cmd) ->
+  %% Adapted from: https://stackoverflow.com/questions/27028486/how-to-execute-system-command-in-erlang-and-get-results-using-oscmd-1
   Port = open_port(
     {spawn, Cmd},
     [stream, in, eof, hide, exit_status, stderr_to_stdout]
   ),
   get_output(Port, []).
 
-%% @private Retrieves the command output and closes the port.
--spec get_output(port(), iolist()) -> iolist().
+-doc "Retrieves the command output and closes the port.".
+-spec get_output(Port, Read) -> Read0
+  when
+  Port :: port(),
+  Read :: iolist(),
+  Read0 :: iolist().
 get_output(Port, Read) ->
   receive
     {Port, {data, Bytes}} ->
@@ -318,6 +388,11 @@ get_output(Port, Read) ->
       {Status, Read}
   end.
 
+-doc "Parses the errors returned by the Pat mailbox type checking tool.".
+-spec parse_error(Msg) -> Msg0
+  when
+  Msg :: iolist(),
+  Msg0 :: iolist().
 parse_error(Msg) ->
   case re:run(Msg, "\\[.*\\]\s(?P<A>.+)", [{capture, ['A'], list}, dotall]) of
     {match, Msg0} ->
@@ -326,6 +401,15 @@ parse_error(Msg) ->
       Msg
   end.
 
+-doc """
+Removes all carriage return and new line characters, and squashes multiple
+space characters to a single space. Result is returned as a possibly deep list
+of characters.
+""".
+-spec sanitize(Msg) -> Msg0
+  when
+  Msg :: iolist(),
+  Msg0 :: iolist().
 sanitize(Msg) ->
   re:replace(
     re:replace(Msg, "[\r\n]", "", [global, {return, list}]),
@@ -334,6 +418,14 @@ sanitize(Msg) ->
     [global, {return, list}]
   ).
 
+-doc """
+Translates the somewhat cryptic error messages returned by the Pat constraint
+solving phase to human readable messages.
+""".
+-spec translate(Msg) -> Msg0
+  when
+  Msg :: iolist(),
+  Msg0 :: iolist().
 translate(Msg) ->
   case re:run(
     Msg,
@@ -370,11 +462,17 @@ translate(Msg) ->
       Msg
   end.
 
+-doc "Prepends the specified data with line numbers.".
+-spec number(Data) -> Data0
+  when
+  Data :: iolist(),
+  Data0 :: iolist().
 number(Data) ->
   Lines = re:split(Data, "^", [{return, list}, multiline]),
   lists:zipwith(fun(I, Line) -> [io_lib:format("~3b: ", [I]) | Line] end, lists:seq(1, length(Lines)), Lines).
 
-
+-doc "Pretty prints Erlang forms.".
+-spec pp_forms(Forms :: paterl_syntax:forms()) -> iolist().
 pp_forms(Forms) ->
   [io:fwrite(erl_pp:form(Form, [{indent, 2}])) || Form <- Forms].
 
@@ -383,7 +481,15 @@ pp_forms(Forms) ->
 %%% Error handling and reporting.
 %%% ----------------------------------------------------------------------------
 
-%% @doc Formats the specified error to human-readable form.
+-doc """
+Formats `Detail` to human-readable form.
+
+See `module/1` for error and warnings codes.
+
+### Returns
+- message as a possibly deep [`io_lib:chars()`](`t:io_lib:chars/0`) list
+""".
+-spec format_error(Detail :: paterl_lib:detail()) -> io_lib:chars().
 format_error({?E_BAD__PAT, Reason}) ->
   io_lib:format(
     "~s",

@@ -29,6 +29,8 @@
 -export([comment/1]).
 %%-compile(export_all).
 
+-export_type([form/0, forms/0]).
+
 
 -type anno() :: any().
 
@@ -40,7 +42,7 @@
 
 -type forms() :: [form()].
 
--type form() :: t_interface() | 'fun()' | comment().
+-type form() :: t_interface() | 'fun()' | comment() | term(). % TOOD: Make this more precise later.
 
 
 %%% Type types.
