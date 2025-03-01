@@ -406,39 +406,6 @@ application(Name, Args, Anno) when is_atom(Name), is_list(Args) ->
 
 % MsgType is a singleton type or a type union.
 
-%%-doc """
-%%Creates a mailbox interface definition wild attribute abstract syntax
-%%representation with the specified [annotation](`m:erl_anno`).
-%%
-%%### Example
-%%
-%%The invocation interface(Name, MsgType, Anno), where Name = name, MsgType = erl_syntax:type_application(paterl_syntax:name(pid), []), and Anno = erl_anno:new(0), represents the interface XXX
-%%
-%%If for instance, name = x, and MsgType = {type, 0 , pid, []}, anno = 0, the result is
-%%Name = paterl_syntax:name(mb),
-%%MsgType = erl_syntax:type_application(paterl_syntax:name(pid), []),
-%%Anno = erl_anno:new(),
-%%
-%%returns : <enter the stringified representation of what it returns here> do it for the rest of the functions above.
-%%
-%%
-%%### Returns
-%%- mailbox interface definition wild attribute abstract syntax representation
-%%""".
-%%-spec interface(Name, MsgType, Anno) -> Tree
-%%  when
-%%  Name :: tree(),
-%%  MsgType :: type(),
-%%  Anno :: anno(),
-%%  Tree :: tree().
-%%interface(Name, MsgType, Anno) ->
-%%  InterfaceDef = erl_syntax:tuple([
-%%%%    erl_syntax:atom(Name),
-%%    Name,
-%%    erl_syntax:abstract(MsgType), % Lifted message type to abstract syntax.
-%%    erl_syntax:abstract(_Vars = []) % Lifted type variables to abstract syntax.
-%%  ]),
-%%  set_anno(erl_syntax:attribute(erl_syntax:atom(interface), [InterfaceDef]), Anno).
 
 %%% ----------------------------------------------------------------------------
 %%% Erlang syntactic subset checks.

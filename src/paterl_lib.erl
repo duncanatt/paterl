@@ -56,30 +56,6 @@ Replicates the standard error structure in use by all Erlang I/O modules in the
 {Mod :: module(), Detail :: detail()}.
 
 
-%%-type error_info() :: {erl_anno:location()|'none', module(), error_description()}.
-
-
-%%Warnings :: [{SourceFile,[ErrorInfo]}],
-%%Errors :: [{SourceFile,[ErrorInfo]}],
-%%SourceFile :: file:filename(),
-%%ErrorInfo :: error_info()).
-
-%%-doc """
-%%Function result.
-%%
-%%- `{error, Errors, Warnings}` is an error result with errors and potential
-%%  warnings.
-%%- `{ok, Value, Warnings}` is a successful result with `Value` with potential
-%%  warnings.
-%%- `{ok, Warnings}` is a successful result with potential warnings.
-%%""".
-%%-type result() ::
-%%{error, Errors :: [reason()], Warnings :: [reason()]} |
-%%error() |
-%%{ok, Value :: term(), Warnings :: [reason()]} |
-%%{ok, Warnings :: [reason()]}.
-
-
 %%% ----------------------------------------------------------------------------
 %%% Public API.
 %%% ----------------------------------------------------------------------------

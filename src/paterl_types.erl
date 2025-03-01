@@ -900,13 +900,6 @@ format_error({?E_UNDEF__TYPE, Node}) ->
 
 %% TODO: REFACTOR WITH maybe
 
-%%% TODO: Move to paterl syntax.
-%%to_erl_af(ANNO, Name) when is_atom(Name) ->
-%%  revert(set_pos(atom(Name), ANNO));
-%%to_erl_af(ANNO, {Name, Arity})
-%%  when is_atom(Name), is_integer(Arity) ->
-%%  revert(set_pos(implicit_fun(atom(Name), integer(Arity)), ANNO)).
-
 -spec type_def(Name, TypeInfo) -> Type | undefined_type
   when
   Name :: paterl_syntax:name(),

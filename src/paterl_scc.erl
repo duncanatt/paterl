@@ -29,7 +29,7 @@ Strongly-connected components computation using Tarjan's algorithm.
 -export([find_sccs/1]).
 
 %%% Public types.
-%%-export_type([graph/0]).
+-export_type([graph/0]).
 
 
 %%% ----------------------------------------------------------------------------

@@ -124,6 +124,7 @@ Errors and warnings are printed on the shell.
   Opts :: options().
 check(File, Opts) when is_list(File), is_list(Opts) ->
   maybe
+    % Type checking pipeline.
     {ok, Forms} ?= load_forms(File, Opts),
     {ok, SsaForms} ?= prep_forms(Forms, Opts),
     {ok, BootstrappedForms, TInfo} ?= type_forms(SsaForms, Opts),
@@ -131,6 +132,11 @@ check(File, Opts) when is_list(File), is_list(Opts) ->
     {ok, PatFile} ?= write_forms(File, PatForms, Opts),
     ok ?= check_pat(PatFile, Opts)
   end.
+
+
+%%% ----------------------------------------------------------------------------
+%%% Type checking pipeline.
+%%% ----------------------------------------------------------------------------
 
 -doc "Loads an Erlang module.".
 -spec load_forms(File, Opts) -> {ok, Forms} | error
@@ -454,8 +460,7 @@ translate(Msg) ->
       );
     {match, [A, B]} ->
       io_lib:format(
-%%        "Inferred message pattern '~s' is not included in user-asserted message pattern '~s'",
-        "Inferred from code message pattern '~s' but expected user-asserted message pattern '~s'",
+        "Inferred message pattern from code '~s' but expected user-asserted message pattern '~s'",
         [A, B]
       );
     nomatch ->

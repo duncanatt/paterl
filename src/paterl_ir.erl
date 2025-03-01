@@ -17,7 +17,7 @@
 %%%
 %%% %CopyrightEnd%
 -module(paterl_ir).
--moduledoc "Erlang syntactic subset assignment transformation.".
+-moduledoc "Erlang syntactic subset SSA transformation.".
 -author("duncan").
 
 %%% Includes.
@@ -266,13 +266,6 @@ fresh_var() ->
 %%% ----------------------------------------------------------------------------
 %%% Inline tests.
 %%% ----------------------------------------------------------------------------
-
-%%-spec fib2() -> integer().
-%%fib2() ->
-%%%%  T = U = V = 50,
-%%  U = 50,
-%%  60,
-%%  T = if 1 == 1 -> 10; true -> Y = 20, 30, 40, ?mb_assert_regex("Resp"), receive {a, X} -> X end end.
 
 -ifdef(test).
 

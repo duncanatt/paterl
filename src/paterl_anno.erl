@@ -36,6 +36,7 @@
 %%% Macro and record definitions.
 %%% ----------------------------------------------------------------------------
 
+%% TODO: To be used for multiple mailboxes.
 -define(call_info, {
   call_graph = #{},
   mb_scopes = []
@@ -158,7 +159,7 @@ Note that currently, mutually-recursive type defintions result in an infinite
 loop. Will be fixed later.
 
 ### Returns
-List of [`form()`](`t:paterl_syntax:forms/0`).
+- list of [`form()`](`t:paterl_syntax:forms/0`).
 """.
 get_interfaces(TypeInfo) ->
 
@@ -1048,6 +1049,17 @@ is_rec_fun_ref(FunRef = {_, _}, RecFuns) when is_list(RecFuns) ->
   lists:member(FunRef, RecFuns).
 
 
+%% TODO: Still to use.
+-doc """
+Determines whether the specified mailbox is contained in list of mailboxes in
+scope.
+""".
+is_mb_in_scope(_, undefined) ->
+  false;
+is_mb_in_scope(MbName, MbScopes) when is_atom(MbName), is_list(MbScopes) ->
+  lists:member(MbName, MbScopes).
+
+
 %%% ----------------------------------------------------------------------------
 %%% Annotations.
 %%% ----------------------------------------------------------------------------
@@ -1122,7 +1134,7 @@ Stores the specified `Value` associated with `Key` in the annotation.
 This function extends the functionality of the `m:erl_anno` module.
 
 `Anno` can be a line number, line number-column pair, or a list of arbitrary
-key-value elements.
+key-value elements; see [`anno()`](`t:erl_anno:anno/0`).
 
 ### Returns
 - updated annotation containing the new key-value element.
@@ -1151,7 +1163,7 @@ Retrieves the `Value` associated with the specified 'Key' from the annotation.
 This function extends the functionality of the `m:erl_anno` module.
 
 `Anno` can be a line number, line number-column pair, or a list of arbitrary
-key-value elements.
+key-value elements; see [`anno()`](`t:erl_anno:anno/0`).
 
 ### Returns
 - value associated with `Key`
@@ -1179,11 +1191,35 @@ get_anno_val(Anno, Key, Default) ->
       erlang:error(badarg, [Anno, Key, Default])
   end.
 
+-doc """
+Maps all the annotations at the root of the specified `Tree` using `Fun`.
 
+### Returns
+- updated `Tree`
+""".
+-spec map_anno(Fun, Tree) -> Tree0
+  when
+  Fun :: fun((Anno :: erl_anno:anno()) -> Anno0 :: erl_anno:anno()),
+  Tree :: paterl_syntax:tree(),
+  Tree0 :: paterl_syntax:tree().
 map_anno(Fun, Tree) ->
   map_anno(Fun, Tree, 0).
 
-map_anno(Fun, Tree, Depth) ->
+-doc """
+Maps all the annotations in the specified `Tree` using `Fun` up to and including
+`Depth`.
+
+### Returns
+- updated `Tree`
+""".
+-spec map_anno(Fun, Tree, Depth) -> Tree0
+  when
+  Fun :: fun((Anno :: erl_anno:anno()) -> Anno0 :: erl_anno:anno()),
+  Tree :: paterl_syntax:tree(),
+  Depth :: non_neg_integer(),
+  Tree0 :: paterl_syntax:tree().
+map_anno(Fun, Tree, Depth)
+  when is_function(Fun, 1), is_integer(Depth), Depth >= 0 ->
   {Tree0, _} = erl_parse:mapfold_anno(
     fun(Anno, D) when D == Depth ->
       {Fun(Anno), D + 1};
@@ -1192,11 +1228,9 @@ map_anno(Fun, Tree, Depth) ->
     0, Tree),
   Tree0.
 
-map_anno_all(Anno, Tree) ->
-  map_anno_lt(Anno, Tree, 576460752303423488).
-
 -doc """
-Maps the annotations in the specified `Tree` up to but not including `Depth`.
+Maps the annotations in the specified `Tree` using `Fun` up to but not including
+`Depth`.
 
 ### Returns
 - updated `Tree`
@@ -1205,7 +1239,7 @@ Maps the annotations in the specified `Tree` up to but not including `Depth`.
   when
   Fun :: fun((Anno :: erl_anno:anno()) -> Anno0 :: erl_anno:anno()),
   Tree :: paterl_syntax:tree(),
-  Depth :: integer(),
+  Depth :: non_neg_integer(),
   Tree0 :: paterl_syntax:tree().
 map_anno_lt(Fun, Tree, Depth) ->
   erl_parse:mapfold_anno(
@@ -1279,10 +1313,3 @@ format_error({?E_UNDEF__FUN_REF, Node}) ->
     "undefined function '~s'",
     [erl_prettypr:format(Node)]
   ).
-
-
-% TODO: Still to use.
-is_mb_in_scope(_, undefined) ->
-  false;
-is_mb_in_scope(MbName, MbScopes) when is_atom(MbName), is_list(MbScopes) ->
-  lists:member(MbName, MbScopes).

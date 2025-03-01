@@ -35,6 +35,7 @@
 %% Process dictionary variable key.
 -define(VAR__ID, '@var_id').
 
+%% TODO: Merge this module into the paterl_syntax module or create a paterl_syntax_tools module.
 
 %%% ----------------------------------------------------------------------------
 %%% Public API.
