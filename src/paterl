@@ -10,32 +10,37 @@ cli() ->
     arguments => [
       #{name => file,
         type => string,
-        required => true
+        required => true,
+        help => "Erlang file to check"
       },
       #{name => includes,
         long => "-includes",
         short => $I,
         type => string,
         default => "include",
-        action => append
+        action => append,
+        help => "include directories containing macros required to compile file"
       },
       #{name => out,
         long => "-out",
         short => $o,
         type => string,
-        default => "ebin"
+        default => "ebin",
+        help => "generated Pat output directory"
       },
       #{name => verbose,
         long => "-verbose",
         short => $v,
         type => {atom, [all, none, ssa, types, anno, pat]}, % annotated=annotated only, pat=pat code only, all=both
-        default => none
+        default => none,
+        help => "verbosity level"
       },
       #{name => skip,
         long => "-skip",
         short => $s,
         type => boolean,
-        default => false
+        default => false,
+        help => "generates Pat code but skips checking file"
       }
     ],
     handler =>
