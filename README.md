@@ -1,7 +1,7 @@
 # paterl - Erlang to Pat transpiler
 
 ![Static Badge](https://img.shields.io/badge/version-0.9-blue)
-![GitHub last commit](https://img.shields.io/github/last-commit/duncanatt/paterl)
+![GitHub last commit](https://img.shields.io/github/last-commit/duncanatt/paterl?color=violet)
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/duncanatt/paterl/build.yml?branch=main&label=tests)
 
 
