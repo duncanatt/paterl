@@ -28,10 +28,10 @@
 
 %%% Public API.
 -export([module/1, format_error/1]).
--compile(export_all).
+-export([type_def/2, type_defs/1, spec_def/2, mb_fun/2]).
 
 %%% Public types.
--export_type([type_defs/0, spec_defs/0, mb_funs/0, mb_defs/0, type_info/0]).
+-export_type([type/0, type_defs/0, spec/0, spec_defs/0, mb/0, mb_funs/0, mb_mod/0, mb_defs/0, type_info/0]).
 -export_type([result/0]).
 
 
@@ -107,17 +107,29 @@
 -doc "Mailbox form.".
 -type f_mailbox(FunRef) :: {mailbox, paterl_syntax:anno(), {{modality(), paterl_syntax:name()}, FunRef}}.
 
+-doc "Type definition information.".
+-type type() :: {?T_TYPE | ?T_MBOX, paterl_syntax:anno(), Type :: paterl_syntax:type(), Vars :: []}.
+
 -doc "Type mapping from type names to type definitions.".
--type type_defs() :: #{paterl_syntax:name() => {?T_TYPE | ?T_MBOX, paterl_syntax:anno(), Type :: paterl_syntax:type(), Vars :: []}}.
+-type type_defs() :: #{paterl_syntax:name() => type()}.
+
+-doc "Spec definition information.".
+-type spec() :: {?T_SPEC, paterl_syntax:anno(), FunTypes :: [paterl_syntax:type()]}.
 
 -doc "Function spec mapping from fun references to spec definitions.".
--type spec_defs() :: #{paterl_syntax:fun_ref() => {?T_SPEC, paterl_syntax:anno(), FunTypes :: [paterl_syntax:type()]}}.
+-type spec_defs() :: #{paterl_syntax:fun_ref() => spec()}.
 
--doc "Used mailbox mapping from fun references to mailbox names.".
--type mb_funs() :: #{paterl_syntax:fun_ref() => {modality(), paterl_syntax:anno(), paterl_syntax:name()}}.
+-doc "Mailbox name and modality information.".
+-type mb() :: {modality(), paterl_syntax:anno(), paterl_syntax:name()}.
 
--doc "Mailbox mapping from mailbox names to mailbox definitions.".
--type mb_defs() :: #{paterl_syntax:name() => {paterl_syntax:anno(), modality()}}.
+-doc "Used mailbox mapping from fun references to mailbox name and modalities.".
+-type mb_funs() :: #{paterl_syntax:fun_ref() => mb()}.
+
+-doc "Mailbox modality information.".
+-type mb_mod() :: {paterl_syntax:anno(), modality()}.
+
+-doc "Mailbox mapping from mailbox names to mailbox modality.".
+-type mb_defs() :: #{paterl_syntax:name() => mb_mod()}.
 
 -doc "Module type information.".
 -type type_info() :: #type_info{}.
@@ -190,6 +202,73 @@ module(Forms) when is_list(Forms) ->
 
   % Return analysis with possible errors as result.
   paterl_lib:return(Analysis).
+
+-doc """
+Retrieves the type definition information for the specified `Name`from
+[`type_info()`](`t:type_info/0`).
+
+### Returns
+- [`type()`](`t:type/0`) for the corresponding `Name` if it exists
+- `undefined_type` otherwise
+""".
+-spec type_def(Name, TypeInfo) -> Type | undefined_type
+  when
+  Name :: paterl_syntax:name(),
+  TypeInfo :: type_info(),
+  Type :: type().
+type_def(Name, #type_info{type_defs = TypeDefs}) when is_atom(Name) ->
+  case maps:find(Name, TypeDefs) of
+    {ok, Type} -> Type;
+    error -> undefined_type
+  end.
+
+-doc """
+Retrieves the type names from [`type_info()`](`t:type_info/0`).
+
+### Returns
+- type name list
+""".
+-spec type_defs(TypeInfo :: type_info()) -> TypeNames :: [paterl_syntax:name()].
+type_defs(#type_info{type_defs = TypeDefs}) ->
+  maps:keys(TypeDefs).
+
+-doc """
+Retrieves the spec definition information for the specified `FunRef` from
+[`type_info()`](`t:type_info/0`).
+
+### Returns
+- [`spec()`](`t:spec/0`) for the corresponding `FunRef` if it exists
+- `undefined_spec` otherwise
+""".
+-spec spec_def(FunRef, TypeInfo) -> Spec | undefined_spec
+  when
+  FunRef :: paterl_syntax:fun_ref(),
+  TypeInfo :: type_info(),
+  Spec :: spec().
+spec_def(FunRef = {_, _}, #type_info{spec_defs = SpecDefs}) ->
+  case maps:find(FunRef, SpecDefs) of
+    {ok, Spec} -> Spec;
+    error -> undefined_spec
+  end.
+
+-doc """
+Retrieves the mailbox name and modality information for the specified `FunRef`
+from [`type_info()`](`t:type_info/0`).
+
+### Returns
+- [`mb()`](`t:mb/0`) for the corresponding `FunRef` if it exists
+- `undefined_mb` otherwise
+""".
+-spec mb_fun(FunRef, TypeInfo) -> Mb | undefined_mb
+  when
+  FunRef :: paterl_syntax:fun_ref(),
+  TypeInfo :: type_info(),
+  Mb :: mb().
+mb_fun(FunRef = {_, _}, #type_info{mb_funs = MbFuns}) ->
+  case maps:find(FunRef, MbFuns) of
+    {ok, Mb} -> Mb;
+    error -> undefined_mb
+  end.
 
 
 %%% ----------------------------------------------------------------------------
@@ -899,44 +978,4 @@ format_error({?E_UNDEF__TYPE, Node}) ->
 %% TODO: REFACTOR WITH NON anonymous functions
 
 %% TODO: REFACTOR WITH maybe
-
--spec type_def(Name, TypeInfo) -> Type | undefined_type
-  when
-  Name :: paterl_syntax:name(),
-  TypeInfo :: type_info(),
-  Type :: {?T_TYPE | ?T_MBOX, paterl_syntax:anno(), Type :: paterl_syntax:type(), Vars :: []}.
-type_def(Name, #type_info{type_defs = TypeDefs}) when is_atom(Name) ->
-  case maps:find(Name, TypeDefs) of
-    {ok, Type} -> Type;
-    error -> undefined_type
-  end.
-
-type_defs(#type_info{type_defs = TypeDefs}) ->
-  maps:keys(TypeDefs).
-
--spec spec_def(FunRef, TypeInfo) -> Spec | undefined_spec
-  when
-  FunRef :: paterl_syntax:fun_ref(),
-  TypeInfo :: type_info(),
-  Spec :: {spec, paterl_syntax:anno(), FunTypes :: [paterl_syntax:type()]}.
-spec_def(FunRef = {_, _}, #type_info{spec_defs = SpecDefs}) ->
-  case maps:find(FunRef, SpecDefs) of
-    {ok, Spec} -> Spec;
-    error -> undefined_spec
-  end.
-
--spec mb_fun(FunRef, TypeInfo) -> Mb | undefined_mb
-  when
-  FunRef :: paterl_syntax:fun_ref(),
-  TypeInfo :: type_info(),
-  Mb :: {modality(), paterl_syntax:anno(), paterl_syntax:name()}.
-mb_fun(FunRef = {_, _}, #type_info{mb_funs = MbFuns}) ->
-  case maps:find(FunRef, MbFuns) of
-    {ok, Mb} -> Mb;
-    error -> undefined_mb
-  end.
-
-
-
-
 
