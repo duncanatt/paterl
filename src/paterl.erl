@@ -27,7 +27,7 @@
 -include("paterl_lib.hrl").
 
 %%% Public API.
--export([check/2]).
+-export([check/2, format_error/1]).
 
 %%% Public types.
 -export_type([opt_includes/0, opt_out/0, opt_verbose/0, opt_skip/0, options/0]).
@@ -229,10 +229,10 @@ type_forms(Forms, Opts) ->
       {BsForms, TypeInfo0} = paterl_bootstrap:module(Forms, TypeInfo),
 
       if Verbose =:= all; Verbose =:= types ->
-        io_util:print_table("TypeDefs", TypeInfo0#type_info.type_defs),
-        io_util:print_table("SpecDefs", TypeInfo0#type_info.spec_defs),
-        io_util:print_table("MbFuns", TypeInfo0#type_info.mb_funs),
-        io_util:print_table("MbDefs", TypeInfo0#type_info.mb_defs);
+        io_util:table("TypeDefs", TypeInfo0#type_info.type_defs),
+        io_util:table("SpecDefs", TypeInfo0#type_info.spec_defs),
+        io_util:table("MbFuns", TypeInfo0#type_info.mb_funs),
+        io_util:table("MbDefs", TypeInfo0#type_info.mb_defs);
         true -> ok
       end,
 
@@ -266,14 +266,14 @@ anno_forms(Forms, TypeInfo, Opts) ->
     io_util:info("[CALL GRAPH] Compute Erlang form call graph."),
     {ok, CallGraph, []} ?= paterl_call_graph:module(Forms),
     if Verbose =:= all; Verbose =:= anno ->
-      io_util:print_table("CallGraph", CallGraph);
+      io_util:table("CallGraph", CallGraph);
       true -> ok
     end,
 
     % Compute the list of direct and mutual recursive fun references.
     RecFunInfo = paterl_call_graph:rec_funs(CallGraph),
     if Verbose =:= all; Verbose =:= anno ->
-      io_util:print_table("RecFunInfo", RecFunInfo);
+      io_util:table("RecFunInfo", RecFunInfo);
       true -> ok
     end,
 

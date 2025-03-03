@@ -1,30 +1,25 @@
-%%% ----------------------------------------------------------------------------
-%%% Duncan Paul Attard
-%%%
-%%% Module description (becomes module heading).
-%%%
-%%%
-%%% 
-%%% Copyright (c) 2021, Duncan Paul Attard <duncanatt@gmail.com>
-%%%
-%%% This program is free software: you can redistribute it and/or modify it 
-%%% under the terms of the GNU General Public License as published by the Free 
-%%% Software Foundation, either version 3 of the License, or (at your option) 
-%%% any later version.
-%%%
-%%% This program is distributed in the hope that it will be useful, but WITHOUT 
-%%% ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or 
-%%% FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
-%%% more details.
-%%%
-%%% You should have received a copy of the GNU General Public License along with 
-%%% this program. If not, see <https://www.gnu.org/licenses/>.
-%%% ----------------------------------------------------------------------------
+%%
+%% %CopyrightBegin%
+%%
+%% Copyright the University of Glasgow 2022-2024. All Rights Reserved.
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+%%
+%% %CopyrightEnd%
+%%
 -module(log).
--moduledoc """
-Macro-based logger that can be switched off on releases.
-""".
--author("Duncan Paul Attard").
+-moduledoc "Macro-based logger that can be switched off on releases.".
+-author("duncan").
 
 %%% Includes.
 -include("log.hrl").
@@ -42,9 +37,9 @@ Configures the logger to write to the specified file.
 
 - `File` is the full filename where the logger output is directed.
 
-**Returns**
-
-- `true` to indicate that log file is configured, `false` otherwise.
+### Returns
+- `true` to indicate that log file is configured
+- `false` otherwise
 """.
 -spec log_to_file(File :: file:filename()) -> true.
 log_to_file(File) ->
@@ -59,9 +54,8 @@ Writes the log statement.
 - `Line` is the line number of the log statement.
 - `Fmt` is the format of the log statement string.
 
-**Returns**
-
-- `ok` to acknowledge success.
+### Returns
+- `ok` on success
 """.
 -spec write(LogLabel, Module, Line, Fmt) -> ok
   when
@@ -81,9 +75,8 @@ Outputs the log statement with formatting parameters.
 - `Fmt` is the format of the log statement string.
 - `Params` are the parameters to be formatted in the log statement string.
 
-**Returns**
-
-- `ok` to acknowledge success.
+### Returns
+- `ok` on success
 """.
 -spec write(LogLabel, Module, Line, Fmt, Params) -> ok
   when
@@ -102,7 +95,7 @@ write(LogLabel, Module, Line, Fmt, Params) ->
 
 
 %%% ----------------------------------------------------------------------------
-%%% Private helper functions.
+%%% Helpers.
 %%% ----------------------------------------------------------------------------
 
 -doc """
@@ -113,9 +106,9 @@ output.
 statement, where 1 = TRACE, 2 = DEBUG, 3 = INFO, 4 = WARN, 5 = ERROR.
 - `LogLabel` indicates the the severity of the log statement.
 
-**Returns**
-
-- `true' if the log statement can be output, `false' otherwise.
+### Returns
+- `true' if the log statement can be output
+- `false' otherwise
 """.
 -spec can_log(LogLevel :: integer(), LogLabel :: string()) -> boolean().
 can_log(?trace_level, ?trace_str) ->
