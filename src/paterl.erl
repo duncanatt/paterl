@@ -39,7 +39,7 @@
 %%% Generic constants.
 
 %% Mailbox annotation primitive type.
--define(EXEC, "/Users/duncan/Dropbox/Postdoc/Development/mbcheck/mbcheck").
+-define(EXEC, "/Users/duncan/Dropbox/Postdoc/Development/mbcheck/mbcheck -qj").
 %%-define(EXEC, "/Users/duncan/Downloads/mbcheck/mbcheck -qj").
 
 %% Pat file extension.
