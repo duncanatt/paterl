@@ -115,32 +115,32 @@ def main(mb18: Id_client_mb?, mb19: Ts_client_mb?): (Unit * Id_client_mb? * Ts_c
           let(v5, mb31) =
             ts_asy(mb29, tsserver)
           in
-            let (ts, mb31) =
+            let (ts, mb32) =
               ts_get(mb31)
             in
-              let (v6, mb32, mb33) =
-                ((), mb30, mb31)
+              let (v6, mb33, mb34) =
+                ((), mb30, mb32)
               in
-                let (id, mb34) =
-                  id_get(mb32)
+                let (id, mb35) =
+                  id_get(mb33)
                 in
-                  ((), mb34, mb33)
+                  ((), mb35, mb34)
 }
 
 def main'(): Unit {
-  let mb35 =
+  let mb36 =
     new [Id_client_mb]
   in
-    let mb36 =
+    let mb37 =
       new [Ts_client_mb]
     in
-      let (x, mb37, mb38) =
-        main(mb35, mb36)
+      let (x, mb38, mb39) =
+        main(mb36, mb37)
       in
         let y =
-          free(mb37)
-        in
           free(mb38)
+        in
+          free(mb39)
 }
 
 
