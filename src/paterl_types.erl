@@ -29,6 +29,7 @@
 %%% Public API.
 -export([module/1, format_error/1]).
 -export([type_def/2, type_defs/1, spec_def/2, mb_fun/2]).
+-export([mb_name/1, mb_names/1]).
 
 %%% Public types.
 -export_type([type/0, type_defs/0, spec/0, spec_defs/0, mb/0, mb_funs/0, mb_mod/0, mb_defs/0, type_info/0]).
@@ -180,8 +181,8 @@ module(Forms) when is_list(Forms) ->
   Analysis =
     maybe
     % Extract type, spec, and mailbox definition information.
-      #analysis{status = ok, result = TInfo} ?= analyze_type_info(Forms),
-      #type_info{type_defs = TypeDefs, mb_defs = MbDefs} = TInfo,
+      #analysis{status = ok, result = TypeInfo} ?= analyze_type_info(Forms),
+      #type_info{type_defs = TypeDefs, mb_defs = MbDefs} = TypeInfo,
 
       % Check that mailbox interface uses are initialized with new.
       #analysis{status = ok} ?= check_mb_new(MbDefs),
@@ -191,7 +192,7 @@ module(Forms) when is_list(Forms) ->
 
       % Check validity of mailbox interface types.
       #analysis{status = ok, warnings = Warnings} ?= check_mb_types_valid(TypeDefs),
-      #analysis{file = paterl_syntax:get_file(Forms), result = TInfo,
+      #analysis{file = paterl_syntax:get_file(Forms), result = TypeInfo,
         warnings = Warnings
       }
     else
@@ -259,16 +260,24 @@ from [`type_info()`](`t:type_info/0`).
 - [`mb()`](`t:mb/0`) for the corresponding `FunRef` if it exists
 - `undefined_mb` otherwise
 """.
--spec mb_fun(FunRef, TypeInfo) -> Mb | undefined_mb
+-spec mb_fun(FunRef, TypeInfo) -> Mbs | undefined_mb
   when
   FunRef :: paterl_syntax:fun_ref(),
   TypeInfo :: type_info(),
-  Mb :: mb().
+  Mbs :: [mb()].
 mb_fun(FunRef = {_, _}, #type_info{mb_funs = MbFuns}) ->
   case maps:find(FunRef, MbFuns) of
     {ok, Mb} -> Mb;
     error -> undefined_mb
   end.
+
+-spec mb_name(Mb :: mb()) -> MbName :: paterl_syntax:name().
+mb_name({_Modality, _Anno, MbName}) ->
+  MbName.
+
+-spec mb_names(Mbs :: [mb()]) -> MbNames :: [paterl_syntax:name()].
+mb_names(Mbs) when is_list(Mbs) ->
+  [mb_name(Mb) || Mb <- Mbs].
 
 
 %%% ----------------------------------------------------------------------------
@@ -319,6 +328,7 @@ analyze_type_info(Forms) ->
     % Check that mailbox interface definitions are used by at most one function.
     #analysis{status = ok} ?= check_mb_dup_fun_use(UsedMailboxes),
     MbFuns = make_mb_funs(UsedMailboxes),
+    ?TRACE("MBUNFS = ~p", [MbFuns]),
 
     % Check that fun references in mailbox interface definitions are defined.
     #analysis{status = ok} ?= check_mb_fun_refs_defined(MbFuns, SpecDefs0),
@@ -456,7 +466,10 @@ corresponding mailbox interface names.
 make_mb_funs(Mailboxes) when is_list(Mailboxes) ->
   Fun =
     fun({mailbox, Anno, {{MbMod, MbName}, FunRef = {_, _}}}, Ctx) ->
-      Ctx#{FunRef => {MbMod, Anno, MbName}}
+%%      Ctx#{FunRef => {MbMod, Anno, MbName}}
+      maps:update_with(FunRef,
+        fun(Mbs) -> [{MbMod, Anno, MbName} | Mbs] end,
+        [{MbMod, Anno, MbName}], Ctx)
     end,
   lists:foldl(Fun, #{}, Mailboxes).
 
@@ -597,11 +610,11 @@ a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
 check_mb_fun_refs_defined(MbFuns, SpecDefs)
   when is_map(MbFuns), is_map(SpecDefs) ->
   Fun =
-    fun(FunRef = {_, _}, {_, _, _MbName}, Analysis)
+    fun(FunRef = {_, _}, _Mbs, Analysis)
       when is_map_key(FunRef, SpecDefs) ->
       % Defined fun reference in mailbox interface.
       Analysis;
-      (FunRef = {_, _}, {_, Anno, _MbName}, Analysis) ->
+      (FunRef = {_, _}, [{_, Anno, _MbName} | _Mbs], Analysis) ->
         % Undefined fun reference in mailbox interface.
         Node = paterl_syntax:fun_reference(FunRef, Anno),
         ?ERROR("Undefined fun reference '~s' in mailbox interface '~s'.", [

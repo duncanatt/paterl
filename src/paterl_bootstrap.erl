@@ -53,7 +53,7 @@ Appends the bootstrap main function to the list of `Forms`.
 ### Returns
 - list of `Forms` with the **annotated** bootstrap main function
 """.
-module(Forms, TypeInfo = #type_info{spec_defs = Specs, mb_funs = MbDefs}) ->
+module(Forms, TypeInfo = #type_info{spec_defs = Specs, mb_funs = MbFuns}) ->
 
   % Bootstrap function name. The auxiliary bootstrapping function closes the
   % program and serves as the main entry point that launches the main function
@@ -73,9 +73,9 @@ module(Forms, TypeInfo = #type_info{spec_defs = Specs, mb_funs = MbDefs}) ->
 
   % Create bootstrap function using the interface of the main user-defined
   % function.
-  {_, _, Interface} = maps:get({?MAIN__FUN_NAME, ?MAIN__FUN_ARITY}, MbDefs),
-  ?TRACE("Found '~s/~b' function interface '~s' to boostrap.", [
-    ?MAIN__FUN_NAME, ?MAIN__FUN_ARITY, Interface
+  Mbs = maps:get({?MAIN__FUN_NAME, ?MAIN__FUN_ARITY}, MbFuns),
+  ?TRACE("Found '~s/~b' function interface '~p' to boostrap.", [
+    ?MAIN__FUN_NAME, ?MAIN__FUN_ARITY, Mbs
   ]),
   BsFun = bs_fun_def(BsFunName),
   {Forms ++ [BsFun], TypeInfo0}.

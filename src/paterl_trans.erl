@@ -59,6 +59,14 @@ representation.
 
 
 %%% ----------------------------------------------------------------------------
+%%% Type definitions.
+%%% ----------------------------------------------------------------------------
+
+
+
+
+
+%%% ----------------------------------------------------------------------------
 %%% API.
 %%% ----------------------------------------------------------------------------
 %% TODO: Add typespecs.
@@ -99,9 +107,17 @@ form({attribute, _, interface, {Name, Type, _Vars = []}}) ->
       % Non-empty interface.
       pat_syntax:interface_def(Name, Type0)
   end;
-form({function, _, Name, Arity, Clauses = [_]}) ->
+form({function, Anno, Name, Arity, Clauses = [_]}) ->
   % Erlang function with one clause.
   ?TRACE("Translate function '~s/~b'.", [Name, Arity]),
+  ?TRACE("Anno = ~w", [Anno]),
+
+%%  MbScopes =
+%%    case paterl_anno:interfaces(Anno) of
+%%      Mbs when is_list(Mbs) -> [MbName || {_, MbName} <- Mbs];
+%%      undefined -> undefined
+%%    end,
+%%  pat_syntax:fun_def(Name, fun_clauses(Clauses, MbScopes));
   pat_syntax:fun_def(Name, fun_clauses(Clauses));
 form(_Form) ->
   % Erlang forms without Pat equivalent.
@@ -155,9 +171,9 @@ clauses(Fun, Clauses, Mb) when is_function(Fun, 2), is_list(Clauses) ->
   [Fun(Clause, Mb) || Clause <- Clauses].
 
 -doc "Translates a list of Erlang case or receive clauses.".
-case_clauses(Clauses, Mb) ->
-  ?TRACE("(~s) Translate case/receive clauses.", [Mb]),
-  clauses(fun case_clause/2, Clauses, Mb).
+case_clauses(Clauses, Mbs) ->
+  ?TRACE("(~w) Translate case/receive clauses.", [Mbs]),
+  clauses(fun case_clause/2, Clauses, Mbs).
 
 -doc "Translates a list of Erlang if clauses.".
 if_clauses(Clauses, Mb) ->
@@ -165,19 +181,19 @@ if_clauses(Clauses, Mb) ->
   clauses(fun if_clause/2, Clauses, Mb).
 
 -doc "Translate an Erlang case of receive clause.".
-case_clause(_Clause = {clause, _, PatSeq = [_], _GuardSeq = [], Body}, _Mb) ->
+case_clause(_Clause = {clause, _, PatSeq = [_], _GuardSeq = [], Body}, _Mbs) ->
   % Erlang unconstrained case and receive clause.
-  ?TRACE("(~s) Translate case/receive clause.", [_Mb]),
+  ?TRACE("(~w) Translate case/receive clause.", [_Mbs]),
   Mb = fresh_mb(),
   Expr = expr(Body, Mb),
   [MsgPat] = pat_seq(PatSeq),
   pat_syntax:receive_expr(MsgPat, pat_syntax:var(Mb), Expr).
 
 -doc "Translate an Erlang if clause.".
-if_clause(_Clause = {clause, _, _PatSeq = [], [[GuardTest]], ExprSeq}, Mb) ->
+if_clause(_Clause = {clause, _, _PatSeq = [], [[GuardTest]], ExprSeq}, Mbs) ->
   % Erlang constrained if clause with exactly one guard and one guard test.
-  ?TRACE("(~s) Translate if clause.", [Mb]),
-  {guard_test(GuardTest), expr(ExprSeq, Mb)}.
+  ?TRACE("(~w) Translate if clause.", [Mbs]),
+  {guard_test(GuardTest), expr(ExprSeq, Mbs)}.
 
 -doc """
 Translates an Erlang expression sequence into its equivalent single nested Pat
@@ -216,7 +232,7 @@ expr_seq([Expr = {call, Anno, {atom, _, Name}, Args} | ExprSeq], Mb) when Name =
   % needed in practice and removing 'Name =/= spawn' yields the same translated
   % output.
   Call0 =
-    case paterl_anno:interface(Anno) of
+    case paterl_anno:interfaces(Anno) of
       undefined ->
         % Call to function call outside mailbox context.
         ?TRACE("(~s) Translate call to ~s/~b.", [Mb, Name, length(Args)]),
@@ -270,12 +286,14 @@ expr_seq([{'if', _, [Clause0, Clause1]} | ExprSeq], Mb) ->
   {ExprC, ExprT} = if_clause(Clause0, Mb), % If.
   {{boolean, _, true}, ExprF} = if_clause(Clause1, Mb), % Else.
   [pat_syntax:if_expr(ExprC, ExprT, ExprF) | expr_seq(ExprSeq, Mb)];
-expr_seq([{'receive', Anno, Clauses} | ExprSeq], Mb) ->
+expr_seq([{'receive', Anno, Clauses} | ExprSeq], Mbs) ->
   % Erlang unconstrained receive expression. Corresponds to a Pat guard
   % expression.
-  State = paterl_anno:state(Anno),
-  ?TRACE("(~s) Translate receive expression guarding on '~s'.", [Mb, State]),
-  ReceiveClauses = case_clauses(Clauses, Mb),
+  State = paterl_anno:pattern(Anno),
+  ?TRACE("~w Translate receive expression guarding on '~s'.", [Mbs, State]),
+  ReceiveClauses = case_clauses(Clauses, Mbs),
+
+%%  NEED TO FINISH THIS!
 
   % Check mailbox regular expression for emptiness to determine if a Pat empty
   % expression is required.
@@ -289,7 +307,7 @@ expr_seq([{'receive', Anno, Clauses} | ExprSeq], Mb) ->
         % enclosing function.
         {type, _, Type, _} = paterl_anno:type(Anno),
         Unit = get_unit_value(Type),
-        ?TRACE("(~s) HACK: Generating unit value ~p for type ~p", [Mb, Unit, Type]),
+        ?TRACE("(~s) HACK: Generating unit value ~p for type ~p", [Mbs, Unit, Type]),
 
         EmptyExpr = pat_syntax:empty_expr(
           MbVar, pat_syntax:tuple([Unit, MbVar]) %TODO: This cannot be unit but must be the datatype of the return type of the function.
@@ -303,10 +321,10 @@ expr_seq([{'receive', Anno, Clauses} | ExprSeq], Mb) ->
     end,
 
   ?TRACE("(~s) Generate guard on '~s' with ~b clause(s).", [
-    Mb, State, length(ReceiveClauses0)
+    Mbs, State, length(ReceiveClauses0)
   ]),
-  Guard = pat_syntax:guard_expr(pat_syntax:var(Mb), State, ReceiveClauses0),
-  [Guard | expr_seq(ExprSeq, Mb)];
+  Guard = pat_syntax:guard_expr(pat_syntax:var(Mbs), State, ReceiveClauses0),
+  [Guard | expr_seq(ExprSeq, Mbs)];
 expr_seq([Expr | ExprSeq], Mb) ->
   % Pass thru to out-of-mailbox context translation:
   %
@@ -330,14 +348,18 @@ clauses(Fun, Clauses) when is_function(Fun, 1), is_list(Clauses) ->
   [Fun(Clause) || Clause <- Clauses].
 
 -doc "Translates a list of Erlang function clauses.".
+%%fun_clauses(Clauses, MbScopes) ->
 fun_clauses(Clauses) ->
+%%  clauses(fun fun_clause/2, Clauses).
   clauses(fun fun_clause/1, Clauses).
+%%  [fun_clause(Clause, MbScopes) || Clause <- Clauses].
 
 -doc "Translates a list of Erlang list clauses.".
 if_clauses(Clauses) ->
   clauses(fun if_clause/1, Clauses).
 
 -doc "Translates an Erlang function clause.".
+%%fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body}, MbScopes) ->
 fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
   % Erlang unconstrained function clause or unconstrained mailbox-annotated
   % function clause.
@@ -346,7 +368,8 @@ fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
   RetType = type(paterl_anno:type(Anno)),
 
   % Determine whether function is mailbox-annotated.
-  case paterl_anno:interface(Anno) of
+  case paterl_anno:interfaces(Anno) of
+%%  case MbScopes of
     undefined ->
       % Non mailbox-annotated function.
       ?TRACE("Translate NON mailbox-annotated function clause */~b.", [
@@ -355,25 +378,48 @@ fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
 
       % Translate function parameters and body.
       pat_syntax:fun_clause(params(PatSeq), expr(Body), RetType);
-    _Interface ->
+
+    Interfaces when is_list(Interfaces) ->
       % Mailbox-annotated function.
       ?TRACE("Translate mailbox-annotated function clause */~b.", [
         length(PatSeq)
       ]),
 
-      % Create mailbox to be injected as first parameter of the
-      % mailbox-annotated function clause.
-      Mb = fresh_mb(),
-      MbType = pat_syntax:mb_type(paterl_anno:interface(Anno), read),
-      Params = [
-        pat_syntax:param(pat_syntax:var(Mb), MbType) |
-        params(PatSeq)
-      ],
+      % Create mailbox interface names to be injected as the first parameters of
+      % the function clause.
+      {Mbs, MbTypes, Params} =
+        lists:foldl(
+          fun(MbName, {Mbs0, MbTypes0, Params0}) ->
+            Mb = fresh_mb(),
+            MbType = pat_syntax:mb_type(MbName, read),
+            {[Mb | Mbs0], [MbType | MbTypes0], [pat_syntax:param(pat_syntax:var(Mb), MbType) | Params0]}
+          end, {[], [], []}, Interfaces
+        ),
 
-      Expr = expr(Body, Mb),
-      pat_syntax:fun_clause(
-        Params, Expr, pat_syntax:product_type([RetType, MbType])
-      )
+      Params0 = Params ++ params(PatSeq),
+      Expr = expr(Body, Mbs),
+      pat_syntax:fun_clause(Params, Expr, pat_syntax:product_type([RetType | MbTypes]))
+%%      ko;
+%%
+%%    _Interface ->
+%%      % Mailbox-annotated function.
+%%      ?TRACE("Translate mailbox-annotated function clause */~b.", [
+%%        length(PatSeq)
+%%      ]),
+%%
+%%      % Create mailbox to be injected as first parameter of the
+%%      % mailbox-annotated function clause.
+%%      Mb = fresh_mb(),
+%%      MbType = pat_syntax:mb_type(paterl_anno:interfaces(Anno), read),
+%%      Params = [
+%%        pat_syntax:param(pat_syntax:var(Mb), MbType) |
+%%        params(PatSeq)
+%%      ],
+%%
+%%      Expr = expr(Body, Mb),
+%%      pat_syntax:fun_clause(
+%%        Params, Expr, pat_syntax:product_type([RetType, MbType])
+%%      )
   end.
 
 -doc "Translate an Erlang if clause.".
@@ -432,7 +478,7 @@ expr_seq([Expr = {call, Anno, _Fun = {atom, _, Name}, Args} | ExprSeq]) ->
   case get_fun_return_unit(Expr) of
     undefined ->
       % Unknown externally-defined function that is translated normally.
-      case paterl_anno:interface(Anno) of
+      case paterl_anno:interfaces(Anno) of
         undefined ->
           % Call to function outside mailbox context.
           [pat_syntax:call_expr(Name, args(Args)) | expr_seq(ExprSeq)];
@@ -601,7 +647,7 @@ new_call_expr({call, Anno, Fun = {atom, _, _}, Args}) ->
   ),
 
   % Let with new mailbox creation.
-  Interface = paterl_anno:interface(Anno),
+  Interface = paterl_anno:interfaces(Anno),
   pat_syntax:let_expr(
     MbVarNew, pat_syntax:new_expr(pat_syntax:mb_type(Interface)), LetCall
   ).
@@ -649,7 +695,7 @@ spawn_expr({call, Anno, {atom, _, spawn}, _MFArgs = [_, Fun, Args]}) ->
   % Let with new mailbox creation.
   pat_syntax:let_expr(
     MbVarNew,
-    pat_syntax:new_expr(pat_syntax:mb_type(paterl_anno:interface(Anno))),
+    pat_syntax:new_expr(pat_syntax:mb_type(paterl_anno:interfaces(Anno))),
     LetSpawn
   ).
 

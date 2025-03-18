@@ -50,14 +50,22 @@
 %% Mailbox annotation interface.
 -define(MA_INTERFACE, interface).
 
-%% Mailbox annotation capability.
--define(MA_READ, read).
+-define(MA_INTERFACES, interfaces).
 
-%% Mailbox annotation interface usage modality.
--define(MA_MODALITY, modality).
+-define(MA_SCOPE, scope).
+
+-define(MA_SCOPES, scopes).
 
 %% Mailbox annotation regular expression state.
--define(MA_STATE, state).
+-define(MA_PATTERN, state).
+
+
+%% Mailbox annotation capability.
+%%-define(MA_READ, read).
+
+%% Mailbox annotation interface usage modality.
+%%-define(MA_MODALITY, modality).
+
 
 %%% Error types.
 
@@ -95,6 +103,22 @@
 %%% ----------------------------------------------------------------------------
 %%% Type definitions.
 %%% ----------------------------------------------------------------------------
+
+-type ext_anno() :: {'file', file:filename_all()}
+| {'generated', boolean()}
+| {'location', erl_anno:location()}
+| {'record', boolean()}
+| {'text', string()}
+| erl_anno:location()
+| {?MA_TYPE, paterl_syntax:type()}
+| {?MA_INTERFACE, interface()}
+| {?MA_INTERFACES, [interface()]}
+| {?MA_SCOPE, MbName :: paterl_syntax:name()}
+| {?MA_SCOPES, [MbName :: paterl_syntax:name()]}
+| {?MA_PATTERN, Pattern :: string()}.
+
+-doc "Mailbox interface.".
+-type interface() :: {Modality :: paterl_types:modality(), MbName :: paterl_syntax:name()}.
 
 -doc "Return result.".
 -type result() :: {ok, Forms :: paterl_syntax:forms(), Warnings :: paterl_errors:warnings()} |
@@ -363,20 +387,28 @@ annotate_function({function, Anno, Name, Arity, Clauses}, RecFunInfo, TypeInfo, 
 
     % Determine if function has an associated mailbox scope.
     case paterl_types:mb_fun(FunRef, TypeInfo) of
-      {MbMod, _, MbName} ->
+%%      {MbMod, _, MbName} ->
+      Mbs when is_list(Mbs) ->
         % Function inside mailbox scope (at least one mailbox interface).
-        ?DEBUG("Annotate function '~s' inside mailbox scope '~s'.", [
-          erl_prettypr:format(paterl_syntax:fun_reference(FunRef, Anno)), MbName
-        ]),
-
         % Initialize mailbox scopes. Tracks accessible mailbox interface names.
-        MbScopes = [MbName],
+%%        MbScopes = [{MbMod, MbName} || {MbMod, _, MbName} <- Mbs],
+%%        MbScopes = [MbName || {_, _, MbName} <- Mbs],
+        MbScopes = paterl_types:mb_names(Mbs),
+
+        ?DEBUG("Annotate function '~s' inside mailbox scopes '~w'.", [
+          erl_prettypr:format(paterl_syntax:fun_reference(FunRef, Anno)),
+          MbScopes
+        ]),
 
         % Annotate function clauses.
         Analysis1 = annotate_fun_clauses(Clauses, Types, RecFuns, MbScopes, TypeInfo, Analysis),
-        Anno1 = set_modality(MbMod, set_interface(MbName, Anno)),
+
+%%        Anno1 = set_modality(MbMod, set_interfaces(MbScopes, Anno)),
+%%        Interfaces = [{MbMod, MbName} || {MbMod, _, MbName} <- Mbs],
+        Anno0 = set_interfaces(extract_interfaces(Mbs), Anno),
+
         Form0 = map_anno(fun(_) ->
-          Anno1 end, erl_syntax:revert(erl_syntax:function(erl_syntax:atom(Name), Analysis1#analysis.result))),
+          Anno0 end, erl_syntax:revert(erl_syntax:function(erl_syntax:atom(Name), Analysis1#analysis.result))),
         Analysis1#analysis{result = Form0};
 
       undefined_mb ->
@@ -468,11 +500,14 @@ annotate_fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body},
   AnnPatSeq = annotate_pat_seq(PatSeq, TypeSeq),
   Anno0 = set_type(RetType, Anno),
 
-  % Set mailbox interface if function inside mailbox scope.
+  % Set mailbox interface if function is inside mailbox scope.
+%%  TODO: Is this actually needed?
   Anno1 =
     if
       MbScopes =:= undefined -> Anno0; true ->
-      set_interface(hd(MbScopes), Anno0) % TODO: This hd() would be removed when we tackle multiple mailboxes
+%%      set_interfaces(hd(MbScopes), Anno0) % TODO: This hd() would be removed when we tackle multiple mailboxes
+      set_interfaces(MbScopes, Anno0) % TODO: This hd() would be removed when we tackle multiple mailboxes
+%%      Anno0
     end,
 
   % Annotate function body.
@@ -765,15 +800,32 @@ annotate_expr(Expr = {call, Anno, Operator = {atom, _, spawn}, MFArgs}, _MbAnno 
         {?T_SPEC, _, _} ?= paterl_types:spec_def(FunRef, TypeInfo),
 
         % Check that mailbox interface is defined.
-        {_MbMod, _Anno, MbName} ?= paterl_types:mb_fun(FunRef, TypeInfo),
+%%        {_MbMod, _Anno, MbName} ?= paterl_types:mb_fun(FunRef, TypeInfo),
+        Mbs = [_ | _] ?= paterl_types:mb_fun(FunRef, TypeInfo),
+
 
         % Override modality with ?new for spawn call.
         ?DEBUG("Override '~s' with '~s' on '~s'.", [
-          erl_prettypr:format(paterl_syntax:mb_anno(_MbMod, [MbName], _Anno)),
-          erl_prettypr:format(paterl_syntax:mb_anno(?MOD_NEW, [MbName], Anno)),
+
+          lists:foldr(
+            fun({MbMod, Anno, MbName}, Acc) ->
+              [Acc | erl_prettypr:format(paterl_syntax:mb_anno(MbMod, [MbName], Anno))]
+            end, "", Mbs
+          ),
+
+          lists:foldr(
+            fun({_, Anno, MbName}, Acc) ->
+              [Acc | erl_prettypr:format(paterl_syntax:mb_anno(?MOD_NEW, [MbName], Anno))]
+            end, "", Mbs
+          ),
+%%          erl_prettypr:format(paterl_syntax:mb_anno(_MbMod, [MbName], _Anno)),
+%%          erl_prettypr:format(paterl_syntax:mb_anno(?MOD_NEW, [MbName], Anno)),
           erl_prettypr:format(Expr)
         ]),
-        Anno0 = set_modality(?MOD_NEW, set_interface(MbName, Anno)),
+%%        Anno0 = set_modality(?MOD_NEW, set_interfaces(MbName, Anno)),
+%%        Anno0 = set_interfaces([{?MOD_NEW, Anno, MbName} || {_, Anno, MbName} <- Mbs], Anno),
+        Anno0 = set_interfaces(override_interfaces(?MOD_NEW, Mbs), Anno),
+
         Expr0 = paterl_syntax:set_anno(
           erl_syntax:application(Operator, MFArgs), Anno0
         ),
@@ -831,7 +883,9 @@ annotate_expr(Expr = {call, Anno, Self = {atom, _, self}, []}, {?ANNO_AS, MbName
       ?TRACE("Annotate '~s' with inferred matching mailbox interface '~s'.", [
         erl_prettypr:format(Expr), MbName
       ]),
-      Anno0 = set_interface(MbName, Anno),
+%%      Anno0 = set_interfaces([MbName], Anno), %TODO: Should we
+      Anno0 = set_scope(MbName, Anno),
+
       Expr0 = paterl_syntax:set_anno(erl_syntax:application(Self, []), Anno0),
       Analysis#analysis{result = Expr0};
     false ->
@@ -848,6 +902,7 @@ annotate_expr(Expr = {call, _, {atom, _, self}, []}, _MbAnno, _RecFuns, _MbScope
   ?pushError(?E_BAD__ANNO_ON, Expr, Analysis#analysis{result = Expr});
 
 annotate_expr(Expr = {call, Anno, Operator, Exprs}, _MbAnno = undefined, RecFuns, MbScopes, TypeInfo, Analysis) ->
+  ?TRACE("--> Unannotated local function call mbscopes = ~w", [MbScopes]),
   % Unannotated local function call.
   case paterl_syntax:get_fun_ref(Expr) of
     {ok, FunRef = {_, _}} ->
@@ -857,22 +912,26 @@ annotate_expr(Expr = {call, Anno, Operator, Exprs}, _MbAnno = undefined, RecFuns
           {spec, _, _} ->
             % Check if mailbox interface is defined.
             case paterl_types:mb_fun(FunRef, TypeInfo) of
-              {MbMod, _Anno, MbName} ->
+%%              {MbMod, _Anno, MbName} ->
+              Mbs when is_list(Mbs) ->
                 % Called function inside mailbox interface context.
                 % Check if recursive function call. TODO properly later
                 case is_rec_fun_ref(FunRef, RecFuns) of
                   true ->
                     % Recursive call. Override usage modality with ?use.
-                    ?DEBUG("Annotate recursive '~s' with inferred mailbox interface '~s'.", [
-                      erl_prettypr:format(Expr), MbName
+                    ?DEBUG("Annotate recursive '~s' with inferred mailbox interfaces '~w'.", [
+                      erl_prettypr:format(Expr), Mbs
                     ]),
-                    {set_modality(?MOD_USE, set_interface(MbName, Anno)), Analysis};
+%%                    {set_modality(?MOD_USE, set_interfaces(MbName, Anno)), Analysis};
+%%                    {override_interfaces(?MOD_USE, )}
+                    {set_interfaces(override_interfaces(?MOD_USE, Mbs), Anno), Analysis};
                   false ->
                     % Non-recursive call.
-                    ?DEBUG("Annotate '~s' with inferred mailbox interface '~s'.", [
-                      erl_prettypr:format(Expr), MbName
+                    ?DEBUG("Annotate '~s' with inferred mailbox interfaces '~w'.", [
+                      erl_prettypr:format(Expr), Mbs
                     ]),
-                    {set_modality(MbMod, set_interface(MbName, Anno)), Analysis}
+%%                    {set_modality(MbMod, set_interfaces(MbName, Anno)), Analysis}
+                    {set_interfaces(extract_interfaces(Mbs), Anno), Analysis}
                 end;
               undefined_mb ->
                 % Called function outside mailbox interface context.
@@ -957,7 +1016,8 @@ annotate_expr(Expr = {'receive', Anno0, Clauses}, _MbAnno = {?ANNO_EXPECTS, MbNa
       % returned by 'free'. Freeing in Erlang does not exist, which is why the
       % type is set such that 'free' returns a dummy value that has the same
       % return type of the enclosing function in Pat.
-      Anno2 = set_type(RetType, set_state(Pattern, set_interface(MbName, Anno0))),
+%%      Anno2 = set_type(RetType, set_state(Pattern, set_interfaces(MbName, Anno0))),
+      Anno2 = set_type(RetType, set_pattern(Pattern, set_scope(MbName, Anno0))),
       Expr0 = paterl_syntax:set_anno(
         erl_syntax:receive_expr(Analysis0#analysis.result), Anno2
       ),
@@ -1060,6 +1120,16 @@ is_mb_in_scope(MbName, MbScopes) when is_atom(MbName), is_list(MbScopes) ->
   lists:member(MbName, MbScopes).
 
 
+extract_interfaces(Mbs) when is_list(Mbs) ->
+  [{MbMod, MbName} || {MbMod, _, MbName} <- Mbs].
+
+override_interfaces(Modality, Mbs)
+  when
+  Modality =:= ?MOD_NEW, is_list(Mbs);
+  Modality =:= ?MOD_USE, is_list(Mbs) ->
+  [{Modality, MbName} || {_, _, MbName} <- Mbs].
+
+
 %%% ----------------------------------------------------------------------------
 %%% Annotations.
 %%% ----------------------------------------------------------------------------
@@ -1069,64 +1139,123 @@ Retrieves the **type** annotation value from the specified annotation.
 
 See `get_anno_val/3` for details.
 """.
+-spec type(Anno :: ext_anno()) -> paterl_syntax:type().
 type(Anno) ->
   get_anno_val(Anno, ?MA_TYPE, undefined).
+
+-spec scope(Anno :: ext_anno()) -> MbName :: paterl_syntax:name().
+scope(Anno) ->
+  get_anno_val(Anno, ?MA_SCOPE, undefined).
+
+-spec scopes(Anno :: ext_anno()) -> [MbNames :: paterl_syntax:name()].
+scopes(Anno) ->
+  get_anno_val(Anno, ?MA_SCOPES, undefined).
+
+-spec interface(Anno :: ext_anno()) -> Interface :: interface().
+interface(Anno) ->
+  get_anno_val(Anno, ?MA_INTERFACE, undefined).
 
 -doc """
 Retrieves the **interface** annotation value from the specified annotation.
 
 See `get_anno_val/3` for details.
 """.
-interface(Anno) ->
-  get_anno_val(Anno, ?MA_INTERFACE, undefined).
-
--doc """
-Retrieves the **modality** annotation value from the specified annotation.
-
-See `get_anno_val/3` for details.
-""".
-modality(Anno) ->
-  get_anno_val(Anno, ?MA_MODALITY, undefined).
+-spec interfaces(Anno :: ext_anno()) -> [Interface :: interface()].
+interfaces(Anno) ->
+  get_anno_val(Anno, ?MA_INTERFACES, undefined).
 
 -doc """
 Retrieves the **state** annotation value from the annotation.
 
 See `get_anno_val/3` for details.
 """.
-state(Anno) ->
-  get_anno_val(Anno, ?MA_STATE, undefined).
+-spec pattern(Anno :: ext_anno()) -> Pattern :: string().
+pattern(Anno) ->
+  get_anno_val(Anno, ?MA_PATTERN, undefined).
+
+
+
 
 -doc """
 Stores the specified `Type` annotation value in the annotation.
 
 See `set_anno_val/3` for details.
 """.
-set_type(Type, Anno) ->
+-spec set_type(Type, Anno) -> Anno0
+  when
+  Type :: paterl_syntax:type(),
+  Anno :: ext_anno(),
+  Anno0 :: ext_anno().
+set_type(Type, Anno) when is_tuple(Type) ->
   set_anno_val(Anno, ?MA_TYPE, Type).
+
+-spec set_scope(MbName, Anno) -> Anno0
+  when
+  MbName :: paterl_syntax:name(),
+  Anno :: ext_anno(),
+  Anno0 :: ext_anno().
+set_scope(MbName, Anno) when is_atom(MbName) ->
+  set_anno_val(Anno, ?MA_SCOPE, MbName).
+
+-spec set_scopes(MbNames, Anno) -> Anno0
+  when
+  MbNames :: [paterl_syntax:name()],
+  Anno :: ext_anno(),
+  Anno0 :: ext_anno().
+set_scopes(MbNames, Anno) when is_list(MbNames) ->
+  set_anno_val(Anno, ?MA_SCOPES, MbNames).
+
+-spec set_interface(Interface, Anno) -> Anno0
+  when
+  Interface :: interface(),
+  Anno :: ext_anno(),
+  Anno0 :: ext_anno().
+set_interface(Interface, Anno) when
+  is_tuple(Interface), element(1, Interface) =:= ?MOD_NEW, is_atom(element(2, Interface));
+  is_tuple(Interface), element(1, Interface) =:= ?MOD_USE, is_atom(element(2, Interface)) ->
+  set_anno_val(Anno, ?MA_INTERFACE, Interface).
 
 -doc """
 Stores the specified `Interface` annotation value in the annotation.
 
 See `set_anno_val/3` for details.
 """.
-set_interface(Interface, Anno) when is_atom(Interface) ->
-  set_anno_val(Anno, ?MA_INTERFACE, Interface).
+-spec set_interfaces(Interfaces, Anno) -> Anno0
+  when
+  Interfaces :: [interface()],
+  Anno :: ext_anno(),
+  Anno0 :: ext_anno().
+set_interfaces(Interfaces, Anno) when is_list(Interfaces) ->
+  set_anno_val(Anno, ?MA_INTERFACES, Interfaces).
 
--doc """
-Stores the specified `Modality` annotation value in the annotation.
-
-See `set_anno_val/3` for details.
-""".
-set_modality(Modality, Anno) when Modality =:= 'new'; Modality =:= 'use' ->
-  set_anno_val(Anno, ?MA_MODALITY, Modality).
+-spec set_interfaces(Modality, Interfaces, Anno) -> Anno0
+  when
+  Modality :: paterl_types:modality(),
+  Interfaces :: [interface()],
+  Anno :: ext_anno(),
+  Anno0 :: ext_anno().
+set_interfaces(Modality, Interfaces, Anno) when
+  Modality =:= ?MOD_NEW, is_list(Interfaces);
+  Modality =:= ?MOD_USE, is_list(Interfaces) ->
+  Interfaces0 = [{Modality, MbName} || {_, _, MbName} <- Interfaces],
+  set_anno_val(Anno, ?MA_INTERFACES, Interfaces0).
 
 -doc """
 Stores the specified `State` annotation value in the annotation.
 
 See `set_anno_val/3` for details.
 """.
-set_state(State, Anno) when is_list(State) ->
-  set_anno_val(Anno, ?MA_STATE, State).
+-spec set_pattern(Pattern, Anno) -> Anno0
+  when
+  Pattern :: string(),
+  Anno :: ext_anno(),
+  Anno0 :: ext_anno().
+set_pattern(State, Anno) when is_list(State) ->
+  set_anno_val(Anno, ?MA_PATTERN, State).
+
+
+
+
 
 -doc """
 Stores the specified `Value` associated with `Key` in the annotation.
@@ -1143,6 +1272,12 @@ key-value elements; see [`anno()`](`t:erl_anno:anno/0`).
 -`badarg` if `Anno` is not a line number, line number-column pair or a list of
 key-value elements.
 """.
+-spec set_anno_val(Anno, Key, Value) -> Anno0
+  when
+  Anno :: ext_anno(),
+  Key :: term(),
+  Value :: term(),
+  Anno0 :: ext_anno().
 set_anno_val(Anno, Key, Value) ->
   Anno0 =
     case Anno of
@@ -1174,6 +1309,12 @@ key-value elements; see [`anno()`](`t:erl_anno:anno/0`).
 -`badarg` if `Anno` is not a line number, line number-column pair or a list of
 key-value elements.
 """.
+-spec get_anno_val(Anno, Key, Default) -> Value
+  when
+  Anno :: ext_anno(),
+  Key :: term(),
+  Default :: term(),
+  Value :: term().
 get_anno_val(Anno, Key, Default) ->
   case Anno of
     Line when is_integer(Line) ->

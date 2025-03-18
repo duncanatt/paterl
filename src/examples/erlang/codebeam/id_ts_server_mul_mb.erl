@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 10. Aug 2023 17:41
 %%%-------------------------------------------------------------------
--module(id_ts_server_why_mul_mb_dont_work).
+-module(id_ts_server_mul_mb).
 -author("duncan").
 
 %%% Includes.
@@ -55,12 +55,11 @@
 -new({id_server_mb, [id_server/0]}).
 -use({id_server_mb, [id_server_loop/1]}).
 -new({id_client_mb, [id_asy/1]}).
--new({id_client_mb, [id_get/0]}).
+-use({id_client_mb, [id_get/0]}).
 
 %% TS server and client.
 -new({ts_server_mb, [ts_server/0]}).
--use({ts_server_mb, [ts_server_loop/0]}).
--use({ts_client_mb, [ts_asy/1]}).
+-new({ts_client_mb, [ts_asy/1]}).
 -use({ts_client_mb, [ts_get/0]}).
 
 %% Problematic definition with multiple mailboxes!
@@ -91,28 +90,13 @@ id_server_loop(N) ->
 
 -spec ts_server() -> no_return().
 ts_server() ->
-  ts_server_loop(). %TODO: Fix once the 'use' bug is fixed.
-
--spec ts_server_loop() -> no_return().
-ts_server_loop() ->
   ?expects("*Now"),
   receive
     {now, Client} ->
       Ts = system_time(),
       Client ! {ts, Ts},
-      ts_server_loop()
+      ts_server()
   end.
-
-
-%%-spec id_rpc(id_server_mb()) -> integer().
-%%id_rpc(Server) ->
-%%  Self = self(),
-%%  Server ! {get, Self},
-%%  ?mb_assert_regex("Id"),
-%%  receive
-%%    {id, Id} ->
-%%      Id
-%%  end.
 
 -spec id_asy(id_server_mb()) -> any().
 id_asy(Server) ->

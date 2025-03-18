@@ -407,6 +407,8 @@ application(Name, Args, Anno) when is_atom(Name), is_list(Args) ->
 % MsgType is a singleton type or a type union.
 
 
+
+
 %%% ----------------------------------------------------------------------------
 %%% Erlang syntactic subset checks.
 %%% ----------------------------------------------------------------------------

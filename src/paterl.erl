@@ -124,7 +124,7 @@ Errors and warnings are printed on the shell.
   Opts :: options().
 check(File, Opts) when is_list(File), is_list(Opts) ->
   maybe
-    % Type checking pipeline.
+  % Type checking pipeline.
     {ok, Forms} ?= load_forms(File, Opts),
     {ok, SsaForms} ?= prep_forms(Forms, Opts),
     {ok, BootstrappedForms, TInfo} ?= type_forms(SsaForms, Opts),
@@ -283,6 +283,11 @@ anno_forms(Forms, TypeInfo, Opts) ->
 
     % Compile sanity check.
     ?assertMatch({ok, _, _}, compile:forms(AnnoForms)),
+    if Verbose =:= all; Verbose =:= anno ->
+      io_util:banner("Annotated Erlang forms"),
+      io_util:log("~p", [AnnoForms]);
+      true -> ok
+    end,
 
     io_util:info("[TRANSLATE] Translating Erlang forms to Pat."),
     PatForms = paterl_trans:module(AnnoForms),
