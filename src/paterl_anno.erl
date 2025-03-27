@@ -197,7 +197,7 @@ get_interfaces(TypeInfo) ->
   Fun =
     fun(Name, Attrs) ->
       case paterl_types:type_def(Name, TypeInfo) of
-        {?T_MBOX, Anno, _, Vars = []} ->
+        {?T_MBOX, Anno, _, _Vars = []} ->
           % Type definition attribute used as mailbox interface.
           ?TRACE("Create interface for mailbox from type '~s'.", [Name]),
 
@@ -380,6 +380,8 @@ annotate_function({function, Anno, Name, Arity, Clauses}, RecFunInfo, TypeInfo, 
   % consideration.
   RecFuns = maps:get(FunRef, RecFunInfo),
 
+%%  HERE:: I need to go through everything and add the MbScopes carefully.
+
   maybe
   % Only one function clause, and therefore, one spec is assumed.
     {?T_SPEC, _, Types} ?= paterl_types:spec_def(FunRef, TypeInfo),
@@ -405,10 +407,17 @@ annotate_function({function, Anno, Name, Arity, Clauses}, RecFunInfo, TypeInfo, 
 
 %%        Anno1 = set_modality(MbMod, set_interfaces(MbScopes, Anno)),
 %%        Interfaces = [{MbMod, MbName} || {MbMod, _, MbName} <- Mbs],
-        Anno0 = set_interfaces(extract_interfaces(Mbs), Anno),
 
+        % TODO: Is this really needed?
+%%        Anno0 = set_interfaces(extract_interfaces(Mbs), Anno),
+%%
+%%        Form0 = map_anno(fun(_) ->
+%%          Anno0 end, erl_syntax:revert(erl_syntax:function(erl_syntax:atom(Name), Analysis1#analysis.result))),
+%%        Analysis1#analysis{result = Form0};
+
+        % TODO: Replaced with this one.
         Form0 = map_anno(fun(_) ->
-          Anno0 end, erl_syntax:revert(erl_syntax:function(erl_syntax:atom(Name), Analysis1#analysis.result))),
+          Anno end, erl_syntax:revert(erl_syntax:function(erl_syntax:atom(Name), Analysis1#analysis.result))),
         Analysis1#analysis{result = Form0};
 
       undefined_mb ->
@@ -500,14 +509,15 @@ annotate_fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body},
   AnnPatSeq = annotate_pat_seq(PatSeq, TypeSeq),
   Anno0 = set_type(RetType, Anno),
 
-  % Set mailbox interface if function is inside mailbox scope.
-%%  TODO: Is this actually needed?
+  % Set mailbox interface if function clause is enclosed within a mailbox scope.
+  % The annotation, while not required since it can be recovered from the
+  % function node, streamlines the translation pass since it would not need to
+  % rely on extra logic to recover the annotation from the function node and
+  % simply reads it from the function clause node.
   Anno1 =
     if
       MbScopes =:= undefined -> Anno0; true ->
-%%      set_interfaces(hd(MbScopes), Anno0) % TODO: This hd() would be removed when we tackle multiple mailboxes
       set_interfaces(MbScopes, Anno0) % TODO: This hd() would be removed when we tackle multiple mailboxes
-%%      Anno0
     end,
 
   % Annotate function body.

@@ -258,7 +258,7 @@ expr(Expr, false) when ?isReceive(Expr) ->
 %%% ----------------------------------------------------------------------------
 
 -doc "Returns a fresh variable name.".
--spec fresh_var() -> paterl_tools:name().
+-spec fresh_var() -> Var :: paterl_syntax:name().
 fresh_var() ->
   paterl_tools:fresh_var(?TEMP_VAR_NAME).
 
