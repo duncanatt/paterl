@@ -143,4 +143,4 @@ main() ->
   format("Id: ~p~n", [Id]).
 
 
-%% ./src/paterl src/examples/erlang/codebeam/id_ts_server_why_mul_mb_dont_work.erl -v all -I include
+%% ./src/paterl src/examples/erlang/codebeam/id_ts_server_mul_mb.erl -v all -I include
