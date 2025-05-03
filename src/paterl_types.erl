@@ -63,6 +63,10 @@
 %% Mailbox interface associated with multiple fun references.
 -define(E_DUP__MB_FUN_REF, e_dup__mb_fun_ref).
 
+%% Function reference associated with multiple mailbox definitions with mixed
+%% modalities.
+-define(E_MIX_MB_FUN_REF, e_mix_mb_fun_ref).
+
 %% Fun reference in mailbox interface definition undefined.
 -define(E_UNDEF__FUN_REF, e_undef__fun_ref).
 
@@ -162,6 +166,7 @@ Type information extraction can fail with the following errors.
 | `e_undef__type`    | type is undefined                                       |
 | `e_undef__fun_spec` | function does omits the corresponding spec             |
 | `e_dup__mb_fun_ref` | mailbox interface is associated with multiple fun references |
+| `e_mix_mb_fun_ref`  | fun reference associated with multiple mailbox definitions with mixed modalities |
 | `e_undef__fun_ref`  | fun reference in a mailbox interface definition is undefined |
 
 The `w_no__pid` warning can also be returned whenever the [`pid()`](`t:pid/0`)
@@ -267,7 +272,7 @@ from [`type_info()`](`t:type_info/0`).
   Mbs :: [mb()].
 mb_fun(FunRef = {_, _}, #type_info{mb_funs = MbFuns}) ->
   case maps:find(FunRef, MbFuns) of
-    {ok, Mb} -> Mb;
+    {ok, Mbs} -> Mbs;
     error -> undefined_mb
   end.
 
@@ -293,6 +298,7 @@ Type information extraction can fail with the following errors.
 | ------------------- | ------------------------------------------------------ |
 | `e_undef__fun_spec` | function does omits the corresponding spec             |
 | `e_dup__mb_fun_ref` | mailbox interface is associated with multiple fun references |
+| `e_mix_mb_fun_ref`  | fun reference associated with multiple mailbox definitions with mixed modalities |
 | `e_undef__fun_ref`  | fun reference in a mailbox interface definition is undefined |
 
 The `w_no__pid` warning can also be returned whenever the [`pid()`](`t:pid/0`)
@@ -329,6 +335,10 @@ analyze_type_info(Forms) ->
     #analysis{status = ok} ?= check_mb_dup_fun_use(UsedMailboxes),
     MbFuns = make_mb_funs(UsedMailboxes),
     ?TRACE("MBUNFS = ~p", [MbFuns]),
+
+    % Check that multiple mailbox definitions on the same function have same
+    % modality.
+    #analysis{status = ok} ?= check_mb_same_modality(MbFuns),
 
     % Check that fun references in mailbox interface definitions are defined.
     #analysis{status = ok} ?= check_mb_fun_refs_defined(MbFuns, SpecDefs0),
@@ -597,6 +607,41 @@ check_mb_dup_fun_use(Mailboxes) when is_list(Mailboxes) ->
     end,
   {_, Analysis0} = lists:foldl(Fun, {#{}, #analysis{}}, Mailboxes),
   Analysis0.
+
+-doc """
+Checks that fun references associated with multiple mailbox interface names
+use the same mailbox modality.
+
+This means that a fun reference is permitted to use multiple mailboxes, all of
+which use either the `-new` or `-use` modality.
+
+### Returns
+a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
+- `status=ok` if all fun references use multiple mailbox defintions with the
+  same modality
+- `status=error` with details otherwise
+""".
+-spec check_mb_same_modality(mb_funs()) -> paterl_lib:analysis().
+check_mb_same_modality(MbFuns) when is_map(MbFuns)->
+  Fun =
+    fun(FunRef = {_, _}, Mbs = [{Modality, Anno, _} | _], Analysis) ->
+      % Check that mailbox interface definitions have same modality.
+      ?TRACE("Mbs = ~p", [Mbs]),
+
+      SameMbs = lists:takewhile(
+        fun({Modality0, _, _}) -> Modality0 =:= Modality end, Mbs
+      ),
+      if Mbs =/= SameMbs ->
+        Node = paterl_syntax:fun_reference(FunRef, Anno),
+        ?ERROR("Fun reference '~s' associated with mailbox definitions with mixed modalities.", [
+          erl_prettypr:format(Node)
+        ]),
+        ?pushError(?E_MIX_MB_FUN_REF, Node, Analysis);
+        true ->
+          Analysis
+      end
+    end,
+  maps:fold(Fun, #analysis{}, MbFuns).
 
 -doc """
 Checks that fun references using mailbox interfaces are defined.
@@ -944,6 +989,11 @@ format_error({?E_UNDEF__FUN_SPEC, Node}) ->
 format_error({?E_DUP__MB_FUN_REF, Node}) ->
   io_lib:format(
     "fun reference '~s' associated with more than one mailbox definition",
+    [erl_prettypr:format(Node)]
+  );
+format_error({?E_MIX_MB_FUN_REF, Node}) ->
+  io_lib:format(
+    "fun reference '~s' associated with mailbox definitions with mixed modalities",
     [erl_prettypr:format(Node)]
   );
 format_error({?E_UNDEF__FUN_REF, Node}) ->
