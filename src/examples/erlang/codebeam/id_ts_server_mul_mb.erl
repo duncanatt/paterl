@@ -54,12 +54,12 @@
 %% ID server and client.
 -new({id_server_mb, [id_server/0]}).
 -use({id_server_mb, [id_server_loop/1]}).
--new({id_client_mb, [id_asy/1]}).
+-use({id_client_mb, [id_asy/1]}).
 -use({id_client_mb, [id_get/0]}).
 
 %% TS server and client.
 -new({ts_server_mb, [ts_server/0]}).
--new({ts_client_mb, [ts_asy/1]}).
+-use({ts_client_mb, [ts_asy/1]}).
 -use({ts_client_mb, [ts_get/0]}).
 
 %% Problematic definition with multiple mailboxes!
