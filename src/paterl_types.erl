@@ -29,7 +29,7 @@
 %%% Public API.
 -export([module/1, format_error/1]).
 -export([type_def/2, type_defs/1, spec_def/2, mb_fun/2]).
--export([mb_name/1, mb_names/1]).
+-export([mb_name/1, mb_names/1, modality/1]).
 
 %%% Public types.
 -export_type([type/0, type_defs/0, spec/0, spec_defs/0, mb/0, mb_funs/0, mb_mod/0, mb_defs/0, type_info/0]).
@@ -284,6 +284,16 @@ mb_name({_Modality, _Anno, MbName}) ->
 mb_names(Mbs) when is_list(Mbs) ->
   [mb_name(Mb) || Mb <- Mbs].
 
+-spec modality(Mb :: mb() | Mbs :: [mb()]) -> Modality :: modality().
+modality({Modality, _Anno, _MbName})
+  when Modality =:= ?MOD_NEW; Modality =:= ?MOD_USE ->
+  Modality;
+modality(Mbs) when is_list(Mbs), length(Mbs) > 0 ->
+  Modality = modality(hd(Mbs)),
+  case lists:filter(fun({Modality0, _, _}) -> Modality =/= Modality0 end, Mbs) of
+    [] -> Modality;
+    _ -> error(?E_MIX_MB_FUN_REF)
+  end.
 
 %%% ----------------------------------------------------------------------------
 %%% Program mailbox interface, type spec, and type information extraction.
@@ -481,7 +491,7 @@ make_mb_funs(Mailboxes) when is_list(Mailboxes) ->
         fun(Mbs) -> [{MbMod, Anno, MbName} | Mbs] end,
         [{MbMod, Anno, MbName}], Ctx)
     end,
-  lists:foldl(Fun, #{}, Mailboxes).
+  lists:foldr(Fun, #{}, Mailboxes).
 
 -doc """
 Returns a [`mb_defs()`](`t:mb_defs/0`) mapping from mailbox interface names to
@@ -622,7 +632,7 @@ a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
 - `status=error` with details otherwise
 """.
 -spec check_mb_same_modality(mb_funs()) -> paterl_lib:analysis().
-check_mb_same_modality(MbFuns) when is_map(MbFuns)->
+check_mb_same_modality(MbFuns) when is_map(MbFuns) ->
   Fun =
     fun(FunRef = {_, _}, Mbs = [{Modality, Anno, _} | _], Analysis) ->
       % Check that mailbox interface definitions have same modality.

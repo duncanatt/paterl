@@ -56,6 +56,8 @@
 
 -define(MA_SCOPES, scopes).
 
+-define(MA_MODALITY, modality).
+
 %% Mailbox annotation regular expression state.
 -define(MA_PATTERN, state).
 
@@ -410,6 +412,8 @@ annotate_function({function, Anno, Name, Arity, Clauses}, RecFunInfo, TypeInfo, 
 
         % TODO: Is this really needed?
 %%        Anno0 = set_interfaces(extract_interfaces(Mbs), Anno),
+%%        Anno0 = set_scopes(get_mb_names(Mbs), Anno),
+%%        ?TRACE("== Anno0 -> ~p", [Anno0]),
 %%
 %%        Form0 = map_anno(fun(_) ->
 %%          Anno0 end, erl_syntax:revert(erl_syntax:function(erl_syntax:atom(Name), Analysis1#analysis.result))),
@@ -517,7 +521,7 @@ annotate_fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body},
   Anno1 =
     if
       MbScopes =:= undefined -> Anno0; true ->
-      set_interfaces(MbScopes, Anno0) % TODO: This hd() would be removed when we tackle multiple mailboxes
+      set_scopes(MbScopes, Anno0) % TODO: This hd() would be removed when we tackle multiple mailboxes
     end,
 
   % Annotate function body.
@@ -560,6 +564,7 @@ annotate_clauses([Clause | Clauses], RecFuns, MbScopes, TypeInfo, Analysis) ->
   Analysis1#analysis{result =
   [Analysis0#analysis.result | Analysis1#analysis.result]
   }.
+% TODO: use a foldl for list manipulation functions.
 
 -doc """
 Annotates a non-function clause.
@@ -809,32 +814,42 @@ annotate_expr(Expr = {call, Anno, Operator = {atom, _, spawn}, MFArgs}, _MbAnno 
       % Check fun reference is defined.
         {?T_SPEC, _, _} ?= paterl_types:spec_def(FunRef, TypeInfo),
 
-        % Check that mailbox interface is defined.
+        % Check that at least one mailbox interface is defined and extract
+        % interfaces.
 %%        {_MbMod, _Anno, MbName} ?= paterl_types:mb_fun(FunRef, TypeInfo),
         Mbs = [_ | _] ?= paterl_types:mb_fun(FunRef, TypeInfo),
+        MbNames = paterl_types:mb_names(Mbs),
+%%        Interfaces = mbs_to_interfaces(Mbs),
+
+        % Override modality with ?new for spawn call.
+        ?DEBUG("Override modalities of '~w' with '~s' on '~s'.", [
+          MbNames, ?MOD_NEW, erl_prettypr:format(Expr)
+        ]),
 
 
         % Override modality with ?new for spawn call.
-        ?DEBUG("Override '~s' with '~s' on '~s'.", [
-
-          lists:foldr(
-            fun({MbMod, Anno, MbName}, Acc) ->
-              [Acc | erl_prettypr:format(paterl_syntax:mb_anno(MbMod, [MbName], Anno))]
-            end, "", Mbs
-          ),
-
-          lists:foldr(
-            fun({_, Anno, MbName}, Acc) ->
-              [Acc | erl_prettypr:format(paterl_syntax:mb_anno(?MOD_NEW, [MbName], Anno))]
-            end, "", Mbs
-          ),
-%%          erl_prettypr:format(paterl_syntax:mb_anno(_MbMod, [MbName], _Anno)),
-%%          erl_prettypr:format(paterl_syntax:mb_anno(?MOD_NEW, [MbName], Anno)),
-          erl_prettypr:format(Expr)
-        ]),
+%%        ?DEBUG("Override '~s' with '~s' on '~s'.", [
+%%
+%%          lists:foldr(
+%%            fun({MbMod, Anno, MbName}, Acc) ->
+%%              [Acc | erl_prettypr:format(paterl_syntax:mb_anno(MbMod, [MbName], Anno))]
+%%            end, "", Mbs
+%%          ),
+%%
+%%          lists:foldr(
+%%            fun({_, Anno, MbName}, Acc) ->
+%%              [Acc | erl_prettypr:format(paterl_syntax:mb_anno(?MOD_NEW, [MbName], Anno))]
+%%            end, "", Mbs
+%%          ),
+%%%%          erl_prettypr:format(paterl_syntax:mb_anno(_MbMod, [MbName], _Anno)),
+%%%%          erl_prettypr:format(paterl_syntax:mb_anno(?MOD_NEW, [MbName], Anno)),
+%%          erl_prettypr:format(Expr)
+%%        ]),
 %%        Anno0 = set_modality(?MOD_NEW, set_interfaces(MbName, Anno)),
 %%        Anno0 = set_interfaces([{?MOD_NEW, Anno, MbName} || {_, Anno, MbName} <- Mbs], Anno),
-        Anno0 = set_interfaces(override_interfaces(?MOD_NEW, Mbs), Anno),
+%%        Anno0 = set_interfaces(override_interfaces(?MOD_NEW, Mbs), Anno),
+%%        Anno0 = set_interfaces(set_modality(?MOD_NEW, Interfaces), Anno),
+        Anno0 = set_modality(?MOD_NEW, set_scopes(MbNames, Anno)),
 
         Expr0 = paterl_syntax:set_anno(
           erl_syntax:application(Operator, MFArgs), Anno0
@@ -903,6 +918,12 @@ annotate_expr(Expr = {call, Anno, Self = {atom, _, self}, []}, {?ANNO_AS, MbName
       ?ERROR("Mailbox interface '~s' not in scope.", [MbName]),
       ?pushError(?E_UNDEF__MB_SCOPE, paterl_syntax:name(MbName, Anno), Analysis#analysis{result = Expr})
   end;
+annotate_expr(Expr = {call, Anno, {atom, _, self}, []}, undefined, _RecFuns, _MbScopes, _, Analysis) ->
+  % Unannotated self expression inside mailbox scope with multiple interfaces.
+  % Invalid.
+  ErrNode = paterl_syntax:mb_anno(?ANNO_AS, [], Anno),
+  ?ERROR("Expected annotation '~s'.", [erl_prettypr:format(ErrNode)]),
+  ?pushError(?E_EXP__ANNO, ErrNode, Analysis);
 annotate_expr(Expr = {call, _, {atom, _, self}, []}, _MbAnno, _RecFuns, _MbScopes, _, Analysis) ->
   % Annotated self expression with invalid annotation (i.e., not ?as). Invalid.
   ?ERROR("Unexpected '~s' on '~s'.", [
@@ -924,24 +945,35 @@ annotate_expr(Expr = {call, Anno, Operator, Exprs}, _MbAnno = undefined, RecFuns
             case paterl_types:mb_fun(FunRef, TypeInfo) of
 %%              {MbMod, _Anno, MbName} ->
               Mbs when is_list(Mbs) ->
+                % Extract interfaces from mailbox types.
+%%                Interfaces = mbs_to_interfaces(Mbs),
+                MbNames = paterl_types:mb_names(Mbs),
+                Modality = paterl_types:modality(Mbs),
+                ?TRACE("0000Mbs = ~w", [Mbs]),
+
+
                 % Called function inside mailbox interface context.
                 % Check if recursive function call. TODO properly later
                 case is_rec_fun_ref(FunRef, RecFuns) of
                   true ->
                     % Recursive call. Override usage modality with ?use.
                     ?DEBUG("Annotate recursive '~s' with inferred mailbox interfaces '~w'.", [
-                      erl_prettypr:format(Expr), Mbs
+                      erl_prettypr:format(Expr), MbNames
                     ]),
 %%                    {set_modality(?MOD_USE, set_interfaces(MbName, Anno)), Analysis};
 %%                    {override_interfaces(?MOD_USE, )}
-                    {set_interfaces(override_interfaces(?MOD_USE, Mbs), Anno), Analysis};
+%%                    {set_interfaces(override_interfaces(?MOD_USE, Mbs), Anno), Analysis};
+%%                    {set_interfaces(set_modality(?MOD_USE, MbNames), Anno), Analysis};
+                      {set_modality(?MOD_USE, set_scopes(MbNames, Anno)), Analysis};
                   false ->
                     % Non-recursive call.
                     ?DEBUG("Annotate '~s' with inferred mailbox interfaces '~w'.", [
-                      erl_prettypr:format(Expr), Mbs
+                      erl_prettypr:format(Expr), MbNames
                     ]),
 %%                    {set_modality(MbMod, set_interfaces(MbName, Anno)), Analysis}
-                    {set_interfaces(extract_interfaces(Mbs), Anno), Analysis}
+%%                    {set_interfaces(extract_interfaces(Mbs), Anno), Analysis}
+%%                    {set_interfaces(MbNames, Anno), Analysis}
+                      {set_modality(Modality, set_scopes(MbNames, Anno)), Analysis}
                 end;
               undefined_mb ->
                 % Called function outside mailbox interface context.
@@ -1043,7 +1075,8 @@ annotate_expr(Expr = {'receive', Anno0, Clauses}, _MbAnno = {?ANNO_EXPECTS, MbNa
       Analysis1#analysis{result = Expr}
   end;
 annotate_expr(Expr = {'receive', Anno, Clauses}, _MbAnno, RecFuns, MbScopes, TypeInfo, Analysis) ->
-  % Annotated self expression with invalid annotation (i.e., not ?as). Invalid.
+  % Annotated receive expression with invalid annotation (i.e., not ?expects).
+  % Invalid.
   ErrNode = paterl_syntax:set_anno(erl_syntax:receive_expr([]), Anno),
   ?ERROR("Unexpected annotation '~s' on '~s'.", [
     erl_prettypr:format(paterl_syntax:mb_anno(_MbAnno)),
@@ -1118,8 +1151,6 @@ functions list.
 is_rec_fun_ref(FunRef = {_, _}, RecFuns) when is_list(RecFuns) ->
   lists:member(FunRef, RecFuns).
 
-
-%% TODO: Still to use.
 -doc """
 Determines whether the specified mailbox is contained in list of mailboxes in
 scope.
@@ -1130,14 +1161,43 @@ is_mb_in_scope(MbName, MbScopes) when is_atom(MbName), is_list(MbScopes) ->
   lists:member(MbName, MbScopes).
 
 
-extract_interfaces(Mbs) when is_list(Mbs) ->
-  [{MbMod, MbName} || {MbMod, _, MbName} <- Mbs].
+% TODO: move to paterl_syntax.
 
-override_interfaces(Modality, Mbs)
-  when
-  Modality =:= ?MOD_NEW, is_list(Mbs);
-  Modality =:= ?MOD_USE, is_list(Mbs) ->
-  [{Modality, MbName} || {_, _, MbName} <- Mbs].
+%%-spec mb_to_interface(MbAnno :: paterl_types:mb()) -> interface().
+%%mb_to_interface({Modality, _, MbName})
+%%  when
+%%  Modality =:= ?MOD_NEW, is_atom(MbName);
+%%  Modality =:= ?MOD_USE, is_atom(MbName) ->
+%%  {Modality, MbName}.
+%%
+%%-spec mbs_to_interfaces(Mbs :: [paterl_types:mb()]) -> [interface()].
+%%mbs_to_interfaces(Mbs) when is_list(Mbs) ->
+%%  [mb_to_interface(MbAnno) || MbAnno <- Mbs].
+
+%% TODO end
+
+% Interfaces are a concept of the annotation and not the syntax. So these
+% functions stay in this module.
+%%-spec set_modality(Modality, Interface | Interfaces) -> Interface0 | Interfaces0
+%%  when
+%%  Modality :: paterl_types:modality(),
+%%  Interface :: interface(),
+%%  Interface0 :: interface(),
+%%  Interfaces :: [interface()],
+%%  Interfaces0 :: [interface()].
+%%set_modality(Modality, {_, MbName})
+%%  when
+%%  Modality =:= ?MOD_NEW, is_atom(MbName);
+%%  Modality =:= ?MOD_USE, is_atom(MbName) ->
+%%  {Modality, MbName};
+%%set_modality(Modality, Interfaces)
+%%  when
+%%  Modality =:= ?MOD_NEW, is_list(Interfaces);
+%%  Modality =:= ?MOD_USE, is_list(Interfaces) ->
+%%  [set_modality(Modality, Interface) || Interface <- Interfaces].
+
+%%modality({Modality, _}) ->
+%%  Modality.
 
 
 %%% ----------------------------------------------------------------------------
@@ -1161,18 +1221,22 @@ scope(Anno) ->
 scopes(Anno) ->
   get_anno_val(Anno, ?MA_SCOPES, undefined).
 
--spec interface(Anno :: ext_anno()) -> Interface :: interface().
-interface(Anno) ->
-  get_anno_val(Anno, ?MA_INTERFACE, undefined).
+-spec modality(Anno :: ext_anno()) -> paterl_types:modality().
+modality(Anno) ->
+  get_anno_val(Anno, ?MA_MODALITY, undefined).
 
--doc """
-Retrieves the **interface** annotation value from the specified annotation.
+%%-spec interface(Anno :: ext_anno()) -> Interface :: interface().
+%%interface(Anno) ->
+%%  get_anno_val(Anno, ?MA_INTERFACE, undefined).
 
-See `get_anno_val/3` for details.
-""".
--spec interfaces(Anno :: ext_anno()) -> [Interface :: interface()].
-interfaces(Anno) ->
-  get_anno_val(Anno, ?MA_INTERFACES, undefined).
+%%-doc """
+%%Retrieves the **interface** annotation value from the specified annotation.
+%%
+%%See `get_anno_val/3` for details.
+%%""".
+%%-spec interfaces(Anno :: ext_anno()) -> [Interface :: interface()].
+%%interfaces(Anno) ->
+%%  get_anno_val(Anno, ?MA_INTERFACES, undefined).
 
 -doc """
 Retrieves the **state** annotation value from the annotation.
@@ -1215,40 +1279,48 @@ set_scope(MbName, Anno) when is_atom(MbName) ->
 set_scopes(MbNames, Anno) when is_list(MbNames) ->
   set_anno_val(Anno, ?MA_SCOPES, MbNames).
 
--spec set_interface(Interface, Anno) -> Anno0
-  when
-  Interface :: interface(),
-  Anno :: ext_anno(),
-  Anno0 :: ext_anno().
-set_interface(Interface, Anno) when
-  is_tuple(Interface), element(1, Interface) =:= ?MOD_NEW, is_atom(element(2, Interface));
-  is_tuple(Interface), element(1, Interface) =:= ?MOD_USE, is_atom(element(2, Interface)) ->
-  set_anno_val(Anno, ?MA_INTERFACE, Interface).
-
--doc """
-Stores the specified `Interface` annotation value in the annotation.
-
-See `set_anno_val/3` for details.
-""".
--spec set_interfaces(Interfaces, Anno) -> Anno0
-  when
-  Interfaces :: [interface()],
-  Anno :: ext_anno(),
-  Anno0 :: ext_anno().
-set_interfaces(Interfaces, Anno) when is_list(Interfaces) ->
-  set_anno_val(Anno, ?MA_INTERFACES, Interfaces).
-
--spec set_interfaces(Modality, Interfaces, Anno) -> Anno0
+-spec set_modality(Modality, Anno) -> Anno0
   when
   Modality :: paterl_types:modality(),
-  Interfaces :: [interface()],
   Anno :: ext_anno(),
   Anno0 :: ext_anno().
-set_interfaces(Modality, Interfaces, Anno) when
-  Modality =:= ?MOD_NEW, is_list(Interfaces);
-  Modality =:= ?MOD_USE, is_list(Interfaces) ->
-  Interfaces0 = [{Modality, MbName} || {_, _, MbName} <- Interfaces],
-  set_anno_val(Anno, ?MA_INTERFACES, Interfaces0).
+set_modality(Modality, Anno) when Modality =:= ?MOD_NEW; Modality =:= ?MOD_USE ->
+  set_anno_val(Anno, ?MA_MODALITY, Modality).
+
+%%-spec set_interface(Interface, Anno) -> Anno0
+%%  when
+%%  Interface :: interface(),
+%%  Anno :: ext_anno(),
+%%  Anno0 :: ext_anno().
+%%set_interface(Interface, Anno) when
+%%  is_tuple(Interface), element(1, Interface) =:= ?MOD_NEW, is_atom(element(2, Interface));
+%%  is_tuple(Interface), element(1, Interface) =:= ?MOD_USE, is_atom(element(2, Interface)) ->
+%%  set_anno_val(Anno, ?MA_INTERFACE, Interface).
+
+%%-doc """
+%%Stores the specified `Interface` annotation value in the annotation.
+%%
+%%See `set_anno_val/3` for details.
+%%""".
+%%-spec set_interfaces(Interfaces, Anno) -> Anno0
+%%  when
+%%  Interfaces :: [interface()],
+%%  Anno :: ext_anno(),
+%%  Anno0 :: ext_anno().
+%%set_interfaces(Interfaces, Anno) when is_list(Interfaces) ->
+%%  set_anno_val(Anno, ?MA_INTERFACES, Interfaces).
+
+%%-spec set_interfaces(Modality, Interfaces, Anno) -> Anno0
+%%  when
+%%  Modality :: paterl_types:modality(),
+%%  Interfaces :: [interface()],
+%%  Anno :: ext_anno(),
+%%  Anno0 :: ext_anno().
+%%set_interfaces(Modality, Interfaces, Anno) when
+%%  Modality =:= ?MOD_NEW, is_list(Interfaces);
+%%  Modality =:= ?MOD_USE, is_list(Interfaces) ->
+%%  Interfaces0 = [{Modality, MbName} || {_, _, MbName} <- Interfaces],
+%%  set_anno_val(Anno, ?MA_INTERFACES, Interfaces0).
 
 -doc """
 Stores the specified `State` annotation value in the annotation.
@@ -1400,6 +1472,18 @@ map_anno_lt(Fun, Tree, Depth) ->
     end,
     0, Tree).
 
+
+%%-spec check_interface(Interface :: interface()) -> ok.
+%%check_interface({Modality, MbName})
+%%  when Modality =:= ?MOD_NEW, is_atom(MbName);
+%%  Modality =:= ?MOD_USE, is_atom(MbName) ->
+%%  ok;
+%%check_interface(_) ->
+%%  error(invalid_interface).
+%%
+%%-spec check_interfaces(Interfaces :: [interface()]) -> ok.
+%%check_interfaces(Interfaces) when is_list(Interfaces) ->
+%%  [].
 
 %%% ----------------------------------------------------------------------------
 %%% Error handling and reporting.
