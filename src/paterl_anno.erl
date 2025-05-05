@@ -548,19 +548,20 @@ a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
 - `status=ok` if annotation is successful
 - `status=error` with details otherwise
 """.
--spec annotate_clauses(Clauses, RecFuns, MbScopes, TypeInfo, Analysis) -> Analysis0
+-spec annotate_clauses(Clauses, MbAnno, RecFuns, MbScopes, TypeInfo, Analysis) -> Analysis0
   when
   Clauses :: [paterl_syntax:clause()],
+  MbAnno :: paterl_syntax:mb_anno(),
   RecFuns :: [paterl_syntax:fun_ref()],
   MbScopes :: [paterl_syntax:name()],
   TypeInfo :: paterl_types:type_info(),
   Analysis :: paterl_lib:analysis(),
   Analysis0 :: paterl_lib:analysis().
-annotate_clauses([], _, _, _, Analysis) ->
+annotate_clauses([], _, _, _, _, Analysis) ->
   Analysis#analysis{result = []};
-annotate_clauses([Clause | Clauses], RecFuns, MbScopes, TypeInfo, Analysis) ->
-  Analysis0 = annotate_clause(Clause, RecFuns, MbScopes, TypeInfo, Analysis),
-  Analysis1 = annotate_clauses(Clauses, RecFuns, MbScopes, TypeInfo, Analysis0),
+annotate_clauses([Clause | Clauses], MbAnno, RecFuns, MbScopes, TypeInfo, Analysis) ->
+  Analysis0 = annotate_clause(Clause, MbAnno, RecFuns, MbScopes, TypeInfo, Analysis),
+  Analysis1 = annotate_clauses(Clauses, MbAnno, RecFuns, MbScopes, TypeInfo, Analysis0),
   Analysis1#analysis{result =
   [Analysis0#analysis.result | Analysis1#analysis.result]
   }.
@@ -585,16 +586,17 @@ a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
 - `status=ok` if annotation is successful
 - `status=error` with details otherwise
 """.
--spec annotate_clause(Clause, RecFuns, MbScopes, TypeInfo, Analysis) -> Analysis0
+-spec annotate_clause(Clause, MbAnno, RecFuns, MbScopes, TypeInfo, Analysis) -> Analysis0
   when
   Clause :: paterl_syntax:clause(),
+  MbAnno :: paterl_syntax:mb_anno(),
   RecFuns :: [paterl_syntax:fun_ref()],
   MbScopes :: [paterl_syntax:name()],
   TypeInfo :: paterl_types:type_info(),
   Analysis :: paterl_lib:analysis(),
   Analysis0 :: paterl_lib:analysis().
 annotate_clause(Clause = {clause, Anno, _PatSeq = [], GuardSeq, Body},
-    RecFuns, MbScopes, TypeInfo, Analysis)
+    _MbAnno, RecFuns, MbScopes, TypeInfo, Analysis)
   when is_list(GuardSeq), is_list(Body) ->
   % If clause.
   ?TRACE("Annotate clause '~s'.", [erl_syntax:type(Clause)]),
@@ -604,16 +606,17 @@ annotate_clause(Clause = {clause, Anno, _PatSeq = [], GuardSeq, Body},
     erl_syntax:clause(GuardSeq, Analysis0#analysis.result), Anno
   ),
   Analysis0#analysis{result = Clause0};
-annotate_clause(Clause = {clause, Anno, PatSeq = [_], GuardSeq = [], Body}, RecFuns, MbScopes, TypeInfo, Analysis) ->
+annotate_clause(Clause = {clause, Anno, PatSeq = [_], GuardSeq = [], Body}, _MbAnno = {?ANNO_EXPECTS, MbName, _}, RecFuns, MbScopes, TypeInfo, Analysis) ->
   % Receive or case clause
   ?TRACE("Annotate clause '~s'.", [erl_syntax:type(Clause)]),
 
   Analysis0 = annotate_expr_seq(Body, RecFuns, MbScopes, TypeInfo, Analysis),
+  Anno0 = set_scope(MbName, Anno),
   Clause0 = paterl_syntax:set_anno(
-    erl_syntax:clause(PatSeq, GuardSeq, Analysis0#analysis.result), Anno
+    erl_syntax:clause(PatSeq, GuardSeq, Analysis0#analysis.result), Anno0
   ),
   Analysis0#analysis{result = Clause0};
-annotate_clause(Clause, _RecFuns, _MbScopes, _, Analysis) ->
+annotate_clause(Clause, _MbAnno, _RecFuns, _MbScopes, _, Analysis) ->
   ?TRACE("Skip clause '~s'.", [erl_syntax:type(Clause)]),
   Analysis.
 
@@ -1007,23 +1010,23 @@ annotate_expr(Expr = {call, _, _, _}, _MbAnno, _RecFuns, _MbScopes, _, Analysis)
   ]),
   ?pushError(?E_BAD__ANNO_ON, Expr, Analysis#analysis{result = Expr});
 
-annotate_expr(Expr = {'receive', Anno, Clauses}, _MbAnno, RecFuns, MbScopes = undefined, TypeInfo, Analysis) ->
+annotate_expr(Expr = {'receive', Anno, Clauses}, MbAnno, RecFuns, MbScopes = undefined, TypeInfo, Analysis) ->
   % Receive expression outside mailbox interface scope. Invalid.
   ErrNode = paterl_syntax:set_anno(erl_syntax:receive_expr([]), Anno),
   ?ERROR("'~s' not in mailbox interface scope.", [erl_prettypr:format(ErrNode)]),
   Analysis0 = ?pushError(?E_NO__MB_SCOPE, ErrNode, Analysis),
 
   % Annotate rest of clauses to uncover further possible errors.
-  Analysis1 = annotate_clauses(Clauses, RecFuns, MbScopes, TypeInfo, Analysis0),
+  Analysis1 = annotate_clauses(Clauses, MbAnno, RecFuns, MbScopes, TypeInfo, Analysis0),
   Analysis1#analysis{result = Expr};
-annotate_expr(Expr = {'receive', Anno, Clauses}, _MbAnno = undefined, RecFuns, MbScopes, TypeInfo, Analysis) ->
+annotate_expr(Expr = {'receive', Anno, Clauses}, MbAnno = undefined, RecFuns, MbScopes, TypeInfo, Analysis) ->
   % Unannotated receive expression. Invalid.
   ErrNode = paterl_syntax:mb_anno(?ANNO_EXPECTS, [], Anno),
   ?ERROR("Expected annotation '~s'.", [erl_prettypr:format(ErrNode)]),
   Analysis0 = ?pushError(?E_EXP__ANNO, ErrNode, Analysis),
 
   % Annotate rest of clauses to uncover further possible errors.
-  Analysis1 = annotate_clauses(Clauses, RecFuns, MbScopes, TypeInfo, Analysis0),
+  Analysis1 = annotate_clauses(Clauses, MbAnno, RecFuns, MbScopes, TypeInfo, Analysis0),
   Analysis1#analysis{result = Expr};
 annotate_expr(Expr = {'receive', _, _}, _MbAnno = {?ANNO_EXPECTS, Pattern}, RecFuns, MbScopes = [MbScope], TypeInfo, Analysis) ->
   % Annotated receive expression without interface name inside mailbox
@@ -1034,7 +1037,7 @@ annotate_expr(Expr = {'receive', _, _}, _MbAnno = {?ANNO_EXPECTS, Pattern}, RecF
   ),
   MbAnno0 = {?ANNO_EXPECTS, MbScope, Pattern},
   annotate_expr(Expr, MbAnno0, RecFuns, MbScopes, TypeInfo, Analysis);
-annotate_expr(Expr = {'receive', Anno0, Clauses}, _MbAnno = {?ANNO_EXPECTS, MbName, Pattern}, RecFuns, MbScopes, TypeInfo, Analysis) ->
+annotate_expr(Expr = {'receive', Anno, Clauses}, MbAnno = {?ANNO_EXPECTS, MbName, Pattern}, RecFuns, MbScopes, TypeInfo, Analysis) ->
   % Annotated receive expression with interface name inside mailbox interface
   % scope with multiple interfaces. Mailbox interface inferred from the
   % enclosing mailbox scope must match the mailbox interface in the annotation.
@@ -1049,7 +1052,7 @@ annotate_expr(Expr = {'receive', Anno0, Clauses}, _MbAnno = {?ANNO_EXPECTS, MbNa
       RetType = erl_syntax:function_type_return(FunType),
 
       % Annotate receive clauses.
-      Analysis0 = annotate_clauses(Clauses, RecFuns, MbScopes, TypeInfo, Analysis),
+      Analysis0 = annotate_clauses(Clauses, MbAnno, RecFuns, MbScopes, TypeInfo, Analysis),
 
       % Function type is used to annotate the receive. Type annotation helps
       % inform the annotation phase when generating 'free' guard patterns in Pat
@@ -1059,39 +1062,39 @@ annotate_expr(Expr = {'receive', Anno0, Clauses}, _MbAnno = {?ANNO_EXPECTS, MbNa
       % type is set such that 'free' returns a dummy value that has the same
       % return type of the enclosing function in Pat.
 %%      Anno2 = set_type(RetType, set_state(Pattern, set_interfaces(MbName, Anno0))),
-      Anno2 = set_type(RetType, set_pattern(Pattern, set_scope(MbName, Anno0))),
+      Anno0 = set_type(RetType, set_pattern(Pattern, set_scope(MbName, Anno))),
       Expr0 = paterl_syntax:set_anno(
-        erl_syntax:receive_expr(Analysis0#analysis.result), Anno2
+        erl_syntax:receive_expr(Analysis0#analysis.result), Anno0
       ),
       Analysis0#analysis{result = Expr0};
     false ->
       % Mailbox interface not in scope. Invalid.
-      ErrNode = paterl_syntax:name(MbName, Anno0),
+      ErrNode = paterl_syntax:name(MbName, Anno),
       ?ERROR("mailbox interface '~s' not in scope", [erl_prettypr:format(ErrNode)]),
       Analysis0 = ?pushError(?E_UNDEF__MB_SCOPE, ErrNode, Analysis),
 
       % Annotate rest of clauses to uncover further possible errors.
-      Analysis1 = annotate_clauses(Clauses, RecFuns, MbScopes, TypeInfo, Analysis0),
+      Analysis1 = annotate_clauses(Clauses, MbAnno, RecFuns, MbScopes, TypeInfo, Analysis0),
       Analysis1#analysis{result = Expr}
   end;
-annotate_expr(Expr = {'receive', Anno, Clauses}, _MbAnno, RecFuns, MbScopes, TypeInfo, Analysis) ->
+annotate_expr(Expr = {'receive', Anno, Clauses}, MbAnno, RecFuns, MbScopes, TypeInfo, Analysis) ->
   % Annotated receive expression with invalid annotation (i.e., not ?expects).
   % Invalid.
   ErrNode = paterl_syntax:set_anno(erl_syntax:receive_expr([]), Anno),
   ?ERROR("Unexpected annotation '~s' on '~s'.", [
-    erl_prettypr:format(paterl_syntax:mb_anno(_MbAnno)),
+    erl_prettypr:format(paterl_syntax:mb_anno(MbAnno)),
     erl_prettypr:format(ErrNode)
   ]),
   Analysis0 = ?pushError(?E_BAD__ANNO_ON, ErrNode, Analysis),
 
   % Annotate rest of clauses to uncover further possible errors.
-  Analysis1 = annotate_clauses(Clauses, RecFuns, MbScopes, TypeInfo, Analysis0),
+  Analysis1 = annotate_clauses(Clauses, MbAnno, RecFuns, MbScopes, TypeInfo, Analysis0),
   Analysis1#analysis{result = Expr};
 
-annotate_expr(_Expr = {'if', Anno, Clauses}, _MbAnno = undefined, RecFuns, MbScopes, TypeInfo, Analysis) ->
+annotate_expr(_Expr = {'if', Anno, Clauses}, MbAnno = undefined, RecFuns, MbScopes, TypeInfo, Analysis) ->
   % Unannotated if expression. Valid.
   ?DEBUG("Annotate '~s'.", [erl_prettypr:format(erl_syntax:if_expr([]))]),
-  Analysis0 = annotate_clauses(Clauses, RecFuns, MbScopes, TypeInfo, Analysis),
+  Analysis0 = annotate_clauses(Clauses, MbAnno, RecFuns, MbScopes, TypeInfo, Analysis),
   Expr0 =
     paterl_syntax:set_anno(erl_syntax:if_expr(Analysis0#analysis.result), Anno),
   Analysis0#analysis{result = Expr0};
