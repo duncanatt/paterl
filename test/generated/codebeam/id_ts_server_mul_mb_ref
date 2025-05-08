@@ -78,19 +78,19 @@ def ts_get(mb16: Ts_client_mb?): (Int * Ts_client_mb?) {
 }
 
 def main(mb18: Id_client_mb?, mb19: Ts_client_mb?): (Unit * Id_client_mb? * Ts_client_mb?) {
-  let(idserver, mb22, mb23) =
+  let(idserver, mb22, mb23) = # MbVarsNew
     (let mb20 =
       new [Id_server_mb]
     in
       let y =
         spawn {
-          let (x, mb21) =
+          let (x, mb21) = # MbVarsCall
             id_server(mb20)
           in
-            free(mb21)
+            free(mb21) # Free MbVarsCall
         }
       in
-        mb20, mb18, mb19)
+        mb20, mb18, mb19) # mb20=new mailbox, mb18 and mb19=state-passing mailboxes.
   in
     let (tsserver, mb26, mb27) =
       (let mb24 =
