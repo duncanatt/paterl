@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 10. Aug 2023 17:41
 %%%-------------------------------------------------------------------
--module(id_ts_server_mul_mb).
+-module(id_ts_server_mul_mb_demo).
 -author("duncan").
 
 %%% Includes.
@@ -143,4 +143,4 @@ main() ->
   format("Id: ~p~n", [Id]).
 
 
-%% ./src/paterl src/examples/erlang/codebeam/id_ts_server_mul_mb.erl -v all -I include
+%% ./src/paterl src/examples/erlang/codebeam/id_ts_server_mul_mb_demo.erl -v all -I include

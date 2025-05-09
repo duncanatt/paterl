@@ -25,7 +25,10 @@ in
       let (x, mb3) =
         smoker(mb2, self)
       in
-        free(mb3)
+        let y =
+          free(mb3)
+        in
+          x
     }
   in
     mb2, mb1)
@@ -39,7 +42,10 @@ in
       let (x, mb6) =
         smoker(mb5, self)
       in
-        free(mb6)
+        let y =
+          free(mb6)
+        in
+          x
     }
   in
     mb5, mb4)
@@ -53,7 +59,10 @@ in
       let (x, mb9) =
         smoker(mb8, self)
       in
-        free(mb9)
+        let y =
+          free(mb9)
+        in
+          x
     }
   in
     mb8, mb7)
@@ -168,7 +177,10 @@ in
       let (x, mb31) =
         arbiter(mb30, 10)
       in
-        free(mb31)
+        let y =
+          free(mb31)
+        in
+          x
     }
   in
     mb30, mb29)

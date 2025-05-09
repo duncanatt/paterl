@@ -77,7 +77,10 @@ in
       let (x, mb18) =
         counter(mb17, 0)
       in
-        free(mb18)
+        let y =
+          free(mb18)
+        in
+          x
     }
   in
     mb17, mb16)
@@ -91,7 +94,10 @@ in
       let (x, mb21) =
         producer(mb20, counter, 16)
       in
-        free(mb21)
+        let y =
+          free(mb21)
+        in
+          x
     }
   in
     mb20, mb19)

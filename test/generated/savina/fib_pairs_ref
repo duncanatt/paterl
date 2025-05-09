@@ -24,7 +24,10 @@ in
       let (x, mb4) =
         fib_actor(mb3)
       in
-        free(mb4)
+        let y =
+          free(mb4)
+        in
+          x
     }
   in
     mb3, mb2)
@@ -41,7 +44,10 @@ in
       let (x, mb8) =
         fib_actor(mb7)
       in
-        free(mb8)
+        let y =
+          free(mb8)
+        in
+          x
     }
   in
     mb7, mb6)
@@ -79,7 +85,10 @@ in
       let (x, mb18) =
         fib_actor(mb17)
       in
-        free(mb18)
+        let y =
+          free(mb18)
+        in
+          x
     }
   in
     mb17, mb16)

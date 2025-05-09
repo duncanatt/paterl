@@ -76,7 +76,10 @@ in
       let (x, mb17) =
         pong(mb16)
       in
-        free(mb17)
+        let y =
+          free(mb17)
+        in
+          x
     }
   in
     mb16, mb15)
@@ -90,7 +93,10 @@ in
       let (x, mb20) =
         ping(mb19, 5)
       in
-        free(mb20)
+        let y =
+          free(mb20)
+        in
+          x
     }
   in
     mb19, mb18)

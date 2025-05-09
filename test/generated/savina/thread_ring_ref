@@ -74,7 +74,10 @@ def init_ring(numactors: Int, main: Actor_mb!): Unit {
             let (x, mb16) =
               actor(mb15, numactors)
             in
-              free(mb16)
+              let y =
+                free(mb16)
+              in
+                x
           }
         in
           mb15
@@ -99,7 +102,10 @@ def create_actors(count: Int, numactors: Int, prevactor: Actor_mb!): Actor_mb! {
           let (x, mb18) =
             actor(mb17, numactors)
           in
-            free(mb18)
+            let y =
+              free(mb18)
+            in
+              x
         }
       in
         mb17

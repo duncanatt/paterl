@@ -126,7 +126,10 @@ in
       let (x, mb28) =
         arbiter(mb27, 2, false, false)
       in
-        free(mb28)
+        let y =
+          free(mb28)
+        in
+          x
     }
   in
     mb27, mb26)
@@ -140,7 +143,10 @@ in
       let (x, mb31) =
         philosopher(mb30, 0, numrounds, arbiter)
       in
-        free(mb31)
+        let y =
+          free(mb31)
+        in
+          x
     }
   in
     mb30, mb29)
@@ -157,7 +163,10 @@ in
       let (x, mb35) =
         philosopher(mb34, 1, numrounds, arbiter)
       in
-        free(mb35)
+        let y =
+          free(mb35)
+        in
+          x
     }
   in
     mb34, mb33)

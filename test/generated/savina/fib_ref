@@ -22,7 +22,10 @@ in
       let (x, mb3) =
         fib(mb2)
       in
-        free(mb3)
+        let y =
+          free(mb3)
+        in
+          x
     }
   in
     mb2, mb1)
@@ -36,7 +39,10 @@ in
       let (x, mb6) =
         fib(mb5)
       in
-        free(mb6)
+        let y =
+          free(mb6)
+        in
+          x
     }
   in
     mb5, mb4)
@@ -73,7 +79,10 @@ in
       let (x, mb16) =
         fib(mb15)
       in
-        free(mb16)
+        let y =
+          free(mb16)
+        in
+          x
     }
   in
     mb15, mb14)

@@ -1,3 +1,5 @@
+# Translated from id_ts_server_mul_mb_demo.erl
+
 interface Id_client_mb {
   Id(Int)
 }
@@ -70,80 +72,84 @@ def ts_asy(mb15: Ts_client_mb?, server: Ts_server_mb!): (Unit * Ts_client_mb?) {
     (server ! Now(self), mb16)
 }
 
-def ts_get(mb16: Ts_client_mb?): (Int * Ts_client_mb?) {
-  guard mb16: Ts {
-    receive Ts(ts) from mb17 ->
-      (ts, mb17)
+def ts_get(mb17: Ts_client_mb?): (Int * Ts_client_mb?) {
+  guard mb17: Ts {
+    receive Ts(ts) from mb18 ->
+      (ts, mb18)
   }
 }
 
-def main(mb18: Id_client_mb?, mb19: Ts_client_mb?): (Unit * Id_client_mb? * Ts_client_mb?) {
-  let(idserver, mb22, mb23) = # MbVarsNew
-    (let mb20 =
-      new [Id_server_mb]
-    in
-      let y =
-        spawn {
-          let (x, mb21) = # MbVarsCall
-            id_server(mb20)
-          in
-            free(mb21) # Free MbVarsCall
-        }
+def main(mb19: Id_client_mb?, mb20: Ts_client_mb?): (Unit * Id_client_mb? * Ts_client_mb?) {
+  let (idserver, mb23, mb24) =
+    (let mb21 =
+  new [Id_server_mb]
+in
+  let y =
+    spawn {
+      let (x, mb22) =
+        id_server(mb21)
       in
-        mb20, mb18, mb19) # mb20=new mailbox, mb18 and mb19=state-passing mailboxes.
+        let y =
+          free(mb22)
+        in
+          x
+    }
   in
-    let (tsserver, mb26, mb27) =
-      (let mb24 =
-        new [Ts_server_mb]
+    mb21, mb19, mb20)
+  in
+    let (tsserver, mb27, mb28) =
+      (let mb25 =
+  new [Ts_server_mb]
+in
+  let y =
+    spawn {
+      let (x, mb26) =
+        ts_server(mb25)
       in
-        let x =
-          spawn {
-            let (x, mb25) =
-              ts_server(mb24)
-            in
-              free(mb25)
-          }
+        let y =
+          free(mb26)
         in
-        mb24, mb22, mb23)
+          x
+    }
+  in
+    mb25, mb23, mb24)
     in
-      let (v3, mb28, mb29) =
-        (idserver ! Init(5), mb26, mb27)
+      let (v2, mb29, mb30) =
+        (idserver ! Init(5), mb27, mb28)
       in
-        let (v4, mb30) =
-          id_asy(mb28, idserver)
+        let (v3, mb31) =
+          id_asy(mb29, idserver)
         in
-          let(v5, mb31) =
-            ts_asy(mb29, tsserver)
+          let (v4, mb32) =
+            ts_asy(mb30, tsserver)
           in
-            let (ts, mb32) =
-              ts_get(mb31)
+            let (ts, mb33) =
+              ts_get(mb32)
             in
-              let (v6, mb33, mb34) =
-                ((), mb30, mb32)
+              let (v5, mb34, mb35) =
+                ((), mb31, mb33)
               in
-                let (id, mb35) =
-                  id_get(mb33)
+                let (id, mb36) =
+                  id_get(mb34)
                 in
-                  ((), mb35, mb34)
+                  ((), mb36, mb35)
 }
 
 def main'(): Unit {
-  let mb36 =
+  let mb37 =
     new [Id_client_mb]
   in
-    let mb37 =
+    let mb38 =
       new [Ts_client_mb]
     in
-      let (x, mb38, mb39) =
-        main(mb36, mb37)
+      let (x, mb39, mb40) =
+        main(mb37, mb38)
       in
         let y =
-          free(mb38)
-        in
           free(mb39)
+        in
+          let y =
+            free(mb40)
+          in
+            x
 }
-
-
-
-
-

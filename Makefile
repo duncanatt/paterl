@@ -41,6 +41,9 @@ test: compile-test
 	echo "CodeBEAM/ID TS server test"
 	$(CMD) $(SRC)/examples/erlang/codebeam/id_ts_server_demo.erl -v all -I include -o $(BIN)
 	diff $(BIN)/id_ts_server_demo.pat $(TEST)/generated/codebeam/id_ts_server_demo_ref
+	echo "CodeBEAM/ID TS server mul mb test"
+	$(CMD) $(SRC)/examples/erlang/codebeam/id_ts_server_mul_mb_demo.erl -v all -I include -o $(BIN)
+	diff $(BIN)/id_ts_server_mul_mb_demo.pat $(TEST)/generated/codebeam/id_ts_server_mul_mb_demo_ref
 	echo "De'Liguoro & Padovani/Future test"
 	$(CMD) $(SRC)/examples/erlang/de_liguoro_padovani/future.erl -v all -I include -o $(BIN)
 	diff $(BIN)/future.pat $(TEST)/generated/de_liguoro_padovani/future_ref

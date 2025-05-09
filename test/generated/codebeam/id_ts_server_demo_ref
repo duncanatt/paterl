@@ -92,7 +92,10 @@ in
       let (x, mb22) =
         id_server(mb21)
       in
-        free(mb22)
+        let y =
+          free(mb22)
+        in
+          x
     }
   in
     mb21, mb20)
@@ -106,7 +109,10 @@ in
       let (x, mb25) =
         ts_server(mb24)
       in
-        free(mb25)
+        let y =
+          free(mb25)
+        in
+          x
     }
   in
     mb24, mb23)

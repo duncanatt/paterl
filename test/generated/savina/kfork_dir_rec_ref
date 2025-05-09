@@ -43,7 +43,10 @@ in
       let (x, mb7) =
         actor(mb6)
       in
-        free(mb7)
+        let y =
+          free(mb7)
+        in
+          x
     }
   in
     mb6, mb5)
@@ -57,7 +60,10 @@ in
       let (x, mb10) =
         actor(mb9)
       in
-        free(mb10)
+        let y =
+          free(mb10)
+        in
+          x
     }
   in
     mb9, mb8)
@@ -71,7 +77,10 @@ in
       let (x, mb13) =
         actor(mb12)
       in
-        free(mb13)
+        let y =
+          free(mb13)
+        in
+          x
     }
   in
     mb12, mb11)

@@ -53,7 +53,10 @@ in
       let (x, mb12) =
         id_server(mb11)
       in
-        free(mb12)
+        let y =
+          free(mb12)
+        in
+          x
     }
   in
     mb11, mb10)

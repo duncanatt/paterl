@@ -31,6 +31,7 @@ representation.
 
 %%% Public API.
 -export([module/1]).
+-compile(export_all).
 
 %%% ----------------------------------------------------------------------------
 %%% Macro and record definitions.
@@ -61,9 +62,6 @@ representation.
 %%% ----------------------------------------------------------------------------
 %%% Type definitions.
 %%% ----------------------------------------------------------------------------
-
-
-
 
 
 %%% ----------------------------------------------------------------------------
@@ -133,7 +131,7 @@ type({type, _, pid, _Vars = []}) ->
 type(Type = {type, _, Name, _Vars = []}) when ?isLitType(Type) ->
   % Erlang literal types.
   pat_syntax:lit_type(Name);
-type(Type = {type, _, Name, _Vars = []}) when ?isUnitEqType(Type) ->
+type(Type = {type, _, _Name, _Vars = []}) when ?isUnitEqType(Type) ->
   % Erlang special type translated as Pat unit type.
   pat_syntax:lit_type(unit);
 type({atom, _, ok}) ->
@@ -167,40 +165,48 @@ type_seq([Type | TypeSeq]) ->
 -doc """
 Generic function that translates a list of Erlang clauses in a mailbox context.
 """.
-clauses(Fun, Clauses, Mb) when is_function(Fun, 2), is_list(Clauses) ->
-  [Fun(Clause, Mb) || Clause <- Clauses].
+clauses(Fun, Clauses, MbVars) when is_function(Fun, 2), is_list(Clauses) ->
+  [Fun(Clause, MbVars) || Clause <- Clauses].
 
 -doc "Translates a list of Erlang case or receive clauses.".
-case_clauses(Clauses, Mbs) ->
-  ?TRACE("(~w) Translate case/receive clauses.", [Mbs]),
-  clauses(fun case_clause/2, Clauses, Mbs).
+case_clauses(Clauses, MbVars) ->
+  ?TRACE("~w Translate case/receive clauses.", [MbVars]),
+  clauses(fun case_clause/2, Clauses, MbVars).
 
 -doc "Translates a list of Erlang if clauses.".
-if_clauses(Clauses, Mb) ->
-  ?TRACE("(~s) Translate if clauses.", [Mb]),
-  clauses(fun if_clause/2, Clauses, Mb).
+if_clauses(Clauses, MbVars) ->
+  ?TRACE("~w Translate if clauses.", [MbVars]),
+  clauses(fun if_clause/2, Clauses, MbVars).
 
 -doc "Translate an Erlang case of receive clause.".
-case_clause(_Clause = {clause, _, PatSeq = [_], _GuardSeq = [], Body}, _Mbs) ->
+case_clause(_Clause = {clause, Anno, PatSeq = [_], _GuardSeq = [], Body}, MbNameVars) ->
   % Erlang unconstrained case and receive clause.
-  ?TRACE("(~w) Translate case/receive clause.", [_Mbs]),
-  Mb = fresh_mb(),
-  Expr = expr(Body, Mb),
+  ?TRACE("~w Translate case/receive clause.", [MbNameVars]),
+%%  MbVar0 = fresh_mb(),
+  MbName = paterl_anno:scope(Anno),
+%%  MbVar = mb_var(MbName, MbNameVars),
+
+  % Rebind mailbox variable.
+  {MbVar0, MbNameVars0} = rebind_mb_var(MbName, MbNameVars),
+
+  Expr = expr(Body, MbNameVars0),
   [MsgPat] = pat_seq(PatSeq),
-  pat_syntax:receive_expr(MsgPat, pat_syntax:var(Mb), Expr).
+  pat_syntax:receive_expr(MsgPat, pat_syntax:var(MbVar0), Expr).
 
 -doc "Translate an Erlang if clause.".
-if_clause(_Clause = {clause, _, _PatSeq = [], [[GuardTest]], ExprSeq}, Mbs) ->
+if_clause(_Clause = {clause, _, _PatSeq = [], [[GuardTest]], ExprSeq}, MbVars) ->
   % Erlang constrained if clause with exactly one guard and one guard test.
-  ?TRACE("(~w) Translate if clause.", [Mbs]),
-  {guard_test(GuardTest), expr(ExprSeq, Mbs)}.
+  ?TRACE("~w Translate if clause.", [MbVars]),
+  {guard_test(GuardTest), expr(ExprSeq, MbVars)}.
 
 -doc """
 Translates an Erlang expression sequence into its equivalent single nested Pat
 `let` expression.
 """.
-expr(ExprSeq, Mb) ->
-  [Expr] = expr_seq(ExprSeq, Mb),
+expr(ExprSeq, MbVars) ->
+  ?TRACE("BEFORE translating singleton expr seq"),
+  [Expr] = expr_seq(ExprSeq, MbVars),
+  ?TRACE("AFTER translating singleton expr seq"),
   Expr.
 
 -doc """
@@ -212,17 +218,25 @@ equivalent single nested Pat `let` expression.
 """.
 expr_seq([], _) ->
   [];
-expr_seq([{call, _, {atom, _, self}, _MFArgs = []} | ExprSeq], Mb) ->
+expr_seq([{call, Anno, {atom, _, self}, _MFArgs = []} | ExprSeq], MbNameVars) -> %TODO: MbVars should be a key val list {mb_name, mb_var}
   % Erlang self function call expression.
-  ?TRACE("(~s) Translate self expression.", [Mb]),
-  MbVar = pat_syntax:var(Mb),
-  [pat_syntax:tuple([MbVar, MbVar]) | expr_seq(ExprSeq, Mb)];
-expr_seq([Expr = {call, Anno, {atom, _, Name}, Args} | ExprSeq], Mb) when Name =/= spawn ->
-  % Erlang implicitly-qualified local function call (i.e. function name is an
-  % atom) and implicitly-qualified local mailbox-annotated function call.
+  ?TRACE("~w Translate self expression.", [MbNameVars]),
+
+  MbName = paterl_anno:scope(Anno),
+  ?TRACE("MbName = ~s", [MbName]),
+
+%%  rebind_mb_vars()
+
+  MbVar = mb_var(MbName, MbNameVars),
+  ?TRACE("MbVar = ~p", [MbVar]),
+  Var = pat_syntax:var(MbVar),
+%%  [pat_syntax:tuple([MbVar0, MbVar0]) | expr_seq(ExprSeq, MbNameVars)];
+  Vars = [pat_syntax:var(MbVar) || MbVar <- mb_vars(MbNameVars)],
+  [pat_syntax:tuple([Var | Vars]) | expr_seq(ExprSeq, MbNameVars)];
+expr_seq([Expr = {call, Anno, {atom, _, Name}, Args} | ExprSeq], MbNameVars) when Name =/= spawn ->
+  % Erlang static function call and mailbox-annotated static function call.
   %
-  % Erlang explicit function calls (i.e. function name is an expression) are
-  % unsupported, as are remote function calls.
+  % Dynamic and remote function calls are unsupported.
   %
   % The guard 'Name =/= spawn' is added to force passing calls to 'spawn' to the
   % catch-all clause, which in turn, translates it outside the mailbox context.
@@ -231,39 +245,168 @@ expr_seq([Expr = {call, Anno, {atom, _, Name}, Args} | ExprSeq], Mb) when Name =
   % treats 'spawn' as a regular function call. Such a distinction would not be
   % needed in practice and removing 'Name =/= spawn' yields the same translated
   % output.
+  MbNames = paterl_anno:scopes(Anno),
   Call0 =
-    case paterl_anno:interfaces(Anno) of
+    case MbNames of
       undefined ->
         % Call to function call outside mailbox context.
-        ?TRACE("(~s) Translate call to ~s/~b.", [Mb, Name, length(Args)]),
+        ?TRACE("~w Translate call to ~s/~b.", [MbNameVars, Name, length(Args)]),
         Call = expr([Expr]),
-        pat_syntax:tuple([Call, pat_syntax:var(Mb)]);
 
-      _Interface ->
+%%        ExprSeq0 = [pat_syntax:var(MbVar) || MbVar <- MbNameVars],
+        % Create state-passing tuple.
+        Vars0 = [pat_syntax:var(MbVar) || MbVar <- mb_vars(MbNameVars)],
+%%        pat_syntax:tuple([Call, pat_syntax:var(MbVars)]);
+        pat_syntax:tuple([Call | Vars0]);
+
+      _MbNames ->
         % Call to function call inside mailbox context.
         Modality = paterl_anno:modality(Anno),
-        ?TRACE("(~s) Translate call to ~s/~b [~s, ~s].", [
-          Mb, Name, length(Args), _Interface, Modality
+        ?TRACE("~w Translate call to '~s/~b' with interfaces '~w' and modality '~s'.", [
+          MbNameVars, Name, length(Args), _MbNames, Modality
         ]),
-        case Modality of
-          new ->
-            % Inject new mailbox.
-            Call = expr([Expr]),
-            pat_syntax:tuple([Call, pat_syntax:var(Mb)]);
 
-          use ->
-            % Thread through existing mailbox.
-            Args0 = [erl_syntax:revert(erl_syntax:atom(Mb)) | Args],
-            pat_syntax:call_expr(Name, args(Args0))
+        % TODO
+%%        MbVars0 = mb_vars(MbNameVars),
+%%        ?TRACE("++MbNames = ~p", [MbNames]),
+
+        case Modality of
+          ?MOD_NEW ->
+            % Inject new mailbox variables.
+            % Create state-passing tuple.
+            ?TRACE("[NEW] MbNamesVars = ~w", [MbNameVars]),
+            ?TRACE("[NEW] MbNames = ~w", [MbNames]),
+            Call = expr([Expr]),
+            ?TRACE("After translating call OUTSIDE mailbox scope"),
+            ?TRACE("[NEW] MbNamesVars = ~w", [MbNameVars]),
+            ?TRACE("[NEW] MbNames = ~w", [MbNames]),
+%%            Vars0 = [pat_syntax:var(MbVar0) || MbVar0 <- MbVars0],
+%%            Vars0 = [pat_syntax:var(MbVar) || MbVar <- mb_vars(MbNames, MbNameVars)],
+            Vars0 = [pat_syntax:var(MbVar) || MbVar <- mb_vars(MbNameVars)],
+            ?TRACE("Call and vars translated"),
+            pat_syntax:tuple([Call | Vars0]);
+          ?MOD_USE ->
+            % Thread through existing mailbox variables.
+%%            Args0 = [erl_syntax:revert(erl_syntax:atom(MbVar0)) || MbVar0 <- MbVars0],
+            ?TRACE("[USE] MbNamesVars = ~w", [MbNameVars]),
+            ?TRACE("[USE] MbNames = ~w", [MbNames]),
+            Vars0 = [pat_syntax:var(MbVar) || MbVar <- mb_vars(MbNames, MbNameVars)],
+            ?TRACE("After translating vars"),
+%%            pat_syntax:call_expr(Name, args(Args0 ++ Args))
+            X = pat_syntax:call_expr(Name, Vars0 ++ args(Args)),
+            ?TRACE("After translating call expression with ?USE modality"),
+            X
         end
+
+
+%%        Modality = paterl_anno:modality(Anno),
+%%        ?TRACE("(~s) Translate call to ~s/~b [~s, ~s].", [
+%%          Mb, Name, length(Args), _Interfaces, Modality
+%%        ]),
+%%        case Modality of
+%%          new ->
+%%            % Inject new mailbox.
+%%            Call = expr([Expr]),
+%%            pat_syntax:tuple([Call, pat_syntax:var(Mb)]);
+%%
+%%          use ->
+%%            % Thread through existing mailbox.
+%%            Args0 = [erl_syntax:revert(erl_syntax:atom(Mb)) | Args],
+%%            pat_syntax:call_expr(Name, args(Args0))
+%%        end
     end,
-  [Call0 | expr_seq(ExprSeq, Mb)];
-expr_seq([{match, _, Pat, Expr} | ExprSeq], Mb) ->
+  [Call0 | expr_seq(ExprSeq, MbNameVars)];
+expr_seq([{match, _, Pat, Expr} | ExprSeq], MbNameVars) ->
   % Erlang match expression.
-  ?TRACE("(~s) Translate match expression.", [Mb]),
-  Expr0 = expr([Expr], Mb),
-  Mb0 = fresh_mb(),
-  Binders = pat_syntax:tuple([pat(Pat), pat_syntax:var(Mb0)]),
+  ?TRACE("~w Translate match expression.", [MbNameVars]),
+  ?TRACE("~n~nMatch expression has pattern ~s", [erl_prettypr:format(Pat)]),
+
+  Expr0 = expr([Expr], MbNameVars),
+
+  ?TRACE("-----After translating expr in match"),
+
+  % The size of tuple to use as a binder an a Pat let expression depends on
+  % whether the corresponding Erlang match expression body is a function call or
+  % otherwise. If a function call, the size of the tuple used in the Pat let
+  % binding must correspond with the one returned by the called function.
+  % Otherwise, the size of the tuple corresponds with the size of the state-
+  % passing tuple.
+  {MbVars0, MbNameVars0} =
+    case erl_syntax:type(Expr) of
+      application ->
+        case paterl_anno:scopes(erl_syntax:get_pos(Expr)) of
+          undefined ->
+            % Normal function call which returns a singleton value. Binders
+            % in let tuple correspond to state-passing tuple.
+            ?TRACE("~w Translate match expression with function call outside mailbox context.", [MbNameVars]),
+            rebind_mb_vars(MbNameVars);
+%%            {ok, ok};
+          MbNames ->
+            % Function call in mailbox context which returns a tuple. Binders
+            % correspond to values in tuple returned by function call.
+            % Erlang calls to spawn are treated as normal function calls.
+            case erl_syntax:atom_value(erl_syntax:application_operator(Expr)) of
+              Op = spawn ->
+                % Spawn function call. Binders in let tuple correspond to state-
+                % passing tuple
+                ?TRACE("~w Translate match expression with '~s' call inside mailbox context.", [MbNameVars, Op]),
+                rebind_mb_vars(MbNameVars);
+%%                {ok, ok};
+              Op ->
+                % Any other function call. Binders in let tuple correspond to
+                % values in tuple returned by function call.
+                ?TRACE("~w Translate match expression with '~s' call inside mailbox context.", [MbNameVars, Op]),
+                ?TRACE("Match expression body = ~p", [Expr]),
+                ?TRACE("Rebind variables associated with ~w in ~w", [MbNames, MbNameVars]),
+
+                % Check if call is new or use.
+                ?TRACE("Called function uses ~s modality.", [paterl_anno:modality(erl_syntax:get_pos(Expr))]),
+                case paterl_anno:modality(erl_syntax:get_pos(Expr)) of
+                  ?MOD_NEW ->
+                    % When modality of call is new, the generated function call
+                    % is closed and we need to rebind all variables since these
+                    % the state-passing tuple variables are independent of the
+                    % ones returned by the call.
+                    rebind_mb_vars(MbNameVars);
+                  ?MOD_USE ->
+                    % When the modality of call is use, the generated function
+                    % call is open and we need to rebind only those state-
+                    % passing tuple variables corresponding to the ones returned
+                    % by the function call and leave the rest of the state-
+                    % passing tuple variables in the parent mailbox unchanged.
+                    X = rebind_mb_vars(MbNames, MbNameVars),
+                    ?TRACE("Let variables to rebind = ~w", [X]),
+                    X
+                end
+
+
+%%                rebind_mb_vars(MbNameVars)
+%%                {ok, ok}
+            end
+        end;
+      _ ->
+        % Any other expression. Binders in let tuple correspond to state-passing
+        % tuple.
+        ?TRACE("~w Translate match expression with expression.", [MbNameVars]),
+        rebind_mb_vars(MbNameVars)
+%%        {ok, ok}
+    end,
+
+
+
+
+  % Create fresh variable names for each mailbox name in scope to rebind them.
+%%  MbVars0 = [{MbName, fresh_mb()} || {MbName, _} <- MbVars],
+  % Rebind mailbox variables.
+%%  {MbVars0, MbNameVars0} = rebind_mb_vars(MbVars),
+
+
+  ?TRACE("MbVars = ~w", [MbNameVars]),
+  ?TRACE("MbVars0 = ~w", [MbVars0]),
+%%  Vars0 = [pat_syntax:var(MbVar0) || {_, MbVar0} <- MbVars0],
+  Vars0 = [pat_syntax:var(MbVar0) || MbVar0 <- MbVars0],
+%%  Binders = pat_syntax:tuple([pat(Pat), pat_syntax:var(MbVar0)]),
+  Binders = pat_syntax:tuple([pat(Pat) | Vars0]),
 
   % Rest of Erlang expression sequence is translated because Pat let expressions
   % induce nested evaluation context rooted at this top-level let expression.
@@ -276,41 +419,51 @@ expr_seq([{match, _, Pat, Expr} | ExprSeq], Mb) ->
         Binders;
       ExprSeq ->
         % Non-empty expression sequence.
-        expr(ExprSeq, Mb0)
+        expr(ExprSeq, MbNameVars0)
     end,
   [pat_syntax:let_expr(Binders, Expr0, Body)];
-expr_seq([{'if', _, [Clause0, Clause1]} | ExprSeq], Mb) ->
+expr_seq([{'if', _, [Clause0, Clause1]} | ExprSeq], MbVars) ->
   % Erlang expression sequence with exactly two clauses. This constraint pair
   % corresponds to the 'if' and 'else' branches in Pat.
-  ?TRACE("(~s) Translate if-else expression.", [Mb]),
-  {ExprC, ExprT} = if_clause(Clause0, Mb), % If.
-  {{boolean, _, true}, ExprF} = if_clause(Clause1, Mb), % Else.
-  [pat_syntax:if_expr(ExprC, ExprT, ExprF) | expr_seq(ExprSeq, Mb)];
-expr_seq([{'receive', Anno, Clauses} | ExprSeq], Mbs) ->
+  ?TRACE("~w Translate if-else expression.", [MbVars]),
+  {ExprC, ExprT} = if_clause(Clause0, MbVars), % If.
+  {{boolean, _, true}, ExprF} = if_clause(Clause1, MbVars), % Else.
+  [pat_syntax:if_expr(ExprC, ExprT, ExprF) | expr_seq(ExprSeq, MbVars)];
+expr_seq([{'receive', Anno, Clauses} | ExprSeq], MbNameVars) ->
   % Erlang unconstrained receive expression. Corresponds to a Pat guard
   % expression.
-  State = paterl_anno:pattern(Anno),
-  ?TRACE("~w Translate receive expression guarding on '~s'.", [Mbs, State]),
-  ReceiveClauses = case_clauses(Clauses, Mbs),
+  Pattern = paterl_anno:pattern(Anno),
+  MbName = paterl_anno:scope(Anno),
 
-%%  NEED TO FINISH THIS!
+%%  {_, MbNameVars1} = rebind_mb_vars(MbNameVars),
+
+  ?TRACE("~w Translate receive expression guarding on '~s' with '~s'.", [MbNameVars, MbName, Pattern]),
+%%  ReceiveClauses = case_clauses(Clauses, MbNameVars1),
+  ReceiveClauses = case_clauses(Clauses, MbNameVars),
 
   % Check mailbox regular expression for emptiness to determine if a Pat empty
   % expression is required.
   ReceiveClauses0 =
-    case pat_regex:is_mb_empty(State) of
+    case pat_regex:is_mb_empty(Pattern) of
       true ->
         % Mailbox may be empty. Add Pat empty expression.
-        MbVar = pat_syntax:var(fresh_mb()),
+        ?TRACE("~w Mailbox '~s' may be empty.", [MbNameVars, MbName]),
+
+        % Rebind mailbox variable.
+        {MbVar0, MbNameVars0} = rebind_mb_var(MbName, MbNameVars),
 
         % BEGIN HACK: Determine unit datum to return based on the return type of the
         % enclosing function.
         {type, _, Type, _} = paterl_anno:type(Anno),
         Unit = get_unit_value(Type),
-        ?TRACE("(~s) HACK: Generating unit value ~p for type ~p", [Mbs, Unit, Type]),
+        ?TRACE("~w HACK: Generating unit value ~p for type ~p", [MbNameVars, Unit, Type]),
 
+        % Create rebound mailbox variables and empty expression.
+        Var0 = pat_syntax:var(MbVar0),
+        Vars0 = [pat_syntax:var(MbVar0) || MbVar0 <- mb_vars(MbNameVars0)],
         EmptyExpr = pat_syntax:empty_expr(
-          MbVar, pat_syntax:tuple([Unit, MbVar]) %TODO: This cannot be unit but must be the datatype of the return type of the function.
+%%          MbVar0, pat_syntax:tuple([Unit, MbVar0]) %TODO: This cannot be unit but must be the datatype of the return type of the function.
+          Var0, pat_syntax:tuple([Unit | Vars0]) %TODO: This cannot be unit but must be the datatype of the return type of the function.
         ),
 
         % END HACK.
@@ -320,20 +473,26 @@ expr_seq([{'receive', Anno, Clauses} | ExprSeq], Mbs) ->
         ReceiveClauses
     end,
 
-  ?TRACE("(~s) Generate guard on '~s' with ~b clause(s).", [
-    Mbs, State, length(ReceiveClauses0)
+  ?TRACE("~w Generate guard on '~s' with ~b clause(s).", [
+    MbNameVars, Pattern, length(ReceiveClauses0)
   ]),
-  Guard = pat_syntax:guard_expr(pat_syntax:var(Mbs), State, ReceiveClauses0),
-  [Guard | expr_seq(ExprSeq, Mbs)];
-expr_seq([Expr | ExprSeq], Mb) ->
+
+  % Get mailbox variable associated with mailbox name and rebind rest of mailbox
+  % variables.
+  MbVar = mb_var(MbName, MbNameVars),
+
+  Guard = pat_syntax:guard_expr(pat_syntax:var(MbVar), Pattern, ReceiveClauses0),
+  [Guard | expr_seq(ExprSeq, MbNameVars)];
+expr_seq([Expr | ExprSeq], MbNameVars) ->
   % Pass thru to out-of-mailbox context translation:
   %
   % 1. Erlang literals and variables.
   % 2. Erlang binary and unary operators.
   % 3. Erlang spawn expression.
-  ?TRACE("(~s) Pass thru ~p expression.", [Mb, Expr]),
+  ?TRACE("~w Pass thru ~p expression.", [MbNameVars, Expr]),
   Expr0 = expr([Expr]),
-  [pat_syntax:tuple([Expr0, pat_syntax:var(Mb)]) | expr_seq(ExprSeq, Mb)].
+  Vars = [pat_syntax:var(MbVar) || MbVar <- mb_vars(MbNameVars)],
+  [pat_syntax:tuple([Expr0 | Vars]) | expr_seq(ExprSeq, MbNameVars)].
 
 
 %%% ----------------------------------------------------------------------------
@@ -368,7 +527,8 @@ fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
   RetType = type(paterl_anno:type(Anno)),
 
   % Determine whether function is mailbox-annotated.
-  case paterl_anno:interfaces(Anno) of
+%%  case paterl_anno:interfaces(Anno) of
+  case paterl_anno:scopes(Anno) of
 %%  case MbScopes of
     undefined ->
       % Non mailbox-annotated function.
@@ -379,26 +539,45 @@ fun_clause({clause, Anno, PatSeq, _GuardSeq = [], Body}) ->
       % Translate function parameters and body.
       pat_syntax:fun_clause(params(PatSeq), expr(Body), RetType);
 
-    Interfaces when is_list(Interfaces) ->
+    MbScopes when is_list(MbScopes) ->
       % Mailbox-annotated function.
       ?TRACE("Translate mailbox-annotated function clause */~b.", [
         length(PatSeq)
       ]),
 
+      ?TRACE("---- MBSCOPES: ~w", [MbScopes]),
+
       % Create mailbox interface names to be injected as the first parameters of
       % the function clause.
-      {Mbs, MbTypes, Params} =
-        lists:foldl(
-          fun(MbName, {Mbs0, MbTypes0, Params0}) ->
-            Mb = fresh_mb(),
-            MbType = pat_syntax:mb_type(MbName, read),
-            {[Mb | Mbs0], [MbType | MbTypes0], [pat_syntax:param(pat_syntax:var(Mb), MbType) | Params0]}
-          end, {[], [], []}, Interfaces
-        ),
+      % Mbs are the mailbox variable names, MbTypes, the corresponding types,
+      % and Params, the parameters to be injected in the function clause.
+%%      {MbVars, MbTypes, Params} =
+%%        lists:foldl(
+%%          fun(MbName, {Mbs0, MbTypes0, Params0}) ->
+%%            Mb = fresh_mb(),
+%%            MbType = pat_syntax:mb_type(MbName, read),
+%%            {[Mb | Mbs0], [MbType | MbTypes0], [pat_syntax:param(pat_syntax:var(Mb), MbType) | Params0]}
+%%          end, {[], [], []}, lists:reverse(MbScopes)
+%%        ),
+%%      {MbVars, MbTypes, Params} =
+%%        lists:foldl(
+%%          fun(MbName, {Mbs0, MbTypes0, Params0}) ->
+%%            MbVar = fresh_mb(),
+%%            MbType = pat_syntax:mb_type(MbName, read),
+%%            {[{MbName, MbVar} | Mbs0], [MbType | MbTypes0], [pat_syntax:param(pat_syntax:var(MbVar), MbType) | Params0]}
+%%          end, {[], [], []}, MbScopes
+%%        ),
 
+%%      MbVar = lists:last(MbVars),
+
+      {MbVars, MbNameVars} = new_mb_vars(MbScopes),
+      MbTypes = [pat_syntax:mb_type(MbName, read) || MbName <- MbScopes],
+      Params = [pat_syntax:param(pat_syntax:var(MbVar), Type) || {MbVar, Type} <- lists:zip(MbVars, MbTypes)],
+
+%%      ?TRACE("{Mbs, MbTypes, Params} = ~p", [{MbVars, MbTypes, Params}]),
       Params0 = Params ++ params(PatSeq),
-      Expr = expr(Body, Mbs),
-      pat_syntax:fun_clause(Params, Expr, pat_syntax:product_type([RetType | MbTypes]))
+      Expr = expr(Body, MbNameVars),
+      pat_syntax:fun_clause(Params0, Expr, pat_syntax:product_type([RetType | MbTypes]))
 %%      ko;
 %%
 %%    _Interface ->
@@ -478,21 +657,23 @@ expr_seq([Expr = {call, Anno, _Fun = {atom, _, Name}, Args} | ExprSeq]) ->
   case get_fun_return_unit(Expr) of
     undefined ->
       % Unknown externally-defined function that is translated normally.
-      case paterl_anno:interfaces(Anno) of
+      case paterl_anno:scopes(Anno) of
         undefined ->
           % Call to function outside mailbox context.
           [pat_syntax:call_expr(Name, args(Args)) | expr_seq(ExprSeq)];
 
-        _Interface ->
+        _MbNames ->
           % Call to function inside mailbox context. Only the new modality is
           % permitted at this point.
           Modality = paterl_anno:modality(Anno),
           ?assertEqual(Modality, new),
 
-          ?TRACE("Translate call to ~s/~b [~s, ~s].", [
-            Name, length(Args), _Interface, Modality
+          ?TRACE("Translate call to '~s/~b' with interfaces '~w' and modality '~s'.", [
+            Name, length(Args), _MbNames, Modality
           ]),
-          [new_call_expr(Expr) | expr_seq(ExprSeq)]
+          X = [new_call_expr(Expr) | expr_seq(ExprSeq)],
+          ?TRACE("After translating NEW function call"),
+          X
       end;
 
     RetType ->
@@ -624,33 +805,54 @@ new_call_expr({call, Anno, Fun = {atom, _, _}, Args}) ->
       erl_syntax:application(Fun, Args), paterl_anno:set_modality(use, Anno))
   ),
 
+%%  HERE: make this use multiple lists for mailboxes
   % Create local mailbox IDs.
-  MbNew = fresh_mb(),
-  MbCall = fresh_mb(),
+%%  MbNew = fresh_mb(),
+%%  MbCall = fresh_mb(),
 
-  % Translate function call.
-  Call = expr([Expr], MbNew),
+  MbNames = paterl_anno:scopes(Anno),
+  ?TRACE("MbNames = ~w", [MbNames]),
+
+  {MbVars, MbNameVars} = new_mb_vars(MbNames),
+  {MbVars0, MbNameVars0} = new_mb_vars(MbNames),
+  ?TRACE("MbNameVars = ~w", [MbNameVars]),
+
 
   % Variables used to construct call expression.
-  MbVarNew = pat_syntax:var(MbNew),
-  MbVarCall = pat_syntax:var(MbCall),
+%%  MbVarNew = pat_syntax:var(MbNew),
+%%  MbVarCall = pat_syntax:var(MbCall),
+%%  RetCall = pat_syntax:var(x),
+  MbVarsNew = [pat_syntax:var(MbVar) || MbVar <- MbVars],
+  MbVarsCall = [pat_syntax:var(MbVar0) || MbVar0 <- MbVars0],
   RetCall = pat_syntax:var(x),
 
+  % Translate function call.
+  Call = expr([Expr], MbNameVars),
+  ?TRACE("After translating function call with ?NEW modality"),
+
   % Let with free expression.
-  LetFree = pat_syntax:let_expr(
-    pat_syntax:var(y), pat_syntax:free_expr(MbVarCall), RetCall
-  ),
+%%  LetFree = pat_syntax:let_expr(
+%%    pat_syntax:var(y), pat_syntax:free_expr(MbVarCall), RetCall
+%%  ),
+  LetFree = free_mbs(MbNameVars0, RetCall),
+%%  LetFree = pat_syntax:let_expr(
+%%    pat_syntax:var(y), free_mbs(MbNameVars0), RetCall
+%%  ),
 
   % Let with call expression.
+%%  LetCall = pat_syntax:let_expr(
+%%    pat_syntax:tuple([RetCall, MbVarCall]), Call, LetFree
+%%  ),
   LetCall = pat_syntax:let_expr(
-    pat_syntax:tuple([RetCall, MbVarCall]), Call, LetFree
+    pat_syntax:tuple([RetCall | MbVarsCall]), Call, LetFree
   ),
 
   % Let with new mailbox creation.
-  Interface = paterl_anno:interfaces(Anno),
-  pat_syntax:let_expr(
-    MbVarNew, pat_syntax:new_expr(pat_syntax:mb_type(Interface)), LetCall
-  ).
+%%  Interface = hd(paterl_anno:scopes(Anno)), % TODO: To fix for multiple mailboxes in a recursive loop.
+%%  pat_syntax:let_expr(
+%%    MbVarNew, pat_syntax:new_expr(pat_syntax:mb_type(Interface)), LetCall
+%%  ).
+  let_mbs(MbNameVars, LetCall).
 
 -doc """
 Creates a spawn of a Pat function, injects a new mailbox, and frees the mailbox
@@ -665,43 +867,92 @@ spawn_expr({call, Anno, {atom, _, spawn}, _MFArgs = [_, Fun, Args]}) ->
   Expr = erl_syntax:revert(
     erl_syntax:set_pos(
       erl_syntax:application(Fun, erl_syntax:list_elements(Args)),
-      paterl_anno:set_modality(use, Anno))
+      paterl_anno:set_modality(?MOD_USE, Anno))
   ),
 
+  MbNames = paterl_anno:scopes(Anno),
+  ?TRACE("MbNames = ~w", [MbNames]),
+
+  {MbVars, MbNameVars} = new_mb_vars(MbNames),
+  {MbVars0, MbNameVars0} = new_mb_vars(MbNames),
+  ?TRACE("MbNameVars = ~w", [MbNameVars]),
+
   % Create local mailbox IDs.
-  MbNew = fresh_mb(),
-  MbCall = fresh_mb(),
+%%  MbNew = fresh_mb(),
+%%  MbCall = fresh_mb(),
 
   % Translate function call.
-  Call = expr([Expr], MbNew),
+  Call = expr([Expr], MbNameVars),
 
   % Variables used to construct spawn expression.
-  MbVarNew = pat_syntax:var(MbNew),
-  MbVarCall = pat_syntax:var(MbCall),
+%%  MbVarNew = pat_syntax:var(MbNew),
+%%  MbVarCall = pat_syntax:var(MbCall),
+
+  MbVarsNew = [pat_syntax:var(MbVar) || MbVar <- MbVars],
+  MbVarsCall = [pat_syntax:var(MbVar0) || MbVar0 <- MbVars0],
   RetCall = pat_syntax:var(x),
 
+%%  HERE: figure out the let loop and free loops.
   % Let with call expression to be spawned.
+%%  LetCall = pat_syntax:let_expr(
+%%    pat_syntax:tuple([RetCall, MbVarCall]),
+%%    Call,
+%%    pat_syntax:free_expr(MbVarCall)
+%%  ),
   LetCall = pat_syntax:let_expr(
-    pat_syntax:tuple([RetCall, MbVarCall]),
+    pat_syntax:tuple([RetCall | MbVarsCall]),
     Call,
-    pat_syntax:free_expr(MbVarCall)
+%%    pat_syntax:free_expr(hd(MbVarsCall))
+    free_mbs(MbNameVars0, RetCall)
   ),
 
   % Let with spawn expression.
+%%  LetSpawn = pat_syntax:let_expr(
+%%    pat_syntax:var(y), pat_syntax:spawn_expr(LetCall), MbVarNew
+%%  ),
   LetSpawn = pat_syntax:let_expr(
-    pat_syntax:var(y), pat_syntax:spawn_expr(LetCall), MbVarNew
+    pat_syntax:var(y), pat_syntax:spawn_expr(LetCall), hd(MbVarsNew) % TODO: This should be a tuple once simon fixes lets to accept tuples.
   ),
 
   % Let with new mailbox creation.
-  pat_syntax:let_expr(
-    MbVarNew,
-    pat_syntax:new_expr(pat_syntax:mb_type(paterl_anno:interfaces(Anno))),
-    LetSpawn
-  ).
+%%  pat_syntax:let_expr(
+%%    hd(MbVarsNew),
+%%    pat_syntax:new_expr(pat_syntax:mb_type(hd(paterl_anno:scopes(Anno)))), % TODO: we need a recursive one for the length of scopes.
+%%    LetSpawn
+%%  ).
+  let_mbs(MbNameVars, LetSpawn).
+
+
+let_mbs([], Expr) ->
+%%  "expr";
+  Expr;
+let_mbs([{MbName, MbVar} | MbNameVars], Expr) ->
+  LetExpr = let_mbs(MbNameVars, Expr),
+  NewExpr = pat_syntax:new_expr(pat_syntax:mb_type(MbName)),
+  pat_syntax:let_expr(pat_syntax:var(MbVar), NewExpr, LetExpr).
+%%  Let = lists:flatten(let_mbs(MbNameVars, Expr)),
+%%  io_lib:format("let ~s = new [~s]~nin~n~s~n", [MbVar, MbName, Let]).
+
+%%free_mbs([{_, MbVar}]) ->
+%%  pat_syntax:free_expr(pat_syntax:var(MbVar));
+%%free_mbs([{_, MbVar} | MbNameVars]) ->
+%%  LetExpr = free_mbs(MbNameVars),
+%%  FreeExpr = pat_syntax:free_expr(pat_syntax:var(MbVar)),
+%%  pat_syntax:let_expr(pat_syntax:var(y), FreeExpr, LetExpr).
+
+free_mbs([], Expr) ->
+  Expr;
+free_mbs([{_, MbVar} | MbNameVars], Expr) ->
+  LetExpr = free_mbs(MbNameVars, Expr),
+  FreeExpr = pat_syntax:free_expr(pat_syntax:var(MbVar)),
+  pat_syntax:let_expr(pat_syntax:var(y), FreeExpr, LetExpr).
 
 -doc "Returns a fresh mailbox name.".
 fresh_mb() ->
   paterl_tools:fresh_var(?MB_VAR_NAME).
+
+fresh_mbs(N) ->
+  [paterl_tools:fresh_var(?MB_VAR_NAME) || _ <- lists:seq(1, N)].
 
 -doc """
 Returns the unit data value of the type for the specified externally-defined
@@ -747,3 +998,72 @@ to_pat_op(Op) when
   Op;
 to_pat_op(Op) when Op =:= '=<' ->
   '<='.
+
+replace(_, _, []) ->
+  [];
+replace(Elem, NewElem, [Elem | T]) ->
+  [NewElem | T];
+replace(Elem, NewElem, [H | T]) ->
+  [H | replace(Elem, NewElem, T)].
+
+keys([]) ->
+  [];
+keys([{Key, _} | T]) ->
+  [Key | keys(T)].
+
+values([]) ->
+  [];
+values([{_, Value} | T]) ->
+  [Value | values(T)].
+
+new_mb_vars(MbNames) when is_list(MbNames), length(MbNames) > 0 ->
+  MbNameVars = [{MbName, fresh_mb()} || MbName <- MbNames],
+  {mb_vars(MbNameVars), MbNameVars}.
+
+
+rebind_mb_var(MbName, MbNameVars)
+  when is_list(MbNameVars), length(MbNameVars) > 0 ->
+  MbVar = fresh_mb(),
+  {MbVar, lists:keyreplace(MbName, 1, MbNameVars, {MbName, MbVar})}.
+
+rebind_mb_vars(MbNameVars) when is_list(MbNameVars), length(MbNameVars) > 0 ->
+  MbNameVars0 = [{MbName, fresh_mb()} || {MbName, _} <- MbNameVars],
+  {mb_vars(MbNameVars0), MbNameVars0}.
+
+rebind_mb_vars(MbNames, MbNameVars)
+  when
+  is_list(MbNames), length(MbNames) > 0,
+  is_list(MbNameVars), length(MbNameVars) > 0 ->
+  {MbVars2, MbNameVars2} =
+  lists:foldl(
+    fun(MbName, {MbVars0, MbNameVars0}) ->
+      {MbVar, MbNameVars1} = rebind_mb_var(MbName, MbNameVars0),
+      {[MbVar | MbVars0], MbNameVars1}
+    end,
+    {[], MbNameVars}, MbNames
+  ),
+  {lists:reverse(MbVars2), MbNameVars2}.
+
+mb_vars(MbNameVars) when is_list(MbNameVars), length(MbNameVars) > 0 ->
+  [MbVar || {_, MbVar} <- MbNameVars].
+
+mb_vars(MbNames, MbNameVars)
+  when
+  is_list(MbNames), length(MbNames) > 0,
+  is_list(MbNameVars), length(MbNameVars) > 0 ->
+  lists:foldr(
+    fun(MbName, MbVars) -> [mb_var(MbName, MbNameVars) | MbVars] end,
+    [], MbNames
+  ).
+
+mb_var(MbName, MbNameVars) when is_list(MbNameVars), length(MbNameVars) > 0 ->
+  case lists:keyfind(MbName, 1, MbNameVars) of
+    {MbName, MbVar} -> MbVar;
+    false -> error(lists:flatten(io_lib:format("mailbox interface name ~s does not exist in ~w", [MbName, MbNameVars])))
+  end.
+
+mb_names(MbNameVars) when is_list(MbNameVars), length(MbNameVars) > 0 ->
+  [MbName || {MbName, _} <- MbNameVars].
+
+
+

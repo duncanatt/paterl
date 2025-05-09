@@ -89,7 +89,10 @@ def farm(count: Int, chunks: Int, pool: Pool_mb!): Unit {
               let (x, mb17) =
                 worker(mb16)
               in
-                free(mb17)
+                let y =
+                  free(mb17)
+                in
+                  x
             }
           in
             mb16
@@ -169,7 +172,10 @@ in
       let (x, mb35) =
         master(mb34)
       in
-        free(mb35)
+        let y =
+          free(mb35)
+        in
+          x
     }
   in
     mb34, mb33)
@@ -183,7 +189,10 @@ in
       let (x, mb38) =
         client(mb37, 5, mastermb)
       in
-        free(mb38)
+        let y =
+          free(mb38)
+        in
+          x
     }
   in
     mb37, mb36)

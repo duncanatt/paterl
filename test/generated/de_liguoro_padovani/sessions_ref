@@ -169,7 +169,10 @@ in
       let (x, mb47) =
         alice(mb46, arbitermb)
       in
-        free(mb47)
+        let y =
+          free(mb47)
+        in
+          x
     }
   in
     mb46, mb45)
@@ -183,7 +186,10 @@ in
       let (x, mb50) =
         carol(mb49, arbitermb)
       in
-        free(mb50)
+        let y =
+          free(mb50)
+        in
+          x
     }
   in
     mb49, mb48)
