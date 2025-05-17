@@ -701,6 +701,13 @@ expr_seq([{match, _, Pat, Expr} | ExprSeq]) ->
         expr(ExprSeq)
     end,
   [pat_syntax:let_expr(Binders, Expr0, Body)];
+expr_seq([{op, Anno, Op = '!', Expr0, Expr1} | ExprSeq]) ->
+  % Erlang send operator expression.
+  MbName = paterl_anno:scope(Anno),
+  ?TRACE("Translate send operator expression ~s to mailbox '~s'.", [Op, MbName]),
+  ExprL = expr([Expr0]),
+  ExprR = expr([Expr1]),
+  [pat_syntax:op_expr(to_pat_op(Op), ExprL, ExprR) | expr_seq(ExprSeq)];
 expr_seq([{op, _, Op, Expr0, Expr1} | ExprSeq]) ->
   % Erlang binary operator expression.
   % TODO: Should be changed to values eventually when we have ANF.
@@ -912,6 +919,7 @@ spawn_expr({call, Anno, {atom, _, spawn}, _MFArgs = [_, Fun, Args]}) ->
 %%  ),
   LetSpawn = pat_syntax:let_expr(
     pat_syntax:var(y), pat_syntax:spawn_expr(LetCall), hd(MbVarsNew) % TODO: This should be a tuple once simon fixes lets to accept tuples.
+%%    pat_syntax:var(y), pat_syntax:spawn_expr(LetCall), pat_syntax:tuple(MbVarsNew) % TODO: This should be a tuple once simon fixes lets to accept tuples.
   ),
 
   % Let with new mailbox creation.

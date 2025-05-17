@@ -921,7 +921,7 @@ annotate_expr(Expr = {call, Anno, Self = {atom, _, self}, []}, {?ANNO_AS, MbName
       ?ERROR("Mailbox interface '~s' not in scope.", [MbName]),
       ?pushError(?E_UNDEF__MB_SCOPE, paterl_syntax:name(MbName, Anno), Analysis#analysis{result = Expr})
   end;
-annotate_expr(Expr = {call, Anno, {atom, _, self}, []}, undefined, _RecFuns, _MbScopes, _, Analysis) ->
+annotate_expr({call, Anno, {atom, _, self}, []}, undefined, _RecFuns, _MbScopes, _, Analysis) ->
   % Unannotated self expression inside mailbox scope with multiple interfaces.
   % Invalid.
   ErrNode = paterl_syntax:mb_anno(?ANNO_AS, [], Anno),
@@ -934,6 +934,59 @@ annotate_expr(Expr = {call, _, {atom, _, self}, []}, _MbAnno, _RecFuns, _MbScope
     erl_prettypr:format(Expr)
   ]),
   ?pushError(?E_BAD__ANNO_ON, Expr, Analysis#analysis{result = Expr});
+
+% TODO: send
+%%annotate_expr(Expr = {op, _, _Op = '!', _, _}, _MbAnno, _RecFuns, _MbScopes = undefined, _, Analysis) ->
+%%  % Annotated send expression outside mailbox scope. Invalid.
+%%  ?ERROR("'~s' not in mailbox interface scope.", [erl_prettypr:format(Expr)]),
+%%  ?pushError(?E_NO__MB_SCOPE, Expr, Analysis#analysis{result = Expr});
+%%annotate_expr(Expr = {op, _, _Op = '!', _, _}, _MbAnno = undefined, RecFuns, MbScopes = [MbScope], TypeInfo, Analysis) ->
+%%  % Unannotated send expression inside mailbox interface scope with single
+%%  % interface. Valid, since mailbox interface can be inferred from enclosing
+%%  % mailbox scope.
+%%  ?TRACE("Annotate '~s' with implicit mailbox interface '~s'.", [
+%%    erl_prettypr:format(Expr), MbScope
+%%  ]),
+%%  MbAnno0 = {?ANNO_AS, MbScope},
+%%  annotate_expr(Expr, MbAnno0, RecFuns, MbScopes, TypeInfo, Analysis);
+annotate_expr(Expr = {op, Anno, Op = '!', Left, Right}, {?ANNO_AS, MbName}, _RecFuns, MbScopes, _, Analysis) ->
+  % Annotated send expression inside mailbox scope with multiple interfaces.
+  % May be valid. Mailbox interface inferred from the enclosing mailbox scope
+  % must match the mailbox interface in the annotation.
+%%  case is_mb_in_scope(MbName, MbScopes) of
+%%    true ->
+      % Mailbox interface name in scope.
+      ?TRACE("Annotate '~s' with inferred matching mailbox interface '~s'.", [
+        erl_prettypr:format(Expr), MbName
+      ]),
+      Anno0 = set_scope(MbName, Anno),
+
+%%      Expr0 = paterl_syntax:set_anno(erl_syntax:application(_Op, []), Anno0),
+      Expr0 = paterl_syntax:set_anno(
+        erl_syntax:infix_expr(Left, erl_syntax:operator(Op), Right), Anno0
+      ),
+      Analysis#analysis{result = Expr0};
+%%    false ->
+%%      % Mailbox interface name out of scope. Invalid.
+%%      ?ERROR("Mailbox interface '~s' not in scope.", [MbName]),
+%%      ?pushError(?E_UNDEF__MB_SCOPE, paterl_syntax:name(MbName, Anno), Analysis#analysis{result = Expr})
+%%  end;
+annotate_expr({op, Anno, _Op = '!', _, _}, undefined, _RecFuns, _MbScopes, _, Analysis) ->
+  % Unannotated send expression inside mailbox scope with multiple interfaces.
+  % Invalid.
+  ErrNode = paterl_syntax:mb_anno(?ANNO_AS, [], Anno),
+  ?ERROR("Expected annotation '~s'.", [erl_prettypr:format(ErrNode)]),
+  ?pushError(?E_EXP__ANNO, ErrNode, Analysis);
+annotate_expr(Expr = {op, _, _Op = '!', _, _}, _MbAnno, _RecFuns, _MbScopes, _, Analysis) ->
+  % Annotated send expression with invalid annotation (i.e., not ?as). Invalid.
+  ?ERROR("Unexpected '~s' on '~s'.", [
+    erl_prettypr:format(paterl_syntax:mb_anno(_MbAnno)),
+    erl_prettypr:format(Expr)
+  ]),
+  ?pushError(?E_BAD__ANNO_ON, Expr, Analysis#analysis{result = Expr});
+
+
+% TODO: end send
 
 annotate_expr(Expr = {call, Anno, Operator, Exprs}, _MbAnno = undefined, RecFuns, MbScopes, TypeInfo, Analysis) ->
   ?TRACE("--> Unannotated local function call mbscopes = ~w", [MbScopes]),
@@ -1135,6 +1188,7 @@ annotate_expr(Expr0 = {match, Anno, Pat, Expr1}, MbAnno, RecFuns, MbScopes, Type
       Analysis1 = annotate_expr(Expr1, MbAnno, RecFuns, MbScopes, TypeInfo, Analysis0),
       Analysis1#analysis{result = Expr0}
   end;
+
 annotate_expr(Expr, undefined, _RecFuns, _MbScopes, _, Analysis) ->
   % Non mailbox-annotated expression.
   ?TRACE("Skip '~s'.", [erl_prettypr:format(Expr)]),
