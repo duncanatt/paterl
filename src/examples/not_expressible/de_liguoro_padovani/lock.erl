@@ -56,7 +56,7 @@
 %% }
 -spec free_lock() -> no_return().
 free_lock() ->
-  ?expects("*Acquire"),
+  ?expects("Acquire*"),
   receive
     {acquire, Owner} ->
       busy_lock(Owner)
@@ -76,7 +76,7 @@ free_lock() ->
 busy_lock(Owner) ->
   Self = self(),
   Owner ! {reply, Self},
-  ?expects("Release . *Acquire"),
+  ?expects("Release . Acquire*"),
   receive
     {release} ->
       free_lock()

@@ -171,62 +171,72 @@ Feel free to change the `Development` directory to one that fits your system con
 
 ## Setting up Pat
 
-Pat is the OCaml backend component to `paterl`.
-It processes programs written in the Pat language, and reports communication errors.
-The `paterl` Erlang frontend synthesises Pat programs from Erlang source code and launches the Pat type checker as a shell process, retrieving any errors reported by Pat.
-These errors are post-processed by `paterl` and presented to the user in the form of Erlang errors.
+Pat is the OCaml backend component to `paterl`, implemented by the `pat-lang` project: a type checker 
+and interpreter for the Pat programming language. It processes programs written in the Pat language, 
+and reports communication errors.
+The `paterl` Erlang frontend synthesises Pat programs from Erlang source code and launches the `pat` 
+tool in type-checking mode as a shell process, retrieving any errors reported by Pat. These errors are 
+post-processed by `paterl` and presented to the user in the form of Erlang errors.
 
-1. Install the Pat OCaml dependencies.
-   These dependencies include the Z3 OCaml bridge, which is used by Pat to solve pattern inclusion constraints to ensure that there are no communication errors in Pat programs.
+1. `pat-lang` requires OCaml >= 5.2.0.
+   Check your active version with `ocaml -version` and, if it is older, create and select a new `opam` switch:
+
+   ```bash
+   $ opam switch create 5.2.0
+   $ eval $(opam env)
+   ```
+
+2. Install the Pat OCaml dependencies.
+   These dependencies include the Z3 OCaml bridge, which is used by Pat to solve pattern inclusion constraints to 
+   ensure that there are no communication errors in Pat programs.
    The dependencies can be installed via `opam` as shown.
 
    ```bash
-   $ opam install ppx_import visitors z3 bag cmdliner
+   $ opam install dune menhir ppx_import visitors z3 bag cmdliner eio eio_main
    ```
 
-2. Clone the Pat type checker GitHub repository:
+3. Clone the `pat-lang` GitHub repository:
 
    ```bash
-   $ git clone https://github.com/SimonJF/mbcheck.git
+   $ git clone https://github.com/mailbox-types/pat-lang.git
    ```
 
-3. The `paterl`-Pat integration is currently implemented as an experimental branch and is required by `paterl`.
-   Switch the Pat development branch to `paterl-experiments`
-
-   ```
-   $ cd mbcheck
-   $ git checkout paterl-experiments
-   ```
-
-3. Build the Pat type checker using the included `Makefile`:
+4. Build the `pat` tool using the included `Makefile`:
 
    ```bash
+   $ cd pat-lang
    $ make
    ```
 
-4. Lastly, test your Pat type checker installation by running one of the many Pat examples:
+   This creates a `pat` symlink in the repository root pointing to the compiled binary.
+
+5. Lastly, test your Pat installation by running one of the many Pat examples:
 
    ```bash
-   $ ./mbcheck test/examples/de_liguoro_padovani/future.pat
+   $ ./pat -t test/examples/de_liguoro_padovani/future.pat
    ```
 
    No errors should be reported.
+   `pat-lang` also includes an interpreter that runs the program after type checking; the `-t` flag 
+   skips interpretation and performs type checking only.
 
 ## Installing Erlang/OTP
 
 Our `paterl` frontend requires Erlang/OTP > 26.
-The best way to install Erlang/OTP on WSL and Ubuntu is to use the Personal Package Archive (PPA) maintained by the RabbitMQ team (the PPA managed by ESL currently seems to be out of date).
+The best way to install Erlang/OTP on WSL and Ubuntu is to use the Personal Package Archive (PPA) 
+maintained by the RabbitMQ team (the PPA managed by ESL currently seems to be out of date).
 The RabbitMQ PPA is valid for Ubuntu 22.04 and 20.04.
 
 1. Add the RabbitMQ PPA to your `apt` installation:
 
    ```bash
-   $ sudo add-apt-repository ppa:rabbitmq/rabbitmb-erlang
+   $ sudo add-apt-repository ppa:rabbitmq/rabbitmq-erlang
    $ sudo apt update
    $ sudo apt install erlang
    ```
 
-   If you have already installed Erlang from the Ubuntu repository, it will be upgraded to the version given in the RabbitMQ PPA.
+   If you have already installed Erlang from the Ubuntu repository, it will be upgraded to the version 
+   given in the RabbitMQ PPA.
    
 2. Test your installation by launching the Erlang shell:
 
@@ -246,7 +256,8 @@ The RabbitMQ PPA is valid for Ubuntu 22.04 and 20.04.
 
 ### Removing Erlang
 
-In case you need to remove the Erlang version installed from the RabbitMQ PPA and restore it to the version provided by the Ubuntu repository, use PPA `purge` as follows:
+In case you need to remove the Erlang version installed from the RabbitMQ PPA and restore it to the version provided 
+by the Ubuntu repository, use PPA `purge` as follows:
 
 ```bash
 $ sudo apt install ppa-purge
@@ -269,17 +280,20 @@ The last step is to set up `paterl`, the Erlang front-end tool used to process E
    $ git clone https://github.com/duncanatt/paterl.git
    ```
 
-2. Set the path for the Pat type checker, `mbcheck`.
-   The `paterl` Erlang frontend must point to the `mbcheck` tool to type check the Pat source code files it synthesises.
+2. Make the `pat` tool visible to `paterl`.
+   The `paterl` Erlang frontend invokes the `pat` tool to type check the Pat source code files it synthesises.
+   It locates `pat` via the `PATERL_PAT` environment variable when set, and otherwise searches for an executable 
+   named `pat` in the directories of `PATH`.
+   Point `PATERL_PAT` to the **compiled** `pat` binary (the symlink created by `make` in the `pat-lang` repository root), e.g.
 
-   Open the `paterl.erl` file located in `src/` and edit the `EXEC` macro at the top, pointing it to the directory containing the **compiled** `mbcheck` binary.
-   For instance,
-
-   ```erlang
-   -define(EXEC, "/home/duncan/Development/mbcheck/mbcheck").
+   ```bash
+   $ export PATERL_PAT="/path/to/pat-lang/pat"
    ```
 
-   Save the file.
+   or alternatively add the `pat-lang` repository root to `PATH`.
+   The flags `paterl` needs (`-q -j -t`) are supplied automatically: `-q` disables quasilinearity checking and `-j` 
+   uses sequential join instead of disjoint combine (both required by the Pat code `paterl` generates), while `-t` 
+   performs type checking only, without interpreting the program.
 
 3. Build the `paterl` Erlang front-end using the included `Makefile`:
 
@@ -297,39 +311,49 @@ The last step is to set up `paterl`, the Erlang front-end tool used to process E
 
    ```bash
    [WRITE] Writing temporary Pat file ebin/id_server_demo.
-   [PAT] Pat'ting ebin/id_server_demo.
+   [PAT] Patt'ing ebin/id_server_demo.
    [PAT] Successfully type-checked ebin/id_server_demo.erl.
    ```
 
    
 ## Troubleshooting
 
-- If `mbcheck` fails to build and complains with errors similar to the one below, it means that the `opam` environment is not initialised in your active shell.
+- If `pat-lang` fails to build and complains with errors similar to the one below, it means that the `opam` 
+environment is not initialised in your active shell.
 
   ```bash
   $ make
   /bin/sh: 1: dune: not found
   ```
 
-  Reinisialize your `opam` environment using
+  Reinitialise your `opam` environment using
 
   ```bash
   $ eval $(opam env --switch=default)
   ```
 
-  and rebuild `mbcheck`.
+  and rebuild `pat-lang`.
 
-- If errors like the one below occur when testing `paterl`, it means that your `EXEC` macro in the `src/paterl.erl` Erlang module is misconfigured and points to an incorrect `mbcheck` binary.
-  In the excerpt below, the binary is mistyped as `mbcheckk`.
+- If `pat-lang` fails to build with an error like the one below, the EIO dependencies are missing or your `opam` switch uses an OCaml version older than 5.2.0.
+
+  ```bash
+  Error: Library "eio_main" not found.
+  ```
+
+  Install them with `opam install eio eio_main`; if `opam` refuses because of the OCaml version, create a new switch with `opam switch create 5.2.0` first, re-run `eval $(opam env)`, and reinstall the dependencies listed above.
+
+- If errors like the one below occur when testing `paterl`, it means that the `PATERL_PAT` environment variable points to an incorrect `pat` binary.
+  In the excerpt below, the binary is mistyped as `patt`.
 
   ```bash
   [WRITE] Writing temporary Pat file ebin/id_server_demo.
-  [PAT] Pat'ting ebin/id_server_demo.
-  Error: sh: /home/duncan/Development/mbcheck/mbcheckk: No such file or directory
-  sh: line 0: exec: /home/duncan/Development/mbcheck/mbcheckk: cannot execute: No such file or directory
+  [PAT] Patt'ing ebin/id_server_demo.
+  Error: sh: /path/to/pat-lang/patt: No such file or directory
+  sh: line 0: exec: /path/to/pat-lang/patt: cannot execute: No such file or directory
   ```
 
-  Make the necessary modification to the `EXEC` macro and rebuild `paterl`.
+  Correct the `PATERL_PAT` environment variable and re-run `paterl`; no rebuild is necessary.
+  If instead `paterl` reports that it cannot find the `pat` executable, set `PATERL_PAT` or add the `pat-lang` repository root to `PATH`.
 
 ## (Optional) Install and configure VS Code
 

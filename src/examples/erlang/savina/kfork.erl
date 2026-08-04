@@ -66,7 +66,7 @@ actor() ->
 %% @doc Actor processes handling the packet requests.
 -spec actor_loop() -> no_return().
 actor_loop() ->
-  ?expects("*Packet"),
+  ?expects("Packet*"),
   receive
     {packet} ->
       Self = self(),

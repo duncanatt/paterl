@@ -50,7 +50,7 @@ in
                   let (v1, mb10) =
                     (fibpid2 ! Req(self, n - 2), mb9)
                   in
-                    guard mb10: Resp.Resp {
+                    guard mb10: Resp . Resp {
                       receive Resp(term1) from mb11 ->
                         guard mb11: Resp {
                           receive Resp(term2) from mb12 ->

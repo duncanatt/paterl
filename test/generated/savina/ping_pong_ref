@@ -47,7 +47,7 @@ def pong(mb8: Pong_mb?): (Unit * Pong_mb?) {
 }
 
 def pong_loop(mb9: Pong_mb?): (Unit * Pong_mb?) {
-  guard mb9: *(Ping + Stop) {
+  guard mb9: (Ping + Stop)* {
     empty(mb14) ->
       ((), mb14)
     receive Ping(ping) from mb10 ->
@@ -64,7 +64,7 @@ def pong_loop(mb9: Pong_mb?): (Unit * Pong_mb?) {
 }
 
 def pong_exit(mb15: Pong_mb?): (Unit * Pong_mb?) {
-  guard mb15: *(Ping + Stop) {
+  guard mb15: (Ping + Stop)* {
     empty(mb18) ->
       ((), mb18)
     receive Ping(ping) from mb16 ->

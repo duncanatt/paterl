@@ -86,7 +86,7 @@ master() ->
 %% @doc Master server loop handling incoming client tasks.
 -spec master_loop() -> no_return().
 master_loop() ->
-  ?expects("*Task"),
+  ?expects("Task*"),
   receive
     {task, ReplyTo, N} ->
       format("Received task to compute ~b from client ~p.~n", [N, ReplyTo]),
@@ -139,7 +139,7 @@ harvest(Count, Chunks, Acc) ->
     % function automatically in Pat but does not BLOCK the process forever in Erlang?
     Acc;
   true ->
-    ?expects("*Result"),
+    ?expects("Result*"),
     receive
       {result, Result} ->
         Count0 = Count + 1,
@@ -153,7 +153,7 @@ harvest(Count, Chunks, Acc) ->
 -spec harvest_exit() -> any().
 harvest_exit() ->
   % TODO: This mailbox flushing function means that the process remains blocked forever.
-  ?expects("*Result"),
+  ?expects("Result*"),
   receive
     {result, Result} ->
       harvest_exit()

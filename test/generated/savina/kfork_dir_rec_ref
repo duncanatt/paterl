@@ -7,7 +7,7 @@ interface Actor_mb {
 interface Main_mb { }
 
 def actor(mb0: Actor_mb?): (Unit * Actor_mb?) {
-  guard mb0: *Packet {
+  guard mb0: Packet* {
     empty(mb4) ->
       ((), mb4)
     receive Packet() from mb1 ->

@@ -58,7 +58,7 @@ in
   in
     mb8, mb7)
         in
-          guard mb10: Start . *Started_smoking {
+          guard mb10: Start . Started_smoking* {
             receive Start() from mb11 ->
               let (v0, mb12) =
                 (notify_smoker(smoker1, smoker2, smoker3), mb11)
@@ -107,7 +107,7 @@ def notify_smoker_exit(smoker1: Smoker_mb!, smoker2: Smoker_mb!, smoker3: Smoker
 }
 
 def arbiter_loop(mb13: Arbiter_mb?, num_rounds: Int, smoker1: Smoker_mb!, smoker2: Smoker_mb!, smoker3: Smoker_mb!): (Unit * Arbiter_mb?) {
-  guard mb13: *Started_smoking {
+  guard mb13: Started_smoking* {
     empty(mb16) ->
       ((), mb16)
     receive Started_smoking() from mb14 ->
@@ -128,7 +128,7 @@ def smoker(mb17: Smoker_mb?, arbitermb: Arbiter_mb!): (Unit * Smoker_mb?) {
 }
 
 def smoker_loop(mb18: Smoker_mb?, arbitermb: Arbiter_mb!): (Unit * Smoker_mb?) {
-  guard mb18: *Start_smoking . *Exit {
+  guard mb18: Start_smoking* . Exit* {
     empty(mb24) ->
       ((), mb24)
     receive Start_smoking(ms) from mb19 ->
@@ -148,7 +148,7 @@ def smoker_loop(mb18: Smoker_mb?, arbitermb: Arbiter_mb!): (Unit * Smoker_mb?) {
 }
 
 def smoker_exit(mb25: Smoker_mb?): (Unit * Smoker_mb?) {
-  guard mb25: *Start_smoking . *Exit {
+  guard mb25: Start_smoking* . Exit* {
     empty(mb28) ->
       ((), mb28)
     receive Start_smoking(ms) from mb26 ->

@@ -12,14 +12,14 @@ interface Id_server_mb {
 interface Main_mb { }
 
 def id_server(mb0: Id_server_mb?): (Unit * Id_server_mb?) {
-  guard mb0: Init.*Get {
+  guard mb0: Init . Get* {
     receive Init(n) from mb1 ->
       id_server_loop(mb1, n)
   }
 }
 
 def id_server_loop(mb2: Id_server_mb?, n: Int): (Unit * Id_server_mb?) {
-  guard mb2: *Get {
+  guard mb2: Get* {
     empty(mb5) ->
       ((), mb5)
     receive Get(client) from mb3 ->

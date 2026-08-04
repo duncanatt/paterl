@@ -86,7 +86,7 @@
 %% @param NumActors: number of actors in ring.
 -spec actor(integer()) -> no_return().
 actor(NumActors) ->
-  ?expects("Data . *Ping . *Exit"),
+  ?expects("Data . Ping* . Exit*"),
   receive
     {data, Neighbor} ->
       actor_loop(NumActors, Neighbor)
@@ -95,7 +95,7 @@ actor(NumActors) ->
 %% @doc Ping process main loop issuing pings and exits.
 -spec actor_loop(integer(), actor_mb()) -> no_return().
 actor_loop(NumActors, Neighbor) ->
-  ?expects("*Ping . *Exit"),
+  ?expects("Ping* . Exit*"),
   receive
     {ping, PingsLeft} ->
       if PingsLeft =< 0 ->
@@ -119,7 +119,7 @@ actor_loop(NumActors, Neighbor) ->
 %% @doc Actor process exit procedure that flushes potential residual messages.
 -spec actor_exit() -> no_return().
 actor_exit() ->
-  ?expects("*Ping . *Exit"),
+  ?expects("Ping* . Exit*"),
   receive
     {ping, PingsLeft} ->
       actor_exit();

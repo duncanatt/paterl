@@ -70,7 +70,7 @@ fib() ->
             FibPid2 ! {req, Self, N - 2},
 
             % Combine results computed for the (n - 1)st and (n - 2)nd terms.
-            ?expects("Resp.Resp"),
+            ?expects("Resp . Resp"),
             receive
               {resp, Term1} ->
                 ?expects("Resp"),

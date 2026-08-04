@@ -12,14 +12,14 @@ interface Future_mb {
 interface Main_mb { }
 
 def future(mb0: Future_mb?): (Unit * Future_mb?) {
-  guard mb0: Put . *Get {
+  guard mb0: Put . Get* {
     receive Put(value) from mb1 ->
       resolved_future(mb1, value)
   }
 }
 
 def resolved_future(mb2: Future_mb?, value: Int): (Unit * Future_mb?) {
-  guard mb2: *Get {
+  guard mb2: Get* {
     empty(mb5) ->
       ((), mb5)
     receive Get(userpid) from mb3 ->

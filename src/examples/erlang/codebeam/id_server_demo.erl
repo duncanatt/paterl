@@ -60,8 +60,8 @@
 
 -spec id_server() -> no_return().
 id_server() ->
-  ?expects(id_server_mb, "Init.*Get"),
-%%  ?expects("*Get"), % Uncomment for "omitted Init receive".
+  ?expects(id_server_mb, "Init . Get*"),
+%%  ?expects("Get*"), % Uncomment for "omitted Init receive".
   receive
     {init, N} ->
       id_server_loop(N)
@@ -69,7 +69,7 @@ id_server() ->
 
 -spec id_server_loop(integer()) -> no_return().
 id_server_loop(N) ->
-  ?expects("*Get"),
+  ?expects("Get*"),
   receive
     {get, Client} ->
       Client ! {id, N}, % Comment for "omitted Id reply".

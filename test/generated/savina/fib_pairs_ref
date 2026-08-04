@@ -50,7 +50,7 @@ in
                   (child2 ! Request(n - 2, self), mb9)
                 in
                   let (term1, mb12) =
-                    guard mb10: Response.Response {
+                    guard mb10: Response . Response {
                       receive Response(x1) from mb11 ->
                         (x1, mb11)
                     }

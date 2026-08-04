@@ -144,7 +144,7 @@ choose_dst_acc(Teller, Num_accounts, Src_account, Dst_account1, Dst_account2) ->
 teller_loop(Account1, Account2, Account3) ->
 %%  TODO No idea about free
 %%  ?mb_state_free or ?free
-  ?expects("*Reply"),
+  ?expects("Reply*"),
   receive
     {reply} ->
       teller_loop(Account1, Account2, Account3)
@@ -181,7 +181,7 @@ teller_loop(Account1, Account2, Account3) ->
 -spec account(integer(), integer()) -> no_return().
 account(Id, Balance) ->
   Self = self(),
-  ?expects("*(Debit + Credit) . Stop"),
+  ?expects("(Debit + Credit)* . Stop"),
   receive
     {debit, Src_account, Amount} ->
       Src_account ! {done},
@@ -212,7 +212,7 @@ account(Id, Balance) ->
 -spec account_exit() -> no_return().
 account_exit() ->
 %%  ?free,
-  ?expects("*(Debit + Credit)"),
+  ?expects("(Debit + Credit)*"),
   receive
     {debit, Account, Amount} ->
       account_exit();

@@ -65,7 +65,7 @@
 %% @doc Initializes the future.
 -spec future() -> no_return().
 future() ->
-  ?expects("Put . *Get"),
+  ?expects("Put . Get*"),
   receive {put, Value} ->
     resolved_future(Value)
   end.
@@ -73,7 +73,7 @@ future() ->
 %% @doc Resolved future servicing requests.
 -spec resolved_future(integer()) -> no_return().
 resolved_future(Value) ->
-  ?expects("*Get"),
+  ?expects("Get*"),
   receive
     {get, UserPid} ->
       UserPid ! {reply, Value},

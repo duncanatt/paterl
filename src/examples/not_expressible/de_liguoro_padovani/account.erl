@@ -101,7 +101,7 @@ account(Balance) ->
 
 -spec account_loop(integer()) -> no_return().
 account_loop(Balance) ->
-  ?expects("*Debit . *Credit"),
+  ?expects("Debit* . Credit*"),
   receive
     {debit, Amount, Ack} ->
       notify(Ack),

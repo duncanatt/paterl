@@ -7,14 +7,14 @@ interface Actor_mb {
 }
 
 def actor(mb0: Actor_mb?, numactors: Int): (Unit * Actor_mb?) {
-  guard mb0: Data . *Ping . *Exit {
+  guard mb0: Data . Ping* . Exit* {
     receive Data(neighbor) from mb1 ->
       actor_loop(mb1, numactors, neighbor)
   }
 }
 
 def actor_loop(mb2: Actor_mb?, numactors: Int, neighbor: Actor_mb!): (Unit * Actor_mb?) {
-  guard mb2: *Ping . *Exit {
+  guard mb2: Ping* . Exit* {
     empty(mb10) ->
       ((), mb10)
     receive Ping(pingsleft) from mb3 ->
@@ -50,7 +50,7 @@ def actor_loop(mb2: Actor_mb?, numactors: Int, neighbor: Actor_mb!): (Unit * Act
 }
 
 def actor_exit(mb11: Actor_mb?): (Unit * Actor_mb?) {
-  guard mb11: *Ping . *Exit {
+  guard mb11: Ping* . Exit* {
     empty(mb14) ->
       ((), mb14)
     receive Ping(pingsleft) from mb12 ->

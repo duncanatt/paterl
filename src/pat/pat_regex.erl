@@ -26,8 +26,7 @@
 %%
 %% @returns true if the mailbox can become potentially empty, false otherwise.
 is_mb_empty(Regex) ->
-%%  case re:run(Regex, "^(\\*.[A-Z][a-z]*|1\s*\\+.*|[A-Z][a-z]+1|[A-Z][a-z]+)$") of
-  case re:run(trim(Regex), "^(\\*.*|1\\+.*|.*\\+1)$") of
+  case re:run(trim(Regex), "^([A-Za-z_][A-Za-z0-9_]*\\*.*|\\([^)]*\\)\\*.*|1\\+.*|.*\\+1)$") of
     {match, _} ->
       true;
     _ ->

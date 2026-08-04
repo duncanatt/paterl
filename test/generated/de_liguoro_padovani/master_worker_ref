@@ -23,7 +23,7 @@ def master(mb0: Master_mb?): (Unit * Master_mb?) {
 }
 
 def master_loop(mb1: Master_mb?): (Unit * Master_mb?) {
-  guard mb1: *Task {
+  guard mb1: Task* {
     empty(mb9) ->
       ((), mb9)
     receive Task(replyto, n) from mb2 ->
@@ -115,7 +115,7 @@ def harvest(mb18: Pool_mb?, count: Int, chunks: Int, acc: Int): (Int * Pool_mb?)
         (acc, mb20)
     }
     else {
-      guard mb19: *Result {
+      guard mb19: Result* {
         empty(mb24) ->
           (0, mb24)
         receive Result(result) from mb21 ->
@@ -131,7 +131,7 @@ def harvest(mb18: Pool_mb?, count: Int, chunks: Int, acc: Int): (Int * Pool_mb?)
 }
 
 def harvest_exit(mb25: Pool_mb?): (Unit * Pool_mb?) {
-  guard mb25: *Result {
+  guard mb25: Result* {
     empty(mb27) ->
       ((), mb27)
     receive Result(result) from mb26 ->

@@ -100,7 +100,7 @@ ping_loop(Pong, Pings_left) ->
 %% @doc Pong process loop issuing pong replies.
 -spec pong() -> no_return().
 pong() ->
-  ?expects("*(Ping + Stop)"),
+  ?expects("(Ping + Stop)*"),
   receive
     {ping, Ping} ->
 
@@ -114,7 +114,7 @@ pong() ->
 %% @doc Pong process exit procedure that flushes potential residual messages.
 -spec pong_exit() -> no_return().
 pong_exit() ->
-  ?expects("*(Ping + Stop)"),
+  ?expects("(Ping + Stop)*"),
   receive
     {ping, Ping} ->
       pong_exit();

@@ -38,9 +38,18 @@
 
 %%% Generic constants.
 
-%% Mailbox annotation primitive type.
--define(EXEC, "/Users/duncan/Dropbox/Postdoc/Development/mbcheck/mbcheck -qj").
-%%-define(EXEC, "/Users/duncan/Downloads/mbcheck/mbcheck -qj").
+%% Flags passed to the 'pat' type checker.
+% -q disables quasilinearity checking and -j uses sequential join rather than
+% disjoint combine; both are required for the (value, mailbox) tuple IR that
+% paterl generates, e.g. the mailbox self-alias 'let (self, mb') = (mb, mb)'.
+% -t skips the pat-lang interpreter so files are typechecked only. Flags are
+% passed separately because pat-lang's cmdliner CLI does not accept grouped
+% short flags such as -qj.
+-define(PAT_FLAGS, "-q -j -t").
+
+%% Environment variable overriding the location of the 'pat' executable. When
+%% unset, the executable named 'pat' is looked up in the directories of PATH.
+-define(PAT_ENV, "PATERL_PAT").
 
 %% Pat file extension.
 -define(PAT_EXT, ".pat").
@@ -69,6 +78,9 @@
 
 %% Unknown Pat error.
 -define(E_UNK__PAT, e_unk__pat).
+
+%% Pat executable not found.
+-define(E_NO__PAT, e_no__pat).
 
 
 %%% ----------------------------------------------------------------------------
@@ -342,18 +354,44 @@ check_pat(PatFile, Opts) ->
   Skip = proplists:get_bool(?OPT_SKIP, Opts),
   if not Skip ->
     io_util:info("[PAT] Patt'ing ~s.", [PatFile]),
-    case exec(?EXEC ++ " " ++ PatFile) of
-      {0, _} ->
-        % Generated Pat file type-checked successfully.
-        io_util:info("[PAT] Successfully type-checked ~s.erl.~n~n", [PatFile]);
-      {_, Bytes} ->
-        % Generated Pat file contains errors.
-        Msg = parse_error(Bytes),
-        paterl_errors:show_error({?MODULE, {?E_BAD__PAT, Msg}}),
+    case pat_exec() of
+      {ok, Exec} ->
+        case exec(Exec ++ " " ++ ?PAT_FLAGS ++ " " ++ PatFile) of
+          {0, _} ->
+            % Generated Pat file type-checked successfully.
+            io_util:info("[PAT] Successfully type-checked ~s.erl.~n~n", [PatFile]);
+          {_, Bytes} ->
+            % Generated Pat file contains errors.
+            Msg = parse_error(Bytes),
+            paterl_errors:show_error({?MODULE, {?E_BAD__PAT, Msg}}),
+            error
+        end;
+      error ->
+        paterl_errors:show_error({?MODULE, ?E_NO__PAT}),
         error
     end;
     true ->
       ok
+  end.
+
+-doc """
+Locates the 'pat' executable.
+
+The path is taken from the environment variable `PATERL_PAT` when set, and
+otherwise resolved by searching for `pat` in the directories of `PATH`.
+""".
+-spec pat_exec() -> {ok, string()} | error.
+pat_exec() ->
+  case os:getenv(?PAT_ENV) of
+    false ->
+      case os:find_executable("pat") of
+        false ->
+          error;
+        Path ->
+          {ok, Path}
+      end;
+    Path ->
+      {ok, Path}
   end.
 
 -doc """
@@ -501,5 +539,10 @@ format_error({?E_BAD__PAT, Reason}) ->
     [Reason]
   );
 format_error(?E_UNK__PAT) ->
-  "Unknown Pat error; see generated output file".
+  "Unknown Pat error; see generated output file";
+format_error(?E_NO__PAT) ->
+  io_lib:format(
+    "Cannot find the 'pat' executable; set the ~s environment variable to its full path or add its directory to PATH",
+    [?PAT_ENV]
+  ).
 

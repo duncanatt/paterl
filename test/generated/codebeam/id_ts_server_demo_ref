@@ -18,14 +18,14 @@ interface Ts_server_mb {
 }
 
 def id_server(mb0: Id_server_mb?): (Unit * Id_server_mb?) {
-  guard mb0: Init.*Get {
+  guard mb0: Init . Get* {
     receive Init(n) from mb1 ->
       id_server_loop(mb1, n)
   }
 }
 
 def id_server_loop(mb2: Id_server_mb?, n: Int): (Unit * Id_server_mb?) {
-  guard mb2: *Get {
+  guard mb2: Get* {
     empty(mb5) ->
       ((), mb5)
     receive Get(client) from mb3 ->
@@ -41,7 +41,7 @@ def ts_server(mb6: Ts_server_mb?): (Unit * Ts_server_mb?) {
 }
 
 def ts_server_loop(mb7: Ts_server_mb?): (Unit * Ts_server_mb?) {
-  guard mb7: *Now {
+  guard mb7: Now* {
     empty(mb11) ->
       ((), mb11)
     receive Now(client) from mb8 ->

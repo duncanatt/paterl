@@ -40,7 +40,7 @@
 
 -spec future() -> no_return().
 future() ->
-  ?expects("Put.*Get"),
+  ?expects("Put . Get*"),
 %%  ?expects("Put"), % Uncomment for "unexpected Get"
   receive
     {put, X} ->
@@ -51,7 +51,7 @@ future() ->
 
 -spec resolved_future(integer()) -> no_return().
 resolved_future(X) ->
-  ?expects("*Get"),
+  ?expects("Get*"),
   receive
     {get, User} ->
       10,

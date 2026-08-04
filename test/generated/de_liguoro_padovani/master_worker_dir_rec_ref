@@ -19,7 +19,7 @@ interface Worker_mb {
 interface Main_mb { }
 
 def master(mb0: Master_mb?): (Unit * Master_mb?) {
-  guard mb0: *Task {
+  guard mb0: Task* {
     empty(mb8) ->
       ((), mb8)
     receive Task(replyto, n) from mb1 ->
@@ -111,7 +111,7 @@ def harvest(mb17: Pool_mb?, count: Int, chunks: Int, acc: Int): (Int * Pool_mb?)
         (acc, mb19)
     }
     else {
-      guard mb18: *Result {
+      guard mb18: Result* {
         empty(mb23) ->
           (0, mb23)
         receive Result(result) from mb20 ->
@@ -127,7 +127,7 @@ def harvest(mb17: Pool_mb?, count: Int, chunks: Int, acc: Int): (Int * Pool_mb?)
 }
 
 def harvest_exit(mb24: Pool_mb?): (Unit * Pool_mb?) {
-  guard mb24: *Result {
+  guard mb24: Result* {
     empty(mb26) ->
       ((), mb26)
     receive Result(result) from mb25 ->

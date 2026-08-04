@@ -47,7 +47,7 @@ def philosopher_loop(mb2: Philosopher_mb?, id: Int, numrounds: Int, arbiter: Arb
 }
 
 def arbiter(mb9: Arbiter_mb?, numexitedphilosophers: Int, fork1: Bool, fork2: Bool): (Unit * Arbiter_mb?) {
-  guard mb9: *(Hungry + Done + Exit) {
+  guard mb9: (Hungry + Done + Exit)* {
     empty(mb18) ->
       ((), mb18)
     receive Hungry(philosopher, philosopherid) from mb10 ->
@@ -97,7 +97,7 @@ def deallocate_forks(id: Int, fork1: Bool, fork2: Bool): Unit {
 }
 
 def arbiter_exit(mb19: Arbiter_mb?): (Unit * Arbiter_mb?) {
-  guard mb19: *(Hungry + Done + Exit) {
+  guard mb19: (Hungry + Done + Exit)* {
     empty(mb23) ->
       ((), mb23)
     receive Hungry(philosopher, philosopherid) from mb20 ->

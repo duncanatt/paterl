@@ -11,7 +11,7 @@ def actor(mb0: Actor_mb?): (Unit * Actor_mb?) {
 }
 
 def actor_loop(mb1: Actor_mb?): (Unit * Actor_mb?) {
-  guard mb1: *Packet {
+  guard mb1: Packet* {
     empty(mb5) ->
       ((), mb5)
     receive Packet() from mb2 ->

@@ -140,7 +140,7 @@ master(StartRate, Increment) ->
   StartTerm2 = 2 * Increment,
   Worker2 = spawn(?MODULE, worker, [2, Self, Computer2, StartTerm2]),
 
-  ?expects("Start . *Result"),
+  ?expects("Start . Result*"),
   receive
     {start} ->
       % We should have a loop around this line to send multiple NextTerm
@@ -176,7 +176,7 @@ master(StartRate, Increment) ->
 %%  }
 -spec master_loop(integer(), worker_mb(), computer_mb(), worker_mb(), computer_mb(), integer(), integer()) -> no_return().
 master_loop(TermSum, Worker1, Computer1, Worker2, Computer2, NumWorkRequests, NumWorkReceived) ->
-  ?expects("*Result"),
+  ?expects("Result*"),
   receive
     {result, Term} ->
 %%      if (NumWorkRequests >= NumWorkReceived) ->
@@ -222,7 +222,7 @@ worker(Id, Master, Computer, CurrTerm) ->
 
 -spec worker_loop(integer(), master_mb(), computer_mb(), integer()) -> no_return().
 worker_loop(Id, Master, Computer, CurrTerm) ->
-  ?expects("Get_term . *Next_term . Stop"),
+  ?expects("Get_term . Next_term* . Stop"),
   receive
     {next_term} ->
 %%      Self = self(),
@@ -238,7 +238,7 @@ worker_loop(Id, Master, Computer, CurrTerm) ->
       worker_loop(Id, Master, Computer, 0);
     {get_term} ->
       Master ! {result, CurrTerm},
-      ?expects("Stop . *Next_term"),
+      ?expects("Stop . Next_term*"),
       receive
         {stop} ->
           worker_exit()
@@ -254,7 +254,7 @@ worker_loop(Id, Master, Computer, CurrTerm) ->
 %%  }
 -spec worker_exit() -> no_return().
 worker_exit() ->
-  ?expects("*Next_term"),
+  ?expects("Next_term*"),
   receive
     {next_term} ->
       worker_exit()
@@ -288,7 +288,7 @@ computer(Rate) ->
 
 -spec computer_loop(integer()) -> no_return().
 computer_loop(Rate) ->
-  ?expects("*Compute . Stop_compute"),
+  ?expects("Compute* . Stop_compute"),
   receive
     {compute, Term_mb, Term} ->
       Term_mb ! {done, Rate * Term * (1 - Term)},
@@ -310,7 +310,7 @@ computer_loop(Rate) ->
 %%  }
 -spec computer_exit() -> no_return().
 computer_exit() ->
-  ?expects("*Compute"),
+  ?expects("Compute*"),
   receive
     {compute, Term_mb, Term} ->
       Term_mb ! {done, Term},

@@ -63,7 +63,7 @@ fib_actor() ->
           Child2 = spawn(?MODULE, fib_actor, []),
           Child2 ! {request, N - 2, Self},
 
-          ?expects("Response.Response"),
+          ?expects("Response . Response"),
           Term1 = receive
             {response, X1} ->
               X1

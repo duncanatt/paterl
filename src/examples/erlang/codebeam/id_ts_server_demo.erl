@@ -72,7 +72,7 @@
 
 -spec id_server() -> no_return().
 id_server() ->
-  ?expects(id_server_mb, "Init.*Get"),
+  ?expects(id_server_mb, "Init . Get*"),
   receive
     {init, N} ->
       id_server_loop(N)
@@ -80,7 +80,7 @@ id_server() ->
 
 -spec id_server_loop(integer()) -> no_return().
 id_server_loop(N) ->
-  ?expects("*Get"),
+  ?expects("Get*"),
   receive
     {get, Client} ->
       Client ! {id, N},
@@ -93,7 +93,7 @@ ts_server() ->
 
 -spec ts_server_loop() -> no_return().
 ts_server_loop() ->
-  ?expects("*Now"),
+  ?expects("Now*"),
   receive
     {now, Client} ->
       Ts = system_time(),

@@ -105,7 +105,7 @@ counter(Total) ->
 %% @doc Counter process main loop counting increment requests.
 -spec counter_loop(integer()) -> no_return().
 counter_loop(Total) ->
-  ?expects("*Inc . Get"),
+  ?expects("Inc* . Get"),
   receive
     {inc} ->
       counter_loop(Total + 1);
@@ -117,7 +117,7 @@ counter_loop(Total) ->
 %% @doc Counter process exit procedure that flushes potential residual messages.
 -spec counter_exit() -> no_return().
 counter_exit() ->
-  ?expects("*Inc"),
+  ?expects("Inc*"),
   receive
     {inc} ->
       counter_exit()

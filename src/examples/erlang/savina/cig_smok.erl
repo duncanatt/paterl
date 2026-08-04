@@ -81,7 +81,7 @@ arbiter(NumRounds) ->
   Smoker2 = spawn(?MODULE, smoker, [Self]),
   Smoker3 = spawn(?MODULE, smoker, [Self]),
 
-  ?expects("Start . *Started_smoking"),
+  ?expects("Start . Started_smoking*"),
   receive
     {start} ->
       notify_smoker(Smoker1, Smoker2, Smoker3),
@@ -118,7 +118,7 @@ notify_smoker_exit(Smoker1, Smoker2, Smoker3) ->
 %% smoking replies.
 -spec arbiter_loop(integer(), smoker_mb(), smoker_mb(), smoker_mb()) -> no_return().
 arbiter_loop(Num_rounds, Smoker1, Smoker2, Smoker3) ->
-  ?expects("*Started_smoking"),
+  ?expects("Started_smoking*"),
   receive
     {started_smoking} ->
       % The if here introduces the internal choice, which means that on the
@@ -149,7 +149,7 @@ smoker(ArbiterMb) ->
 %% started smoking replies to/from the arbiter.
 -spec smoker_loop(arbiter_mb()) -> no_return().
 smoker_loop(ArbiterMb) ->
-  ?expects("*Start_smoking . *Exit"),
+  ?expects("Start_smoking* . Exit*"),
   receive
     {start_smoking, Ms} ->
       ArbiterMb ! {started_smoking},
@@ -163,7 +163,7 @@ smoker_loop(ArbiterMb) ->
 %% @doc Smoker process exit procedure that flushes potential residual messages.
 -spec smoker_exit() -> no_return().
 smoker_exit() ->
-  ?expects("*Start_smoking . *Exit"),
+  ?expects("Start_smoking* . Exit*"),
   receive
     {start_smoking, Ms} ->
       smoker_exit();

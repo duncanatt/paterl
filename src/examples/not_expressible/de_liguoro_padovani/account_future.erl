@@ -109,7 +109,7 @@ resume(Future) ->
 -spec flush(account_mb(), integer()) -> integer().
 flush(Account, Stale) ->
   %%  TODO Not sure about free
-  ?expects("*Debit . *Credit"),
+  ?expects("Debit* . Credit*"),
   receive
     {debit, Amount, Sender} ->
       flush(Account, Stale + 1);
@@ -146,7 +146,7 @@ account(Balance) ->
 
 -spec account_loop(integer()) -> no_return().
 account_loop(Balance) ->
-  ?expects("((*Debit) . (*Credit)) . Stop"),
+  ?expects("((Debit*) . (Credit*)) . Stop"),
   receive
     {debit, Amount, Sender} ->
       Sender ! {reply},

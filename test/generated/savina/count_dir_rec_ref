@@ -45,7 +45,7 @@ def producer_exit(mb6: Producer_mb?): (Unit * Producer_mb?) {
 }
 
 def counter(mb8: Counter_mb?, total: Int): (Unit * Counter_mb?) {
-  guard mb8: *Inc . Get {
+  guard mb8: Inc* . Get {
     empty(mb12) ->
       ((), mb12)
     receive Inc() from mb9 ->
@@ -59,7 +59,7 @@ def counter(mb8: Counter_mb?, total: Int): (Unit * Counter_mb?) {
 }
 
 def counter_exit(mb13: Counter_mb?): (Unit * Counter_mb?) {
-  guard mb13: *Inc {
+  guard mb13: Inc* {
     empty(mb15) ->
       ((), mb15)
     receive Inc() from mb14 ->

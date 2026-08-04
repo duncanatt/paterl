@@ -108,7 +108,7 @@ arbiter(NumExitedPhilosophers, Fork1, Fork2) ->
 %% philosopher processes, as well as coordinating their termination.
 -spec arbiter_loop(integer(), boolean(), boolean()) -> no_return().
 arbiter_loop(NumExitedPhilosophers, Fork1, Fork2) ->
-  ?expects("*(Hungry + Done + Exit)"),
+  ?expects("(Hungry + Done + Exit)*"),
   receive
     {hungry, Philosopher, PhilosopherId} ->
       Available = forks_available(PhilosopherId, Fork1, Fork2),
@@ -160,7 +160,7 @@ deallocate_forks(Id, Fork1, Fork2) ->
 %% @doc Arbiter process exit procedure flushing potential residual messages.
 -spec arbiter_exit() -> no_return().
 arbiter_exit() ->
-  ?expects("*(Hungry + Done + Exit)"),
+  ?expects("(Hungry + Done + Exit)*"),
   receive
     {hungry, Philosopher, PhilosopherId} ->
       arbiter_exit();

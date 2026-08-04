@@ -49,7 +49,7 @@ def counter(mb8: Counter_mb?, total: Int): (Unit * Counter_mb?) {
 }
 
 def counter_loop(mb9: Counter_mb?, total: Int): (Unit * Counter_mb?) {
-  guard mb9: *Inc . Get {
+  guard mb9: Inc* . Get {
     empty(mb13) ->
       ((), mb13)
     receive Inc() from mb10 ->
@@ -63,7 +63,7 @@ def counter_loop(mb9: Counter_mb?, total: Int): (Unit * Counter_mb?) {
 }
 
 def counter_exit(mb14: Counter_mb?): (Unit * Counter_mb?) {
-  guard mb14: *Inc {
+  guard mb14: Inc* {
     empty(mb16) ->
       ((), mb16)
     receive Inc() from mb15 ->

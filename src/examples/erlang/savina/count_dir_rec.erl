@@ -100,7 +100,7 @@ producer_exit() ->
 %% @doc Counter process main loop handling increment requests.
 -spec counter(integer()) -> no_return().
 counter(Total) ->
-  ?expects("*Inc . Get"),
+  ?expects("Inc* . Get"),
   receive
     {inc} ->
       counter(Total + 1);
@@ -112,7 +112,7 @@ counter(Total) ->
 %% @doc Counter process exit procedure that flushes potential residual messages.
 -spec counter_exit() -> no_return().
 counter_exit() ->
-  ?expects("*Inc"),
+  ?expects("Inc*"),
   receive
     {inc} ->
       counter_exit()
