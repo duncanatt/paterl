@@ -98,6 +98,27 @@ test: compile-test
 	echo "Savina/Thread ring test"
 	$(CMD) $(SRC)/examples/erlang/savina/thread_ring.erl -v all -I include -o $(BIN)
 	diff $(BIN)/thread_ring.pat $(TEST)/generated/savina/thread_ring_ref
+	echo "Savina/Big test"
+	$(CMD) $(SRC)/examples/erlang/savina/big.erl -v all -I include -o $(BIN)
+	diff $(BIN)/big.pat $(TEST)/generated/savina/big_ref
+	echo "Savina/Chameneos test"
+	$(CMD) $(SRC)/examples/erlang/savina/chameneos.erl -v all -I include -o $(BIN)
+	diff $(BIN)/chameneos.pat $(TEST)/generated/savina/chameneos_ref
+	echo "Other/Flip test"
+	$(CMD) $(SRC)/examples/erlang/other/flip.erl -v all -I include -o $(BIN)
+	diff $(BIN)/flip.pat $(TEST)/generated/other/flip_ref
+	echo "Other/Two-factor authentication test"
+	$(CMD) $(SRC)/examples/erlang/other/two_factor.erl -v all -I include -o $(BIN)
+	diff $(BIN)/two_factor.pat $(TEST)/generated/other/two_factor_ref
+	echo "Other/Chameneos game test"
+	$(CMD) $(SRC)/examples/erlang/other/chameneos_game.erl -v all -I include -o $(BIN)
+	diff $(BIN)/chameneos_game.pat $(TEST)/generated/other/chameneos_game_ref
+	echo "Other/Chameneos game test (dynamic pairing)"
+	$(CMD) $(SRC)/examples/erlang/other/chameneos_game_dyn.erl -v all -I include -o $(BIN)
+	diff $(BIN)/chameneos_game_dyn.pat $(TEST)/generated/other/chameneos_game_dyn_ref
+	echo "Other/Sleeping barber test"
+	$(CMD) $(SRC)/examples/erlang/other/barber2.erl -v all -I include -o $(BIN)
+	diff $(BIN)/barber2.pat $(TEST)/generated/other/barber2_ref
 
 
 run: compile

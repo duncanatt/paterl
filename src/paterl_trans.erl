@@ -173,6 +173,18 @@ case_clause(_Clause = {clause, _, PatSeq = [_], _GuardSeq = [], Body}, _Mb) ->
   [MsgPat] = pat_seq(PatSeq),
   pat_syntax:receive_expr(MsgPat, pat_syntax:var(Mb), Expr).
 
+-doc """
+Exempts the specified Pat receive clauses from the Pat alias check when the
+annotation records the exemption.
+""".
+unsafe_clauses(Clauses, Anno) ->
+  case paterl_anno:unsafe(Anno) of
+    true ->
+      [pat_syntax:unsafe_receive_expr(Clause) || Clause <- Clauses];
+    false ->
+      Clauses
+  end.
+
 -doc "Translate an Erlang if clause.".
 if_clause(_Clause = {clause, _, _PatSeq = [], [[GuardTest]], ExprSeq}, Mb) ->
   % Erlang constrained if clause with exactly one guard and one guard test.
@@ -270,12 +282,39 @@ expr_seq([{'if', _, [Clause0, Clause1]} | ExprSeq], Mb) ->
   {ExprC, ExprT} = if_clause(Clause0, Mb), % If.
   {{boolean, _, true}, ExprF} = if_clause(Clause1, Mb), % Else.
   [pat_syntax:if_expr(ExprC, ExprT, ExprF) | expr_seq(ExprSeq, Mb)];
+expr_seq([{'receive', Anno, Clauses, _Timeout, AfterBody} | ExprSeq], Mb) ->
+  % Erlang receive with timeout expression. Corresponds to a Pat guard
+  % expression whose free clause body is the translated timeout expression
+  % body.
+  State = paterl_anno:state(Anno),
+  ?TRACE("(~s) Translate receive with timeout expression guarding on '~s'.", [Mb, State]),
+  ReceiveClauses = unsafe_clauses(case_clauses(Clauses, Mb), Anno),
+
+  % Check mailbox regular expression for emptiness to determine if a Pat empty
+  % expression is required.
+  ReceiveClauses0 =
+    case pat_regex:is_mb_empty(State) of
+      true ->
+        % Mailbox may be empty. Add Pat empty expression.
+        Mb0 = fresh_mb(),
+        EmptyExpr = pat_syntax:empty_expr(pat_syntax:var(Mb0), expr(AfterBody, Mb0)),
+        [EmptyExpr | ReceiveClauses];
+      false ->
+        % Mailbox cannot be empty.
+        ReceiveClauses
+    end,
+
+  ?TRACE("(~s) Generate guard on '~s' with ~b clause(s).", [
+    Mb, State, length(ReceiveClauses0)
+  ]),
+  Guard = pat_syntax:guard_expr(pat_syntax:var(Mb), State, ReceiveClauses0),
+  [Guard | expr_seq(ExprSeq, Mb)];
 expr_seq([{'receive', Anno, Clauses} | ExprSeq], Mb) ->
   % Erlang unconstrained receive expression. Corresponds to a Pat guard
   % expression.
   State = paterl_anno:state(Anno),
   ?TRACE("(~s) Translate receive expression guarding on '~s'.", [Mb, State]),
-  ReceiveClauses = case_clauses(Clauses, Mb),
+  ReceiveClauses = unsafe_clauses(case_clauses(Clauses, Mb), Anno),
 
   % Check mailbox regular expression for emptiness to determine if a Pat empty
   % expression is required.

@@ -25,6 +25,11 @@
 %% "Has" mailbox annotation used in ?has(MbName, Pattern) macro.
 -define(ANNO_EXPECTS, '@expects').
 
+%% "Expects unsafe" mailbox annotation used in ?expects_unsafe(MbName, Pattern)
+%% macro. Asserts the mailbox state and exempts the receive expression from the
+%% Pat alias check.
+-define(ANNO_EXPECTS_UNSAFE, '@expects_unsafe').
+
 %% New mailbox modality.
 -define(MOD_NEW, new).
 
@@ -226,6 +231,7 @@
     orelse ?isAtomValue(hd(?litValue(Expr)), ?ANNO_USE)
     orelse ?isAtomValue(hd(?litValue(Expr)), ?ANNO_AS)
     orelse ?isAtomValue(hd(?litValue(Expr)), ?ANNO_EXPECTS)
+    orelse ?isAtomValue(hd(?litValue(Expr)), ?ANNO_EXPECTS_UNSAFE)
   )
 )).
 

@@ -150,7 +150,10 @@ def smoker_loop(mb18: Smoker_mb?, arbitermb: Arbiter_mb!): (Unit * Smoker_mb?) {
 def smoker_exit(mb25: Smoker_mb?): (Unit * Smoker_mb?) {
   guard mb25: Start_smoking* . Exit* {
     empty(mb28) ->
-      ((), mb28)
+      let (self, mb29) =
+        (mb28, mb28)
+      in
+        ((), mb29)
     receive Start_smoking(ms) from mb26 ->
       smoker_exit(mb26)
     receive Exit() from mb27 ->
@@ -158,33 +161,33 @@ def smoker_exit(mb25: Smoker_mb?): (Unit * Smoker_mb?) {
   }
 }
 
-def main(mb29: Main_mb?): (Unit * Main_mb?) {
-  let (arbitermb, mb32) =
-    (let mb30 =
+def main(mb30: Main_mb?): (Unit * Main_mb?) {
+  let (arbitermb, mb33) =
+    (let mb31 =
   new [Arbiter_mb]
 in
   let y =
     spawn {
-      let (x, mb31) =
-        arbiter(mb30, 10)
+      let (x, mb32) =
+        arbiter(mb31, 10)
       in
-        free(mb31)
+        free(mb32)
     }
   in
-    mb30, mb29)
+    mb31, mb30)
   in
-    (arbitermb ! Start(), mb32)
+    (arbitermb ! Start(), mb33)
 }
 
 def main'(): Unit {
-  let mb33 =
+  let mb34 =
     new [Main_mb]
   in
-    let (x, mb34) =
-      main(mb33)
+    let (x, mb35) =
+      main(mb34)
     in
       let y =
-        free(mb34)
+        free(mb35)
       in
         x
 }

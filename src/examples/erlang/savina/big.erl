@@ -10,8 +10,21 @@
 %%%
 %%% Single-mailbox adaptation of the pat-lang big example. The original actor
 %%% owns two mailboxes (the actor mailbox and a separate exit mailbox), which
-%%% cannot be expressed in Erlang. Here the exit message is delivered to the
-%%% actor mailbox instead, and the sink notifies the actors directly.
+%%% paterl cannot currently overlay on the mailbox of a single Erlang process.
+%%% See src/examples/not_expressible/savina/big.erl for the original sketch.
+%%%
+%%% Changes with respect to the two-mailbox original:
+%%% 1. The exit_mb interface is dropped and its exit message is delivered to
+%%%    the actor mailbox instead. Actor mailbox assertions gain a terminal
+%%%    Exit, e.g. "(Ping + Pong)* . Exit" in actor_loop.
+%%% 2. The sink holds actor mailbox references rather than exit mailbox
+%%%    references, and notifies the actors directly once all done messages
+%%%    are consumed (in the receive after clause, so that each actor is
+%%%    notified exactly once).
+%%% 3. Since Pat patterns are commutative, the exit message may be dequeued
+%%%    before residual pings and pongs. Both exit procedures therefore keep
+%%%    draining after consuming exit: actor_exit awaits the exit message while
+%%%    flushing, and actor_flush flushes the leftovers that follow it.
 %%% @end
 %%% Created : 14. May 2024 18:02
 %%%-------------------------------------------------------------------
@@ -203,4 +216,4 @@ main() ->
   ok.
 
 
-%% ./src/paterl src/examples/not_expressible/savina/big.erl -v all -I include
+%% ./src/paterl src/examples/erlang/savina/big.erl -v all -I include

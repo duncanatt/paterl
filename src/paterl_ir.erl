@@ -235,13 +235,12 @@ expr(Expr, false) when ?isIf(Expr) ->
 expr(Expr, true) when ?isReceive(Expr) ->
   % Receive and receive with timeout expressions.
   Anno = erl_syntax:get_pos(Expr),
-  Clauses = erl_syntax:receive_expr_clauses(Expr),
 
   % Erlang receive expression.
   Var = erl_syntax:set_pos(
     erl_syntax:variable(fresh_var()), Anno
   ),
-  Receive = erl_syntax:set_pos(erl_syntax:receive_expr(case_clauses(Clauses)), Anno),
+  Receive = erl_syntax:set_pos(receive_expr(Expr), Anno),
   erl_syntax:set_pos(
     erl_syntax:match_expr(Var, Receive),
     Anno
@@ -249,8 +248,19 @@ expr(Expr, true) when ?isReceive(Expr) ->
 expr(Expr, false) when ?isReceive(Expr) ->
   % Receive and receive with timeout expressions.
   Anno = erl_syntax:get_pos(Expr),
-  Clauses = erl_syntax:receive_expr_clauses(Expr),
-  erl_syntax:set_pos(erl_syntax:receive_expr(case_clauses(Clauses)), Anno).
+  erl_syntax:set_pos(receive_expr(Expr), Anno).
+
+-doc "Rewrites an Erlang receive or receive-after expression.".
+-spec receive_expr(erl_syntax:syntaxTree()) -> erl_syntax:syntaxTree().
+receive_expr(Expr) ->
+  Clauses = case_clauses(erl_syntax:receive_expr_clauses(Expr)),
+  case erl_syntax:receive_expr_timeout(Expr) of
+    none ->
+      erl_syntax:receive_expr(Clauses);
+    Timeout ->
+      Action = expr_seq(erl_syntax:receive_expr_action(Expr)),
+      erl_syntax:receive_expr(Clauses, Timeout, Action)
+  end.
 
 
 %%% ----------------------------------------------------------------------------

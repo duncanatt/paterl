@@ -330,7 +330,7 @@ lint_expr({'receive', Anno, Clauses, Expr, Body}, Analysis) when is_list(Clauses
   Analysis1 = lint_expr(Expr, Analysis0),
   lint_expr_seq(Body, Analysis1);
 lint_expr(_Expr = {tuple, _Anno, MbAnnoParams = [{atom, _, MbAnno} | _]}, Analysis)
-  when MbAnno =:= ?ANNO_EXPECTS; MbAnno =:= ?ANNO_AS ->
+  when MbAnno =:= ?ANNO_EXPECTS; MbAnno =:= ?ANNO_EXPECTS_UNSAFE; MbAnno =:= ?ANNO_AS ->
   % Mailbox annotation expression.
   ?TRACE("Lint mailbox annotation '~s'.", [
     erl_prettypr:format(
@@ -393,11 +393,13 @@ lint_arg(Arg, Analysis) ->
   ?pushError(?E_BAD__ARG, Arg, Analysis).
 
 -doc "Lints the arguments of mailbox annotation tuples.".
-lint_mb_anno_args([{atom, _, _MbAnno = ?ANNO_EXPECTS}, {atom, _, MbName}, {string, _, Pattern}], Analysis)
-  when is_atom(MbName), is_list(Pattern) ->
+lint_mb_anno_args([{atom, _, MbAnno}, {atom, _, MbName}, {string, _, Pattern}], Analysis)
+  when MbAnno =:= ?ANNO_EXPECTS orelse MbAnno =:= ?ANNO_EXPECTS_UNSAFE,
+  is_atom(MbName), is_list(Pattern) ->
   Analysis;
-lint_mb_anno_args([{atom, _, ?ANNO_EXPECTS}, {string, _, Pattern}], Analysis)
-  when is_list(Pattern) ->
+lint_mb_anno_args([{atom, _, MbAnno}, {string, _, Pattern}], Analysis)
+  when MbAnno =:= ?ANNO_EXPECTS orelse MbAnno =:= ?ANNO_EXPECTS_UNSAFE,
+  is_list(Pattern) ->
   Analysis;
 lint_mb_anno_args([{atom, _, ?ANNO_AS}, {atom, _, MbName}], Analysis)
   when is_atom(MbName) ->

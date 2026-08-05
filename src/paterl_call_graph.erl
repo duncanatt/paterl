@@ -224,6 +224,11 @@ analyze_expr({'receive', _, Clauses}, FunRef, Analysis) ->
   % Receive expression.
   ?DEBUG("Analyze '~s'.", [erl_prettypr:format(erl_syntax:receive_expr([]))]),
   analyze_clauses(Clauses, FunRef, Analysis);
+analyze_expr({'receive', _, Clauses, _Timeout, AfterBody}, FunRef, Analysis) ->
+  % Receive with timeout expression.
+  ?DEBUG("Analyze '~s'.", [erl_prettypr:format(erl_syntax:receive_expr([]))]),
+  Analysis0 = analyze_clauses(Clauses, FunRef, Analysis),
+  analyze_expr_seq(AfterBody, FunRef, Analysis0);
 analyze_expr(_Expr = {'if', _, Clauses}, FunRef, Analysis) ->
   % If expression.
   ?DEBUG("Analyze '~s'.", [erl_prettypr:format(erl_syntax:if_expr([]))]),

@@ -859,7 +859,8 @@ a [`paterl_lib:analysis()`](`t:paterl_lib:analysis/0`) with
   Analysis0 :: paterl_lib:analysis().
 check_msg_elems([], _, Analysis) ->
   Analysis;
-check_msg_elems([_Type = {type, _, integer, _} | Elems], TypeDefs, Analysis) ->
+check_msg_elems([_Type = {type, _, Name, _} | Elems], TypeDefs, Analysis)
+  when Name =:= boolean; Name =:= integer; Name =:= float; Name =:= string ->
   % Built-in primitive type.
   ?TRACE("Valid built-in primitive type '~s'.", [erl_prettypr:format(_Type)]),
   check_msg_elems(Elems, TypeDefs, Analysis);

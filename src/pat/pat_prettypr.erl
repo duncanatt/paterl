@@ -356,6 +356,14 @@ expr({'receive', _, MsgPat, RebindVar, Expr}, Col)
     format_col("receive ~s from ~s ->", [pat(MsgPat), var(RebindVar)], Col),
     ?SEP_EXPR,
     expr(Expr, Col + ?IND_STEP)
+  ];
+expr({receive_unsafe, _, MsgPat, RebindVar, Expr}, Col)
+  when ?IS_MSG_PAT(MsgPat), ?IS_VAR(RebindVar), ?IS_EXPR(Expr) ->
+  % Receive expression exempt from the Pat alias check.
+  [
+    format_col("receive* ~s from ~s ->", [pat(MsgPat), var(RebindVar)], Col),
+    ?SEP_EXPR,
+    expr(Expr, Col + ?IND_STEP)
   ].
 
 %% @private Pretty prints an expression sequence.

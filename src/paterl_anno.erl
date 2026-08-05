@@ -59,6 +59,9 @@
 %% Mailbox annotation regular expression state.
 -define(MA_STATE, state).
 
+%% Mailbox annotation exempting a receive expression from the Pat alias check.
+-define(MA_UNSAFE, unsafe).
+
 %%% Error types.
 
 %% Expected mailbox-annotated expression.
@@ -906,6 +909,70 @@ annotate_expr(Expr = {call, _, _, _}, _MbAnno, _RecFuns, _MbScopes, _, Analysis)
   ]),
   ?pushError(?E_BAD__ANNO_ON, Expr, Analysis#analysis{result = Expr});
 
+annotate_expr(Expr, _MbAnno = {?ANNO_EXPECTS_UNSAFE, Pattern}, RecFuns, MbScopes, TypeInfo, Analysis)
+  when ?isReceive(Expr) ->
+  % Receive expression exempt from the Pat alias check. The expression is
+  % annotated as a normal receive expression, and the exemption recorded in its
+  % annotation.
+  set_unsafe_result(
+    annotate_expr(Expr, {?ANNO_EXPECTS, Pattern}, RecFuns, MbScopes, TypeInfo, Analysis)
+  );
+annotate_expr(Expr, _MbAnno = {?ANNO_EXPECTS_UNSAFE, MbName, Pattern}, RecFuns, MbScopes, TypeInfo, Analysis)
+  when ?isReceive(Expr) ->
+  % Receive expression with interface name exempt from the Pat alias check.
+  set_unsafe_result(
+    annotate_expr(Expr, {?ANNO_EXPECTS, MbName, Pattern}, RecFuns, MbScopes, TypeInfo, Analysis)
+  );
+annotate_expr(Expr = {'receive', _, _, _, _}, _MbAnno = {?ANNO_EXPECTS, Pattern}, RecFuns, MbScopes = [MbScope], TypeInfo, Analysis) ->
+  % Annotated receive with timeout expression without interface name inside
+  % mailbox interface scope with single interface. Valid, since mailbox
+  % interface can be inferred from enclosing mailbox scope.
+  ?DEBUG("Annotate '~s' with implicit mailbox interface '~s'.", [
+    erl_prettypr:format(erl_syntax:receive_expr([])), MbScope]
+  ),
+  MbAnno0 = {?ANNO_EXPECTS, MbScope, Pattern},
+  annotate_expr(Expr, MbAnno0, RecFuns, MbScopes, TypeInfo, Analysis);
+annotate_expr(Expr = {'receive', Anno0, Clauses, Timeout, AfterBody}, _MbAnno = {?ANNO_EXPECTS, MbName, Pattern}, RecFuns, MbScopes, TypeInfo, Analysis) ->
+  % Annotated receive with timeout expression with interface name inside
+  % mailbox interface scope with multiple interfaces. The timeout expression
+  % body corresponds to the Pat guard free clause body.
+  ?DEBUG("Annotate '~s'.", [erl_prettypr:format(erl_syntax:receive_expr([]))]),
+
+  case is_mb_in_scope(MbName, MbScopes) of
+    true ->
+      % Get function return type from spec. Return type of most recent fun
+      % reference is used since it necessarily encloses the receive (call stack).
+      FunRef = hd(RecFuns),
+      {?T_SPEC, _, [FunType]} = paterl_types:spec_def(FunRef, TypeInfo),
+      RetType = erl_syntax:function_type_return(FunType),
+
+      % Annotate receive clauses and timeout expression body.
+      Analysis0 = annotate_clauses(Clauses, RecFuns, MbScopes, TypeInfo, Analysis),
+      Analysis1 = annotate_expr_seq(AfterBody, RecFuns, MbScopes, TypeInfo, Analysis0),
+
+      Anno2 = set_type(RetType, set_state(Pattern, set_interface(MbName, Anno0))),
+      Expr0 = paterl_syntax:set_anno(
+        erl_syntax:receive_expr(
+          Analysis0#analysis.result, Timeout, Analysis1#analysis.result
+        ),
+        Anno2
+      ),
+      Analysis1#analysis{result = Expr0};
+    false ->
+      % Mailbox interface not in scope. Invalid.
+      ErrNode = paterl_syntax:name(MbName, Anno0),
+      ?ERROR("mailbox interface '~s' not in scope", [erl_prettypr:format(ErrNode)]),
+      Analysis0 = ?pushError(?E_UNDEF__MB_SCOPE, ErrNode, Analysis),
+
+      % Annotate rest of clauses to uncover further possible errors.
+      Analysis1 = annotate_clauses(Clauses, RecFuns, MbScopes, TypeInfo, Analysis0),
+      Analysis1#analysis{result = Expr}
+  end;
+annotate_expr({'receive', Anno, Clauses, _Timeout, _AfterBody}, MbAnno, RecFuns, MbScopes, TypeInfo, Analysis) ->
+  % Receive with timeout expression with a missing or invalid annotation, or
+  % outside a mailbox interface scope. Error handling mirrors that of receive
+  % expressions.
+  annotate_expr({'receive', Anno, Clauses}, MbAnno, RecFuns, MbScopes, TypeInfo, Analysis);
 annotate_expr(Expr = {'receive', Anno, Clauses}, _MbAnno, RecFuns, MbScopes = undefined, TypeInfo, Analysis) ->
   % Receive expression outside mailbox interface scope. Invalid.
   ErrNode = paterl_syntax:set_anno(erl_syntax:receive_expr([]), Anno),
@@ -1095,6 +1162,34 @@ See `get_anno_val/3` for details.
 """.
 state(Anno) ->
   get_anno_val(Anno, ?MA_STATE, undefined).
+
+-doc """
+Retrieves the **unsafe** annotation value from the annotation.
+
+The value is `true` when the receive expression is exempt from the Pat alias
+check, and `false` otherwise.
+
+See `get_anno_val/3` for details.
+""".
+unsafe(Anno) ->
+  get_anno_val(Anno, ?MA_UNSAFE, false).
+
+-doc """
+Stores the specified `Unsafe` annotation value in the annotation.
+
+See `set_anno_val/3` for details.
+""".
+set_unsafe(Unsafe, Anno) when is_boolean(Unsafe) ->
+  set_anno_val(Anno, ?MA_UNSAFE, Unsafe).
+
+-doc """
+Records the Pat alias check exemption in the annotation of the receive
+expression contained in the specified `Analysis`.
+""".
+set_unsafe_result(Analysis = #analysis{result = Expr}) when ?isReceive(Expr) ->
+  Analysis#analysis{result = setelement(2, Expr, set_unsafe(true, element(2, Expr)))};
+set_unsafe_result(Analysis) ->
+  Analysis.
 
 -doc """
 Stores the specified `Type` annotation value in the annotation.

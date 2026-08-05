@@ -24,7 +24,7 @@
 -export([msg_expr/2, op_expr/2, op_expr/3, call_expr/2, if_expr/3, let_expr/3]).
 -export([
   new_expr/1, free_expr/1, spawn_expr/1, guard_expr/3, empty_expr/2,
-  receive_expr/3
+  receive_expr/3, unsafe_receive_expr/1
 ]).
 -export([comment/1]).
 %%-compile(export_all).
@@ -377,6 +377,15 @@ empty_expr(RebindVar, Expr) when ?IS_VAR(RebindVar), ?IS_EXPR(Expr) ->
 %% variable name, and body.
 receive_expr(MsgPat, RebindVar, Expr) when ?IS_MSG_PAT(MsgPat), ?IS_VAR(RebindVar), ?IS_EXPR(Expr) ->
   {'receive', ?DEF_ANNO_VAL, MsgPat, RebindVar, Expr}.
+
+%% @doc Returns a receive node exempt from the Pat alias check, printed as the
+%% Pat 'receive*' guard.
+unsafe_receive_expr(_Receive = {'receive', Anno, MsgPat, RebindVar, Expr}) ->
+  {receive_unsafe, Anno, MsgPat, RebindVar, Expr};
+unsafe_receive_expr(Expr) ->
+  % Empty and other guard clauses are not receive clauses and carry no
+  % exemption.
+  Expr.
 
 
 %%% ----------------------------------------------------------------------------

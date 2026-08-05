@@ -98,7 +98,8 @@ Erlang syntactic subset and mailbox interface well-formedness syntax checks.
 -type mb_anno() :: {?ANNO_NEW, anno(), MbName :: name()} |
 {?ANNO_USE, anno(), MbName :: name()} |
 {?ANNO_AS, anno(), MbName :: name()} |
-{?ANNO_EXPECTS, anno(), MbName :: name(), Pattern :: string()}.
+{?ANNO_EXPECTS, anno(), MbName :: name(), Pattern :: string()} |
+{?ANNO_EXPECTS_UNSAFE, anno(), MbName :: name(), Pattern :: string()}.
 
 -doc "Return result.".
 -type result() :: {ok, Forms :: forms(), Warnings :: paterl_errors:warnings()} |
@@ -221,7 +222,7 @@ specified [annotation](`m:erl_anno`).
 """.
 -spec mb_anno(Name, Args, Anno) -> Tree
   when
-  Name :: ?ANNO_NEW | ?ANNO_USE | ?ANNO_AS | ?ANNO_EXPECTS,
+  Name :: ?ANNO_NEW | ?ANNO_USE | ?ANNO_AS | ?ANNO_EXPECTS | ?ANNO_EXPECTS_UNSAFE,
   Args :: [term()],
   Anno :: anno(),
   Tree :: erl_syntax:syntaxTree().
@@ -308,7 +309,8 @@ erl_syntax:string("Msg*")])` returns `'@expects'`.
 - concrete name of the mailbox annotation abstract syntax representation
 - `{badarg, MbAnno}` when `MbAnno` does not represent a mailbox annotation
 """.
--spec mb_anno_name(MbAnno :: paterl_syntax:expr()) -> ?ANNO_NEW | ?ANNO_USE | ?ANNO_AS | ?ANNO_EXPECTS.
+-spec mb_anno_name(MbAnno :: paterl_syntax:expr()) ->
+  ?ANNO_NEW | ?ANNO_USE | ?ANNO_AS | ?ANNO_EXPECTS | ?ANNO_EXPECTS_UNSAFE.
 mb_anno_name(MbAnno) ->
   maybe
     true ?= is_mb_anno(MbAnno),
@@ -345,6 +347,7 @@ is_mb_anno(MbAnno) ->
               Name0 = erl_syntax:atom_value(Name),
               Name0 =:= ?ANNO_NEW orelse Name0 =:= ?ANNO_USE orelse
                 Name0 =:= ?ANNO_AS orelse Name0 =:= ?ANNO_EXPECTS orelse
+                Name0 =:= ?ANNO_EXPECTS_UNSAFE orelse
                 Name0 =:= state;
             _ ->
               false
