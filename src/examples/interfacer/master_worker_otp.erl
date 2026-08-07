@@ -5,6 +5,13 @@
 %%%
 %%% The master, pool, and workers are gen_servers. All communication uses
 %%% gen_server:call/2, so the example contains no direct send operations.
+%%%
+%%% One callback module implements all three roles, so handle_call/3 accepts
+%%% the union of their interfaces and the role is carried in the state. This
+%%% is the fallback shape: start_master/0 and start_pool/0 both call
+%%% gen_server:start_link(?MODULE, ...) so the endpoint types are asserted 
+%%% rather than checked. See master_worker_roles_otp/ for the one-module-per-role
+%%% version, in which each start_link/0 returns one kind of process.
 %%%-------------------------------------------------------------------
 -module(master_worker_otp).
 -behaviour(gen_server).
