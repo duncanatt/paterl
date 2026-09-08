@@ -6,34 +6,30 @@
 %%%-------------------------------------------------------------------
 -module(master_worker_plain).
 
--include("paterl.hrl").
-
 -import(io, [format/2]).
 
 -export([main/0]).
 -export([master/0, worker/0, client/2]).
 
 %%% Messages.
--type task() :: {task, client_if(), integer()}.
+-type task() :: {task, pid(client_in()), integer()}.
 -type result() :: {result, integer()}.
--type work() :: {work, pool_if(), integer()}.
+-type work() :: {work, pid(pool_in()), integer()}.
 
 %%% Interfaces.
 %%% pool/1 is called from the master loop, so the pool protocol runs in the
 %%% master process: one mailbox, one interface. The master's interface is
 %%% therefore the union of the two protocols it engages in, written here as a
-%%% union of the types. pool_if remains a name for the harvesting facet,
-%%% used where only that half is required.
--type pool_if() :: pid() | result().
--type master_if() :: pool_if() | task().
--type worker_if() :: pid() | work().
--type client_if() :: pid() | result().
-
-%%% ?as before a statically named spawn can be inferred
-%%% from the call graph of the spawned function. It is kept below for
-%%% explicitness. Only ?as before self() should be required.
+%%% union of the types. pool_in names the result half on its own, for use where only that
+%%% half is required.
+-type pool_in() :: result().
+-type task_in() :: task().
+-type master_in() :: pool_in() | task_in().
+-type worker_in() :: work().
+-type client_in() :: result().
 
 %% @doc Master server loop handling incoming client tasks.
+-interface master :: master_in().
 -spec master() -> no_return().
 master() ->
   master_loop().
@@ -51,18 +47,25 @@ master_loop() ->
   end.
 
 %% @doc Pool that interfaces with workers to farm tasks and harvest results.
+%% pool/1 runs in the master process and would inherit master_in from its
+%% caller. Declaring pool_in narrows that to the result half, which is all
+%% this function uses. Interfacer checks the narrowing, pool_in =< master_in.
+%% The narrowing describes how the process is used here, not a change to its
+%% mailbox: receives are selective, so task messages stay queued until the
+%% master loop reads them again.
+-interface pool :: pool_in().
 -spec pool(integer()) -> integer().
 pool(Chunks) ->
-  %% Self is the master process, whose interface is master_if. It is passed to
-  %% farm/3 where pool_if is expected: master_if includes pool_if, so the
-  %% endpoint accepts at least the result messages the workers send back.
-  ?as(master_if),
+  %% Self is typed pid(pool_in()) by the declaration above, which is what
+  %% farm/3 requires. The workers therefore receive a reference that carries
+  %% only the result messages they send back.
   Self = self(),
   farm(0, Chunks, Self),
   harvest(0, Chunks, 0).
 
 %% @doc Worker computing assigned task by master.
--spec worker() -> no_return().
+-interface worker :: worker_in().
+-spec worker() -> result().
 worker() ->
   receive
     {work, ReplyTo, Task} ->
@@ -71,13 +74,12 @@ worker() ->
   end.
 
 %% @doc Distributes tasks between worker processes.
--spec farm(integer(), integer(), pool_if()) -> ok.
+-spec farm(integer(), integer(), pid(pool_in())) -> ok.
 farm(Count, Chunks, Pool) ->
   if Count == Chunks ->
       ok;
     true ->
       Task = Count + 1,
-      ?as(worker_if),
       Worker = spawn(?MODULE, worker, []),
       Worker ! {work, Pool, Task},
       format("Farmed chunk ~b to worker ~p.~n", [Task, Worker]),
@@ -120,9 +122,9 @@ compute(N) ->
   N * N.
 
 %% @doc Client issuing one numerical task to the master.
--spec client(integer(), master_if()) -> any().
+-interface client :: client_in().
+-spec client(integer(), pid(task_in())) -> any().
 client(N, Master) ->
-  ?as(client_if),
   Self = self(),
   Master ! {task, Self, N},
   format("Client ~p sent task ~b to master ~p.~n", [Self, N, Master]),
@@ -134,22 +136,9 @@ client(N, Master) ->
 %% @doc Launcher.
 -spec main() -> any().
 main() ->
-  ?as(master_if),
   Master = spawn(?MODULE, master, []),
-  ?as(client_if),
   spawn(?MODULE, client, [5, Master]),
   ok.
 
-% erlc -I include -o ebin src/examples/interfacer/master_worker_plain.erl
-% erl -pa ebin -noshell -eval 'master_worker_plain:main(), timer:sleep(500), init:stop().'
-%
-% From repo root:
-%   Eqwalizer/Dialyzer/Typer provide ordinary Erlang type information;
-%   Interfacer performs the process-interface checks.
-%   elp eqwalize master_worker_plain
-% One-time Dialyzer PLT setup:
-%   dialyzer --build_plt --apps erts kernel stdlib --output_plt .dialyzer_plt
-% Check this file with Dialyzer:
-%   dialyzer --src --plt .dialyzer_plt -I include src/examples/interfacer/master_worker_plain.erl
-% Show inferred function specs with Typer:
-%   typer --show --plt .dialyzer_plt -I include src/examples/interfacer/master_worker_plain.erl
+% NOTE: this file uses the proposed notation, pid(I) and -interface, neither of
+% which currently parses. See encoded/ for the runnable form.

@@ -1,4 +1,8 @@
 %%%-------------------------------------------------------------------
+%%% ENCODED form: see include/interfacer.hrl. pid(I) is written pid_of(I)
+%%% and -interface f :: I(). is collected into one -interface([...]) at
+%%% the top. Read ../id_server_otp.erl for the proposed notation.
+%%%
 %%% gen_server version of id_server.erl, using gen_server:cast/2 for
 %%% init and gen_server:call/2 for get. Message and interface types
 %%% are exactly those of id_server.erl.
@@ -10,30 +14,30 @@
 %%% may reach the server. handle_info/2 is only a defensive fallback: no plain
 %%% send is part of the server interface.
 %%%
-%%% get()'s pid(id_client_in()) payload is carried on every call, but
+%%% get()'s pid_of(id_client_in()) payload is carried on every call, but
 %%% handle_call/3 does not need it: gen_server:call's own From already
 %%% correlates the reply with the caller, so Client is bound and
 %%% unused. It is kept because the type is kept.
 %%%
 %%% Errors:
 %%%   caught:     "unexpected message" (bad tag in the call argument),
-%%%               "type mismatch" (bad pid(id_client_in()) payload);
+%%%               "type mismatch" (bad pid_of(id_client_in()) payload);
 %%%   not caught: "omitted Id reply" -- behavioural, out of scope;
 %%%   changed:    "extra Init request" crashes handle_cast/2
 %%%               (function_clause) instead of sitting unmatched:
 %%%               gen_server dispatches every cast.
 %%%-------------------------------------------------------------------
--module(id_server_otp).
+-module(id_server_otp_encoded).
 -behaviour(gen_server).
 
+-include("interfacer.hrl").
 %% Processes running this callback module have this interface. The callback
 %% specs below are checked against it rather than defining it.
 %%
-%% This form takes no function name. Since the callback module is conventionally
-%% one process, the declaration goes on the module. The function-level form is
-%% used further down, for id_client/1.
--interface id_server_in().
-
+%% This interface declaration takes no function name. Since the callback module is
+%% conventionally one process, the declaration goes on the module. The
+%% function-level form is used further down, for id_client/1.
+-interface(id_server_in).
 %%% API.
 -export([start_link/0, id_client/1, main/0]).
 
@@ -41,6 +45,8 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
 
 -export_type([init/0, get/0, id/0, id_server_in/0, id_client_in/0]).
+
+-interface([{id_client, id_client_in}]).
 
 %%% ----------------------------------------------------------------------------
 %%% Type definitions.
@@ -50,7 +56,7 @@
 
 %% ID server.
 -type init() :: {init, integer()}.
--type get() :: {get, pid(id_client_in())}.
+-type get() :: {get, pid_of(id_client_in())}.
 -type id() :: {id, integer()}.
 
 %%% Interfaces.
@@ -67,14 +73,15 @@
 %%% they do not define it. Having one component for call, cast and plain send, it
 %%% says on its own which are empty, so a callback spec no longer has to.
 %%%
-%%% none() is the right interface component, being the empty type and the
-%%% identity for union, but the wrong argument type, since no clause head matches
-%%% it and analysers then call the clause unreachable. So the declaration says
-%%% info => none() and the clause says term(): one describes the interface, the
-%%% other the code.
+%%% That resolves an awkwardness. As an interface component none() is right, it
+%%% is the empty type and the identity for union; as a clause argument type it is
+%%% wrong, because no clause head can match a value of type none() and ordinary
+%%% analysers report the clause unreachable. The two claims belong in different
+%%% places. The declaration says info => none(); the clause is typed term(),
+%%% which is a statement about the clause, not about the interface.
 
 %% @doc Starts the Id Server process.
--spec start_link() -> {ok, pid(id_server_in())} | ignore | {error, term()}.
+-spec start_link() -> {ok, pid_of(id_server_in())} | ignore | {error, term()}.
 start_link() ->
   gen_server:start_link(?MODULE, [], []).
 
@@ -111,16 +118,15 @@ handle_info(Msg, State) -> % defensive: exempt from the unmatchable-clause check
 %%% Client.
 %%% ----------------------------------------------------------------------------
 
-%% The spec types Server as pid(id_server_in()), so Interfacer checks the
-%% call against that interface. id_client/1 needs a declaration of its own
+%% The spec types Server as pid_of(id_server_in()), so Interfacer checks the
+%% call below against that interface. id_client/1 needs a declaration of its own
 %% because it calls self(): the client is a plain process, not this callback
 %% module, so the module-level declaration above does not cover it.
--interface id_client :: id_client_in().
--spec id_client(pid(id_server_in())) -> integer().
+-spec id_client(pid_of(id_server_in())) -> integer().
 id_client(Server) ->
   case gen_server:call(Server, {get, self()}) of % Mistype tag for "unexpected message".
 %%  case gen_server:call(Server, {gte, self()}) of  % Uncomment for "unexpected message": gte is not a tag of id_server_in.
-%%  case gen_server:call(Server, {get, 16}) of       % Uncomment for "type mismatch": 16 is not a pid(id_client_in()).
+%%  case gen_server:call(Server, {get, 16}) of       % Uncomment for "type mismatch": 16 is not a pid_of(id_client_in()).
     {id, Id} -> Id
   end.
 
@@ -139,5 +145,20 @@ main() ->
   Id = id_client(Server),
   io:format("Id: ~p~n", [Id]).
 
-% NOTE: this file uses the proposed notation, pid(I) and -interface, neither of
-% which currently parses. See encoded/ for the runnable form.
+%% Encoded form of ../id_server_otp.erl. Build and run everything with
+%%   ./run-interfacer-examples.sh
+%%
+%% Or, from the repo root, this file alone:
+%%   erlc -I include -o ebin-interfacer src/examples/interfacer/encoded/id_server_otp_encoded.erl
+%%   erl -pa ebin-interfacer -noshell \
+%%     -eval 'id_server_otp_encoded:main(), timer:sleep(500), init:stop().'
+%%
+%% Eqwalizer, Dialyzer and TypEr supply ordinary Erlang type information;
+%% Interfacer performs the process-interface checks.
+%%   elp eqwalize id_server_otp_encoded
+%% One-time Dialyzer PLT setup:
+%%   dialyzer --build_plt --apps erts kernel stdlib --output_plt .dialyzer_plt
+%% Check this file with Dialyzer:
+%%   dialyzer --src --plt .dialyzer_plt -I include src/examples/interfacer/encoded/id_server_otp_encoded.erl
+%% Show inferred function specs with Typer:
+%%   typer --show --plt .dialyzer_plt -I include src/examples/interfacer/encoded/id_server_otp_encoded.erl

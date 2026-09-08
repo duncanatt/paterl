@@ -1,4 +1,8 @@
 %%%-------------------------------------------------------------------
+%%% ENCODED form: see include/interfacer.hrl. pid(I) is written pid_of(I)
+%%% and -interface f :: I(). is collected into one -interface([...]) at
+%%% the top. Read ../count_otp.erl for the proposed notation.
+%%%
 %%% OTP-style Interfacer version of Savina count.
 %%%
 %%% Adapted from Savina/count.
@@ -8,14 +12,14 @@
 %%% Both roles are gen_servers. The final total is returned by
 %%% gen_server:call/2 rather than sent directly to the producer.
 %%%-------------------------------------------------------------------
--module(count_otp).
+-module(count_otp_encoded).
 -behaviour(gen_server).
 
+-include("interfacer.hrl").
 %% This module implements several roles, so its declared interface is the
 %% union of theirs. See master_worker_roles_otp/ for the split version, in
 %% which each module declares one role.
--interface producer_in() | counter_in().
-
+-interface([producer_in, counter_in]).
 -import(io, [format/2]).
 
 -export([start_counter/1, start_producer/2, main/0]).
@@ -32,16 +36,16 @@
 
 %%% No receive loop: the declarations above say which calls and casts are valid.
 
--type role() :: {producer, pid(counter_in()), integer()} | {counter, integer()}.
+-type role() :: {producer, pid_of(counter_in()), integer()} | {counter, integer()}.
 
 %% @doc Starts the counter role that handles increment requests.
--spec start_counter(integer()) -> {ok, pid(counter_in())} | ignore | {error, term()}.
+-spec start_counter(integer()) -> {ok, pid_of(counter_in())} | ignore | {error, term()}.
 start_counter(Total) ->
   gen_server:start_link(?MODULE, {counter, Total}, []).
 
 %% @doc Starts the producer role that issues increment requests.
--spec start_producer(pid(counter_in()), integer()) ->
-        {ok, pid(producer_in())} | ignore | {error, term()}.
+-spec start_producer(pid_of(counter_in()), integer()) ->
+        {ok, pid_of(producer_in())} | ignore | {error, term()}.
 start_producer(Counter, NumMessages) ->
   gen_server:start_link(?MODULE, {producer, Counter, NumMessages}, []).
 
@@ -77,7 +81,7 @@ handle_info(Msg, Role) ->
   {stop, {unexpected_info, Msg}, Role}.
 
 %% @doc Producer main loop issuing increment requests.
--spec producer_loop(pid(counter_in()), integer()) -> ok.
+-spec producer_loop(pid_of(counter_in()), integer()) -> ok.
 producer_loop(Counter, NumMessages) ->
   if NumMessages =< 0 ->
       {total, Total} = gen_server:call(Counter, {get}),
@@ -94,5 +98,20 @@ main() ->
   {ok, Producer} = start_producer(Counter, 16),
   gen_server:cast(Producer, {inc}).
 
-% NOTE: this file uses the proposed notation, pid(I) and -interface, neither of
-% which currently parses. See encoded/ for the runnable form.
+%% Encoded form of ../count_otp.erl. Build and run everything with
+%%   ./run-interfacer-examples.sh
+%%
+%% Or, from the repo root, this file alone:
+%%   erlc -I include -o ebin-interfacer src/examples/interfacer/encoded/count_otp_encoded.erl
+%%   erl -pa ebin-interfacer -noshell \
+%%     -eval 'count_otp_encoded:main(), timer:sleep(500), init:stop().'
+%%
+%% Eqwalizer, Dialyzer and TypEr supply ordinary Erlang type information;
+%% Interfacer performs the process-interface checks.
+%%   elp eqwalize count_otp_encoded
+%% One-time Dialyzer PLT setup:
+%%   dialyzer --build_plt --apps erts kernel stdlib --output_plt .dialyzer_plt
+%% Check this file with Dialyzer:
+%%   dialyzer --src --plt .dialyzer_plt -I include src/examples/interfacer/encoded/count_otp_encoded.erl
+%% Show inferred function specs with Typer:
+%%   typer --show --plt .dialyzer_plt -I include src/examples/interfacer/encoded/count_otp_encoded.erl

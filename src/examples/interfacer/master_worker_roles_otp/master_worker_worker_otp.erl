@@ -5,14 +5,18 @@
 -module(master_worker_worker_otp).
 -behaviour(gen_server).
 
+%% Processes running this callback module have this interface. The callback
+%% specs below are checked against it rather than defining it.
+-interface worker_in().
+
 -export([start_link/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
--export_type([worker_if/0]).
+-export_type([worker_in/0]).
 
 %%% Interface.
 %%% Message types are declared once in master_worker_msgs_otp and referred to
 %%% remotely.
--type worker_if() :: pid() | master_worker_msgs_otp:work().
+-type worker_in() :: #{call => master_worker_msgs_otp:work(), cast => none(), info => none()}.
 
 -type state() :: [].
 
@@ -22,7 +26,7 @@
 %% @doc Starts a worker role that computes an assigned task.
 %% start_link/0 here returns a worker pid and nothing else, so the declared
 %% return type is checkable rather than asserted.
--spec start_link() -> {ok, worker_if()} | ignore | {error, term()}.
+-spec start_link() -> {ok, pid(worker_in())} | ignore | {error, term()}.
 start_link() ->
   gen_server:start_link(?MODULE, [], []).
 
@@ -54,19 +58,5 @@ handle_info(Msg, State) -> % defensive
 compute(N) ->
   N * N.
 
-% erlc -o ebin src/examples/interfacer/master_worker_roles_otp/*.erl
-% erl -pa ebin -noshell -eval 'master_worker_roles_otp:main().' -s init stop
-%
-% From repo root:
-%   Eqwalizer/Dialyzer/Typer provide ordinary Erlang type information;
-%   Interfacer performs the process-interface checks.
-%   elp eqwalize master_worker_roles_otp
-%   elp eqwalize master_worker_master_otp
-%   elp eqwalize master_worker_pool_otp
-%   elp eqwalize master_worker_worker_otp
-% One-time Dialyzer PLT setup:
-%   dialyzer --build_plt --apps erts kernel stdlib --output_plt .dialyzer_plt
-% Check these files with Dialyzer:
-%   dialyzer --src --plt .dialyzer_plt src/examples/interfacer/master_worker_roles_otp/*.erl
-% Show inferred function specs with Typer:
-%   typer --show --plt .dialyzer_plt src/examples/interfacer/master_worker_roles_otp/*.erl
+% NOTE: this file uses the proposed notation, pid(I) and -interface, neither of
+% which currently parses. See ../encoded/ for the runnable form.

@@ -23,7 +23,7 @@
 -export([client/2, main/0]).
 
 %% @doc Client issuing one numerical task to the master.
--spec client(integer(), master_worker_master_otp:master_if()) -> ok.
+-spec client(integer(), pid(master_worker_master_otp:master_in())) -> ok.
 client(N, Master) ->
   {result, Result} = gen_server:call(Master, {task, N}),
   format("Result from master: ~b.~n", [Result]).
@@ -34,19 +34,5 @@ main() ->
   {ok, Master} = master_worker_master_otp:start_link(),
   client(5, Master).
 
-% erlc -o ebin src/examples/interfacer/master_worker_roles_otp/*.erl
-% erl -pa ebin -noshell -eval 'master_worker_roles_otp:main().' -s init stop
-%
-% From repo root:
-%   Eqwalizer/Dialyzer/Typer provide ordinary Erlang type information;
-%   Interfacer performs the process-interface checks.
-%   elp eqwalize master_worker_roles_otp
-%   elp eqwalize master_worker_master_otp
-%   elp eqwalize master_worker_pool_otp
-%   elp eqwalize master_worker_worker_otp
-% One-time Dialyzer PLT setup:
-%   dialyzer --build_plt --apps erts kernel stdlib --output_plt .dialyzer_plt
-% Check these files with Dialyzer:
-%   dialyzer --src --plt .dialyzer_plt src/examples/interfacer/master_worker_roles_otp/*.erl
-% Show inferred function specs with Typer:
-%   typer --show --plt .dialyzer_plt src/examples/interfacer/master_worker_roles_otp/*.erl
+% NOTE: this file uses the proposed notation pid(I), which does not currently
+% parse. See ../encoded/ for the runnable form.

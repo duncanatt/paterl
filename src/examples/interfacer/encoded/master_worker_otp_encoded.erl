@@ -1,4 +1,8 @@
 %%%-------------------------------------------------------------------
+%%% ENCODED form: see include/interfacer.hrl. pid(I) is written pid_of(I)
+%%% and -interface f :: I(). is collected into one -interface([...]) at
+%%% the top. Read ../master_worker_otp.erl for the proposed notation.
+%%%
 %%% OTP-style Interfacer version of master_worker.
 %%%
 %%% Master-worker set-up.
@@ -13,14 +17,14 @@
 %%% rather than checked. See master_worker_roles_otp/ for the one-module-per-role
 %%% version, in which each start_link/0 returns one kind of process.
 %%%-------------------------------------------------------------------
--module(master_worker_otp).
+-module(master_worker_otp_encoded).
 -behaviour(gen_server).
 
+-include("interfacer.hrl").
 %% This module implements several roles, so its declared interface is the
 %% union of theirs. See master_worker_roles_otp/ for the split version, in
 %% which each module declares one role.
--interface master_in() | pool_in() | worker_in().
-
+-interface([master_in, pool_in, worker_in]).
 -import(io, [format/2]).
 
 -export([start_master/0, client/2, main/0]).
@@ -44,17 +48,17 @@
 -type role() :: master | pool | worker.
 
 %% @doc Starts the master server role.
--spec start_master() -> {ok, pid(master_in())} | ignore | {error, term()}.
+-spec start_master() -> {ok, pid_of(master_in())} | ignore | {error, term()}.
 start_master() ->
   gen_server:start_link(?MODULE, master, []).
 
 %% @doc Starts the pool role that farms tasks and harvests results.
--spec start_pool() -> {ok, pid(pool_in())} | ignore | {error, term()}.
+-spec start_pool() -> {ok, pid_of(pool_in())} | ignore | {error, term()}.
 start_pool() ->
   gen_server:start_link(?MODULE, pool, []).
 
 %% @doc Starts a worker role that computes an assigned task.
--spec start_worker() -> {ok, pid(worker_in())} | ignore | {error, term()}.
+-spec start_worker() -> {ok, pid_of(worker_in())} | ignore | {error, term()}.
 start_worker() ->
   gen_server:start_link(?MODULE, worker, []).
 
@@ -107,8 +111,8 @@ pool(Chunks) ->
   harvest(Workers, 0).
 
 %% @doc Distributes tasks between worker processes.
--spec farm(integer(), integer(), [{integer(), pid(worker_in())}]) ->
-        [{integer(), pid(worker_in())}].
+-spec farm(integer(), integer(), [{integer(), pid_of(worker_in())}]) ->
+        [{integer(), pid_of(worker_in())}].
 farm(Count, Chunks, Workers) ->
   if Count == Chunks ->
       lists:reverse(Workers);
@@ -121,7 +125,7 @@ farm(Count, Chunks, Workers) ->
 
 %% @doc Collects and sums the individual results of the tasks assigned to
 %% workers.
--spec harvest([{integer(), pid(worker_in())}], integer()) -> integer().
+-spec harvest([{integer(), pid_of(worker_in())}], integer()) -> integer().
 harvest([], Acc) ->
   Acc;
 harvest([{Task, Worker} | Workers], Acc) ->
@@ -135,7 +139,7 @@ compute(N) ->
   N * N.
 
 %% @doc Client issuing one numerical task to the master.
--spec client(integer(), pid(master_in())) -> any().
+-spec client(integer(), pid_of(master_in())) -> any().
 client(N, Master) ->
   {result, Result} = gen_server:call(Master, {task, N}),
   format("Result from master: ~b.~n", [Result]).
@@ -146,5 +150,20 @@ main() ->
   {ok, Master} = start_master(),
   client(5, Master).
 
-% NOTE: this file uses the proposed notation, pid(I) and -interface, neither of
-% which currently parses. See encoded/ for the runnable form.
+%% Encoded form of ../master_worker_otp.erl. Build and run everything with
+%%   ./run-interfacer-examples.sh
+%%
+%% Or, from the repo root, this file alone:
+%%   erlc -I include -o ebin-interfacer src/examples/interfacer/encoded/master_worker_otp_encoded.erl
+%%   erl -pa ebin-interfacer -noshell \
+%%     -eval 'master_worker_otp_encoded:main(), timer:sleep(500), init:stop().'
+%%
+%% Eqwalizer, Dialyzer and TypEr supply ordinary Erlang type information;
+%% Interfacer performs the process-interface checks.
+%%   elp eqwalize master_worker_otp_encoded
+%% One-time Dialyzer PLT setup:
+%%   dialyzer --build_plt --apps erts kernel stdlib --output_plt .dialyzer_plt
+%% Check this file with Dialyzer:
+%%   dialyzer --src --plt .dialyzer_plt -I include src/examples/interfacer/encoded/master_worker_otp_encoded.erl
+%% Show inferred function specs with Typer:
+%%   typer --show --plt .dialyzer_plt -I include src/examples/interfacer/encoded/master_worker_otp_encoded.erl

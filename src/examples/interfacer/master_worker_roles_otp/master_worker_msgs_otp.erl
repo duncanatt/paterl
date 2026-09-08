@@ -2,9 +2,8 @@
 %%% Shared message types for the one-module-per-role OTP master_worker
 %%% example.
 %%%
-%%% The three role modules exchange the same four messages. Declaring them
-%%% once here and referring to them remotely, as
-%%% master_worker_msgs_otp:result()
+%%% The three role modules exchange the same four messages. They are declared
+%%% once here and referred to remotely, as master_worker_msgs_otp:result().
 %%% Interfacer loads this module's type table to check a payload against a
 %%% type named in another module.
 %%%

@@ -1,4 +1,8 @@
 %%%-------------------------------------------------------------------
+%%% ENCODED form: see include/interfacer.hrl. pid(I) is written pid_of(I)
+%%% and -interface f :: I(). is collected into one -interface([...]) at
+%%% the top. Read ../master_worker_dir_rec_plain.erl for the proposed notation.
+%%%
 %%% Plain Interfacer version of master_worker_dir_rec.
 %%%
 %%% There is no OTP counterpart to this file. The direct-recursion distinction
@@ -11,17 +15,29 @@
 %%% This variant keeps the direct-recursive master from the Mailboxer
 %%% example while replacing the behavioural annotations with Interfacer
 %%%-------------------------------------------------------------------
--module(master_worker_dir_rec_plain).
+-module(master_worker_dir_rec_plain_encoded).
 
+-include("interfacer.hrl").
 -import(io, [format/2]).
 
 -export([main/0]).
+
+%% master_in, worker_in and work are named only by the -interface entries in
+%% this module, which erlc does not count as a type use; exporting them says
+%% they are part of this module's interface and silences the unused-type
+%% warning.
+-export_type([master_in/0, work/0, worker_in/0]).
+
 -export([master/0, worker/0, client/2]).
 
+-interface([{master, master_in},
+            {worker, worker_in},
+            {client, client_in}]).
+
 %%% Messages.
--type task() :: {task, pid(client_in()), integer()}.
+-type task() :: {task, pid_of(client_in()), integer()}.
 -type result() :: {result, integer()}.
--type work() :: {work, pid(pool_in()), integer()}.
+-type work() :: {work, pid_of(pool_in()), integer()}.
 
 %%% Interfaces.
 %%% pool/1 is called from the master loop, so the pool protocol runs in the
@@ -36,7 +52,6 @@
 -type client_in() :: result().
 
 %% @doc Master server loop handling incoming client tasks.
--interface master :: master_in().
 -spec master() -> no_return().
 master() ->
   receive
@@ -59,7 +74,6 @@ pool(Chunks) ->
   harvest(0, Chunks, 0).
 
 %% @doc Worker computing assigned task by master.
--interface worker :: worker_in().
 -spec worker() -> result().
 worker() ->
   receive
@@ -69,7 +83,7 @@ worker() ->
   end.
 
 %% @doc Distributes tasks between worker processes.
--spec farm(integer(), integer(), pid(pool_in())) -> ok.
+-spec farm(integer(), integer(), pid_of(pool_in())) -> ok.
 farm(Count, Chunks, Pool) ->
   if Count == Chunks ->
       ok;
@@ -117,8 +131,7 @@ compute(N) ->
   N * N.
 
 %% @doc Client issuing one numerical task to the master.
--interface client :: client_in().
--spec client(integer(), pid(task_in())) -> any().
+-spec client(integer(), pid_of(task_in())) -> any().
 client(N, Master) ->
   Self = self(),
   Master ! {task, Self, N},
@@ -135,5 +148,20 @@ main() ->
   spawn(?MODULE, client, [5, Master]),
   ok.
 
-% NOTE: this file uses the proposed notation, pid(I) and -interface, neither of
-% which currently parses. See encoded/ for the runnable form.
+%% Encoded form of ../master_worker_dir_rec_plain.erl. Build and run everything with
+%%   ./run-interfacer-examples.sh
+%%
+%% Or, from the repo root, this file alone:
+%%   erlc -I include -o ebin-interfacer src/examples/interfacer/encoded/master_worker_dir_rec_plain_encoded.erl
+%%   erl -pa ebin-interfacer -noshell \
+%%     -eval 'master_worker_dir_rec_plain_encoded:main(), timer:sleep(500), init:stop().'
+%%
+%% Eqwalizer, Dialyzer and TypEr supply ordinary Erlang type information;
+%% Interfacer performs the process-interface checks.
+%%   elp eqwalize master_worker_dir_rec_plain_encoded
+%% One-time Dialyzer PLT setup:
+%%   dialyzer --build_plt --apps erts kernel stdlib --output_plt .dialyzer_plt
+%% Check this file with Dialyzer:
+%%   dialyzer --src --plt .dialyzer_plt -I include src/examples/interfacer/encoded/master_worker_dir_rec_plain_encoded.erl
+%% Show inferred function specs with Typer:
+%%   typer --show --plt .dialyzer_plt -I include src/examples/interfacer/encoded/master_worker_dir_rec_plain_encoded.erl

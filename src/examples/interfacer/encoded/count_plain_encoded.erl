@@ -1,16 +1,24 @@
 %%%-------------------------------------------------------------------
+%%% ENCODED form: see include/interfacer.hrl. pid(I) is written pid_of(I)
+%%% and -interface f :: I(). is collected into one -interface([...]) at
+%%% the top. Read ../count_plain.erl for the proposed notation.
+%%%
 %%% Plain Interfacer version of Savina count.
 %%%
 %%% Adapted from Savina/count.
 %%% A generator actor sends messages to a receiving actor who increments a
 %%% counter upon receiving a message. The generator actor retrieves the total.
 %%%-------------------------------------------------------------------
--module(count_plain).
+-module(count_plain_encoded).
 
+-include("interfacer.hrl").
 -import(io, [format/2]).
 
 -export([main/0]).
 -export([producer/2, counter/1]).
+
+-interface([{producer, producer_in},
+            {counter, counter_in}]).
 
 %%% Messages.
 
@@ -19,7 +27,7 @@
 -type total() :: {total, integer()}.
 
 %% Counter.
--type get() :: {get, pid(producer_in())}.
+-type get() :: {get, pid_of(producer_in())}.
 
 %%% Interfaces.
 
@@ -29,8 +37,7 @@
 -type counter_in() :: inc() | get().
 
 %% @doc Producer process handling the launching of the main loop.
--interface producer :: producer_in().
--spec producer(pid(counter_in()), integer()) -> ok.
+-spec producer(pid_of(counter_in()), integer()) -> ok.
 producer(Counter, NumMessages) ->
   receive
     {inc} ->
@@ -38,7 +45,7 @@ producer(Counter, NumMessages) ->
   end.
 
 %% @doc Producer process main loop issuing increment requests.
--spec producer_loop(pid(counter_in()), integer()) -> ok.
+-spec producer_loop(pid_of(counter_in()), integer()) -> ok.
 producer_loop(Counter, NumMessages) ->
   if NumMessages =< 0 ->
       Self = self(),
@@ -58,7 +65,6 @@ producer_exit() ->
   end.
 
 %% @doc Counter process main loop handling increment requests.
--interface counter :: counter_in().
 -spec counter(integer()) -> ok.
 counter(Total) ->
   counter_loop(Total).
@@ -93,5 +99,20 @@ main() ->
   Producer = spawn(?MODULE, producer, [Counter, 16]),
   Producer ! {inc}.
 
-% NOTE: this file uses the proposed notation, pid(I) and -interface, neither of
-% which currently parses. See encoded/ for the runnable form.
+%% Encoded form of ../count_plain.erl. Build and run everything with
+%%   ./run-interfacer-examples.sh
+%%
+%% Or, from the repo root, this file alone:
+%%   erlc -I include -o ebin-interfacer src/examples/interfacer/encoded/count_plain_encoded.erl
+%%   erl -pa ebin-interfacer -noshell \
+%%     -eval 'count_plain_encoded:main(), timer:sleep(500), init:stop().'
+%%
+%% Eqwalizer, Dialyzer and TypEr supply ordinary Erlang type information;
+%% Interfacer performs the process-interface checks.
+%%   elp eqwalize count_plain_encoded
+%% One-time Dialyzer PLT setup:
+%%   dialyzer --build_plt --apps erts kernel stdlib --output_plt .dialyzer_plt
+%% Check this file with Dialyzer:
+%%   dialyzer --src --plt .dialyzer_plt -I include src/examples/interfacer/encoded/count_plain_encoded.erl
+%% Show inferred function specs with Typer:
+%%   typer --show --plt .dialyzer_plt -I include src/examples/interfacer/encoded/count_plain_encoded.erl
